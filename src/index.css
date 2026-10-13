@@ -1,0 +1,301 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Palette (RGB triplets) — the public site's warm ivory & brass. */
+:root {
+  --c-ivory: 251 248 243;
+  --c-linen: 244 238 229;
+  --c-sand: 234 225 211;
+  --c-stone: 214 202 186;
+  --c-ink: 30 28 25;
+  --c-charcoal: 46 42 37;
+  --c-muted: 111 103 93;
+  --c-brass: 168 131 79;
+  --c-brass-light: 201 168 116;
+  --c-brass-dark: 134 102 58;
+  --c-sea: 78 107 105;
+  --c-sea-light: 127 156 152;
+}
+
+/*
+ * Bay Design Base has its own modern theme: cool, airy neutrals, deep indigo for dark
+ * surfaces and text, indigo → violet as the accent, teal as the second accent, and a clean
+ * sans-serif for headings. Every Base component uses the palette names above, so this one
+ * block re-skins all of it.
+ */
+.base-theme {
+  --c-ivory: 250 251 255;
+  --c-linen: 243 244 251;
+  --c-sand: 232 234 250;
+  --c-stone: 221 224 239;
+  --c-ink: 23 23 58;
+  --c-charcoal: 49 46 129;
+  --c-muted: 100 106 135;
+  --c-brass: 99 102 241;
+  --c-brass-light: 167 139 250;
+  --c-brass-dark: 79 70 229;
+  --c-sea: 20 184 166;
+  --c-sea-light: 94 234 212;
+  --font-cormorant: var(--font-dm-sans);
+  color: rgb(var(--c-ink));
+}
+.base-theme .font-display {
+  letter-spacing: -0.02em;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-ivory text-ink font-sans antialiased;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: rgba(168, 131, 79, 0.25);
+  color: #1e1c19;
+}
+
+/* Subtle paper grain over the whole page */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@layer components {
+  /* Full-width page gutter: content spans the viewport with fluid side padding */
+  .shell {
+    width: 100%;
+    max-width: 2200px;
+    margin-inline: auto;
+    padding-inline: clamp(1.25rem, 4vw, 4.5rem);
+  }
+
+  .eyebrow {
+    @apply inline-flex items-center gap-3 text-[0.7rem] font-medium uppercase tracking-[0.28em] text-brass;
+  }
+  .eyebrow::before {
+    content: '';
+    @apply block h-px w-8 bg-current opacity-60;
+  }
+
+  .display {
+    @apply font-display font-normal tracking-[-0.015em] leading-[1.02];
+  }
+
+  .btn-primary {
+    @apply relative isolate inline-flex items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-full bg-ink px-7 py-3.5 text-sm font-medium text-ivory transition-colors duration-500;
+  }
+  .btn-primary::before {
+    content: '';
+    @apply absolute inset-0 -z-10 origin-bottom scale-y-0 rounded-full bg-brass transition-transform duration-500 ease-lux;
+  }
+  .btn-primary:hover::before {
+    @apply scale-y-100;
+  }
+  .btn-light {
+    @apply bg-ivory text-ink hover:text-ivory;
+  }
+  /* A band of light that sweeps across the button on hover */
+  .btn-sheen::after {
+    content: '';
+    @apply pointer-events-none absolute inset-y-0 -left-1/2 w-1/3 -skew-x-12 opacity-0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  }
+  .btn-sheen:hover::after {
+    animation: sheen 0.9s ease-out;
+  }
+  @keyframes sheen {
+    0% { left: -50%; opacity: 0; }
+    20% { opacity: 1; }
+    100% { left: 130%; opacity: 0; }
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-current px-7 py-3.5 text-sm font-medium transition-all duration-500 hover:bg-ink hover:text-ivory hover:border-ink;
+  }
+
+  .link-underline {
+    @apply relative inline-flex items-center gap-2 pb-1;
+  }
+  .link-underline::after {
+    content: '';
+    @apply absolute bottom-0 left-0 h-px w-full origin-right scale-x-0 bg-current transition-transform duration-500 ease-lux;
+  }
+  .link-underline:hover::after {
+    @apply origin-left scale-x-100;
+  }
+
+  .glass {
+    background: rgba(251, 248, 243, 0.82);
+    backdrop-filter: blur(18px) saturate(1.4);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  }
+  .glass-dark {
+    background: rgba(30, 28, 25, 0.28);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  }
+
+  .img-zoom img {
+    @apply transition-transform duration-[1.2s] ease-lux;
+  }
+  .img-zoom:hover img {
+    @apply scale-[1.06];
+  }
+
+  /* Form fields */
+  .field {
+    @apply flex flex-col gap-2 text-[0.7rem] font-medium uppercase tracking-[0.2em] text-muted;
+  }
+  .field input,
+  .field textarea,
+  .field select {
+    @apply w-full rounded-none border-0 border-b border-stone bg-transparent px-0 py-3 text-base font-normal normal-case tracking-normal text-ink transition-colors duration-300 placeholder:text-muted/50 focus:border-brass focus:outline-none focus:ring-0;
+  }
+  .field textarea {
+    @apply min-h-[7rem] resize-y;
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Bay Design Base (/base) — the team app shares the site's palette          */
+/* ------------------------------------------------------------------------ */
+@layer components {
+  .b-card {
+    @apply rounded-2xl border border-stone/60 bg-white shadow-[0_1px_0_rgb(var(--c-ink)/0.04),0_18px_40px_-26px_rgb(var(--c-ink)/0.35)] transition-shadow duration-300;
+  }
+  .b-card-pad {
+    @apply p-5 sm:p-6;
+  }
+  .b-h1 {
+    @apply font-display text-[2rem] font-medium leading-tight tracking-[-0.01em] text-ink sm:text-[2.4rem];
+  }
+  .b-h2 {
+    @apply font-display text-xl font-semibold text-ink sm:text-[1.4rem];
+  }
+  .b-eyebrow {
+    @apply text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-brass;
+  }
+
+  .b-btn {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/60 focus-visible:ring-offset-2 focus-visible:ring-offset-ivory disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .b-btn-primary {
+    @apply b-btn bg-ink text-ivory hover:bg-charcoal active:scale-[0.98];
+  }
+  .b-btn-brass {
+    @apply b-btn bg-gradient-to-r from-brass to-brass-dark text-white shadow-[0_8px_20px_-10px_rgb(var(--c-brass)/0.9)] hover:brightness-110 active:scale-[0.98];
+  }
+  .b-btn-ghost {
+    @apply b-btn border border-stone bg-white/70 text-ink hover:border-ink/40 hover:bg-white;
+  }
+  .b-btn-quiet {
+    @apply b-btn text-muted hover:bg-sand/60 hover:text-ink;
+  }
+  .b-btn-danger {
+    @apply b-btn border border-red-200 bg-red-50 text-red-700 hover:bg-red-100;
+  }
+  .b-btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .b-label {
+    @apply mb-1.5 block text-xs font-medium text-muted;
+  }
+  .b-input {
+    @apply block w-full rounded-xl border border-stone bg-white px-3.5 py-2.5 text-sm text-ink transition-colors placeholder:text-muted/60 focus:border-brass focus:outline-none focus:ring-2 focus:ring-brass/20 disabled:bg-linen;
+  }
+  .b-check {
+    @apply h-4 w-4 rounded border-stone text-brass accent-brass focus:ring-brass/30;
+  }
+
+  .b-table {
+    @apply w-full border-collapse text-left text-sm;
+  }
+  .b-table th {
+    @apply whitespace-nowrap border-b border-stone/70 bg-linen/80 px-4 py-3 text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-brass-dark;
+  }
+  .b-table td {
+    @apply border-b border-stone/40 px-4 py-3.5 align-middle;
+  }
+  .b-table tbody tr {
+    @apply transition-colors hover:bg-linen/60;
+  }
+
+  .b-badge {
+    @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[0.7rem] font-semibold;
+  }
+  .b-badge-green {
+    @apply b-badge bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/15;
+  }
+  .b-badge-amber {
+    @apply b-badge bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-600/20;
+  }
+  .b-badge-red {
+    @apply b-badge bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/15;
+  }
+  .b-badge-gray {
+    @apply b-badge bg-sand/70 text-muted ring-1 ring-inset ring-stone/60;
+  }
+  .b-badge-blue {
+    @apply b-badge bg-sky-50 text-sky-800 ring-1 ring-inset ring-sky-600/15;
+  }
+
+  .b-segment {
+    @apply inline-flex rounded-full border border-stone/70 bg-linen p-1;
+  }
+  .b-segment > a,
+  .b-segment > button {
+    @apply rounded-full px-4 py-1.5 text-sm font-medium text-muted transition-colors hover:text-ink;
+  }
+  .b-segment > [aria-current='page'],
+  .b-segment > [aria-pressed='true'] {
+    @apply bg-white text-ink shadow-sm;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f4eee5;
+}
+::-webkit-scrollbar-thumb {
+  background: #cfc3b2;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a8834f;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.text-outline {
+  -webkit-text-stroke: 1px currentColor;
+  color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
