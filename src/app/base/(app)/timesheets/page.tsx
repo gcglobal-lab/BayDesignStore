@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Clock3, Map as MapIcon, MapPin, Pencil, Plus } from 'lucide-react';
+import { Clock3, MapPin, Pencil, Plus } from 'lucide-react';
 import AutoRefresh from '@/components/base/AutoRefresh';
 import LiveDuration from '@/components/base/LiveDuration';
 import TimesheetFilter from '@/components/base/TimesheetFilter';
@@ -79,15 +79,6 @@ export default async function TimesheetsPage({ searchParams }: PageProps<'/base/
         description={(view === 'period' ? `Pay period ${rangeLabel}` : rangeLabel) + who}
         actions={
           <>
-            <Dialog
-              trigger={<><MapIcon size={15} /> Punch map</>}
-              triggerClassName="b-btn-ghost"
-              title="Where people punched in and out"
-              description={`${rangeLabel}${who} · tap a pin for details`}
-              wide
-            >
-              <PunchMap points={punchPoints(entries.slice(-400), zone, nameOf)} stores={stores} height={520} />
-            </Dialog>
             {manager && (
               <div className="b-segment">
                 <Link href={segment('day')} aria-current={view === 'day' ? 'page' : undefined}>Day</Link>

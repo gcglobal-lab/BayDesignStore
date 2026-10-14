@@ -6,20 +6,12 @@ import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useM
 import 'leaflet/dist/leaflet.css';
 import type { MapPoint, MapStore } from './PunchMap';
 
-// CARTO now needs a key on every tile (CARTOAPI in .env.local, passed in by next.config.ts).
-// Without one, OpenStreetMap's own tiles are used instead of CARTO's "API key required" image.
-const CARTO_KEY = process.env.NEXT_PUBLIC_CARTO_KEY ?? '';
-
+// Both map styles work without any API key.
 const TILES = {
-  streets: CARTO_KEY
-    ? {
-        url: `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CARTO_KEY)}`,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      }
-    : {
-        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      },
+  streets: {
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  },
   satellite: {
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: 'Imagery &copy; Esri',
@@ -51,13 +43,36 @@ const storeIcon = L.divIcon({
   </div>`,
 });
 
+/**
+ * Centres the map on the punches. Maps inside a pop-up open before the pop-up has its final
+ * size, so the map is re-measured (and re-centred) when it appears and whenever it resizes —
+ * otherwise it shows a cut-off area and the pins sit off screen.
+ */
 function FitBounds({ points, stores }: { points: MapPoint[]; stores: MapStore[] }) {
   const map = useMap();
   useEffect(() => {
     const coords: [number, number][] = [...points.map((p) => [p.lat, p.lng] as [number, number]), ...(points.length ? [] : stores.map((s) => [s.lat, s.lng] as [number, number]))];
-    if (coords.length === 0) return;
-    if (coords.length === 1) map.setView(coords[0], 16);
-    else map.fitBounds(L.latLngBounds(coords), { padding: [48, 48], maxZoom: 17 });
+    const fit = () => {
+      map.invalidateSize();
+      if (coords.length === 0) return;
+      if (coords.length === 1) map.setView(coords[0], 16, { animate: false });
+      else map.fitBounds(L.latLngBounds(coords), { padding: [56, 56], maxZoom: 17, animate: false });
+    };
+    fit();
+    const timers = [60, 250, 600].map((ms) => window.setTimeout(fit, ms));
+    let last = '';
+    const observer = new ResizeObserver(([entry]) => {
+      const size = `${Math.round(entry.contentRect.width)}x${Math.round(entry.contentRect.height)}`;
+      if (size !== last) {
+        last = size;
+        fit();
+      }
+    });
+    observer.observe(map.getContainer());
+    return () => {
+      timers.forEach((t) => window.clearTimeout(t));
+      observer.disconnect();
+    };
   }, [map, points, stores]);
   return null;
 }
@@ -75,7 +90,7 @@ export default function PunchMapInner({ points, stores, height }: { points: MapP
   return (
     <div className="relative overflow-hidden rounded-2xl border border-stone/60 shadow-inner" style={{ height }}>
       <MapContainer center={center} zoom={15} scrollWheelZoom className="h-full w-full" attributionControl>
-        <TileLayer key={layer} url={TILES[layer].url} attribution={TILES[layer].attribution} subdomains="abcd" maxZoom={19} />
+        <TileLayer key={layer} url={TILES[layer].url} attribution={TILES[layer].attribution} maxZoom={19} />
         <FitBounds points={points} stores={stores} />
 
         {stores.map((s) => (
