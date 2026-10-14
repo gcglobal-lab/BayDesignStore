@@ -35,8 +35,13 @@ const publicCsp = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // The Docker image runs the self-contained server (see Dockerfile); npm start is unaffected.
+  ...(process.env.NEXT_OUTPUT === 'standalone' ? { output: 'standalone' as const } : {}),
+  compress: true,
+  // Map tile key for the browser (CARTO requires one; it is meant to be public — restrict it to your domain in CARTO).
+  env: { NEXT_PUBLIC_CARTO_KEY: process.env.CARTOAPI?.trim() ?? '' },
   // Timesheet PDFs are built on the server; load jsPDF from node_modules instead of bundling it.
-  serverExternalPackages: ['jspdf', 'jspdf-autotable'],
+  serverExternalPackages: ['jspdf', 'jspdf-autotable', 'exceljs'],
   reactStrictMode: true,
   async headers() {
     return [

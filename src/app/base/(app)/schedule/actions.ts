@@ -9,7 +9,8 @@ import { audit } from '@/lib/base/audit';
 import { requireManager } from '@/lib/base/auth';
 import { db } from '@/lib/base/db';
 import { getSettings } from '@/lib/base/settings';
-import { addDaysYmd, dayRangeIso, isHm, isYmd, zonedDateTime } from '@/lib/base/time';
+import { diff } from '@/lib/base/activity';
+import { addDaysYmd, dayRangeIso, fmtDate, fmtTime, isHm, isYmd, zonedDateTime } from '@/lib/base/time';
 
 const shiftSchema = z.object({
   id: z.string().uuid().optional(),
@@ -74,12 +75,20 @@ export async function saveShift(_prev: ActionResult, formData: FormData): Promis
     notes: v.notes,
     ...(v.publish ? { published_at: new Date().toISOString() } : {}),
   };
+  const before = v.id ? (await db().from('shifts').select('employee_id, role_id, starts_at, ends_at, break_minutes, notes, published_at').eq('id', v.id).maybeSingle()).data : null;
   const res = v.id
     ? await db().from('shifts').update(row).eq('id', v.id).select('id').single()
     : await db().from('shifts').insert({ ...row, created_by: viewer.employeeId }).select('id').single();
   if (res.error) return fail('Couldn’t save the shift. Please try again.');
 
-  await audit(viewer, v.id ? 'shift.update' : 'shift.create', 'shifts', res.data.id);
+  const when = (iso: string | null | undefined) => (iso ? `${fmtDate(new Date(iso), timezone, 'MMM d')} ${fmtTime(iso, timezone)}` : null);
+  const changes = before
+    ? diff(
+        { starts_at: when(before.starts_at), ends_at: when(before.ends_at), break_minutes: before.break_minutes, notes: before.notes, published: Boolean(before.published_at) },
+        { starts_at: when(row.starts_at), ends_at: when(row.ends_at), break_minutes: row.break_minutes, notes: row.notes, published: Boolean(before.published_at) || v.publish },
+      )
+    : undefined;
+  await audit(viewer, v.id ? 'shift.update' : 'shift.create', 'shifts', res.data.id, { employee_id: v.employee_id ?? undefined, when: fmtDate(v.date, timezone, 'EEE, MMM d'), changes });
   revalidatePath('/base', 'layout');
   return done(v.id ? 'Shift updated.' : v.publish ? 'Shift added and published.' : 'Shift added as a draft — publish when the week is ready.');
 }
@@ -88,8 +97,8 @@ export async function deleteShift(formData: FormData) {
   const viewer = await requireManager();
   const id = z.string().uuid().safeParse(formData.get('id'));
   if (!id.success) return;
-  await db().from('shifts').delete().eq('id', id.data);
-  await audit(viewer, 'shift.delete', 'shifts', id.data);
+  const { data: gone } = await db().from('shifts').delete().eq('id', id.data).select('employee_id, starts_at').maybeSingle();
+  await audit(viewer, 'shift.delete', 'shifts', id.data, gone?.employee_id ? { employee_id: gone.employee_id, starts_at: gone.starts_at } : undefined);
   revalidatePath('/base', 'layout');
 }
 

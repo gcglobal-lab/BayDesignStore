@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Ban, CalendarDays, Plus, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Ban, CalendarDays, CircleDashed, Eye, EyeOff, Plus, Search, Trash2, X } from 'lucide-react';
 import { ActionForm, Field, SubmitButton } from './forms';
 import { Avatar } from './ui';
+import { DatePicker } from './calendar/Calendar';
 import { deleteShift, saveShift } from '@/app/base/(app)/schedule/actions';
 import { fmtDuration } from '@/lib/base/time';
 
@@ -24,10 +25,11 @@ export type GridShift = {
 };
 export type GridTimeOff = { id: string; employeeId: string; date: string; label: string };
 export type GridEvent = { id: string; title: string; dates: string[] };
-export type GridRow = { id: string; name: string; hours: number; highlight?: boolean };
+export type GridRow = { id: string; name: string; firstName: string; lastName: string; role: string | null; hours: number; highlight?: boolean; /** Their store — new shifts start there. */ locationId?: string | null };
 export type GridDay = { ymd: string; weekday: string; day: string; isToday: boolean };
 
 type Editing = { kind: 'new'; employeeId: string | null; date: string } | { kind: 'edit'; shift: GridShift } | null;
+type ViewBy = 'first' | 'last' | 'role' | 'hours';
 
 function ShiftChip({ s, onClick }: { s: GridShift; onClick?: () => void }) {
   const Tag = onClick ? 'button' : 'div';
@@ -35,13 +37,22 @@ function ShiftChip({ s, onClick }: { s: GridShift; onClick?: () => void }) {
     <Tag
       type={onClick ? 'button' : undefined}
       onClick={onClick}
-      className={`block w-full rounded-lg px-2 py-1 text-left text-[0.7rem] leading-tight text-white shadow-sm transition-transform ${onClick ? 'hover:-translate-y-px hover:shadow-md' : ''} ${s.published ? '' : 'opacity-75 outline-dashed outline-2 -outline-offset-2 outline-white/70'}`}
+      className={`block w-full rounded-md px-2 py-1.5 text-left text-[0.72rem] leading-tight text-white shadow-sm transition-all ${onClick ? 'hover:-translate-y-px hover:shadow-md hover:brightness-110' : ''} ${s.published ? '' : 'opacity-80 outline-dashed outline-2 -outline-offset-2 outline-white/80'}`}
       style={{ backgroundColor: s.color }}
       title={s.notes ?? undefined}
     >
-      <span className="block font-semibold">{s.label}</span>
-      <span className="block truncate opacity-90">{s.roleName ?? 'No role'}{!s.published && ' · Draft'}</span>
+      <span className="block font-bold">{s.label}</span>
+      <span className="block truncate font-medium opacity-95">{s.roleName ?? 'No role'}{!s.published && ' · Draft'}</span>
     </Tag>
+  );
+}
+
+function TimeOffChip({ label }: { label: string }) {
+  return (
+    <div className="rounded-md bg-[#E9E4D8] px-2 py-1.5 text-[0.72rem] leading-tight text-[#3E3A33]">
+      <span className="flex items-center gap-1 font-semibold"><Ban size={11} className="flex-none" /> Time-off</span>
+      <span className="mt-0.5 flex items-center gap-1"><CalendarDays size={10} className="flex-none" /> {label}</span>
+    </div>
   );
 }
 
@@ -55,6 +66,8 @@ export default function ScheduleGrid({
   locations,
   canEdit,
   defaultLocationId,
+  zone,
+  weekStart,
 }: {
   days: GridDay[];
   rows: GridRow[];
@@ -65,9 +78,34 @@ export default function ScheduleGrid({
   locations: { id: string; name: string }[];
   canEdit: boolean;
   defaultLocationId: string | null;
+  zone: string;
+  weekStart: number;
 }) {
   const [editing, setEditing] = useState<Editing>(null);
+  const [viewBy, setViewBy] = useState<ViewBy>('first');
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState('');
+  const [hidden, setHidden] = useState<string[]>([]);
   const dialog = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem('bdb-schedule-hidden') ?? '[]');
+      if (Array.isArray(saved)) setHidden(saved.filter((x) => typeof x === 'string'));
+    } catch {
+      // Storage or parsing can fail (private mode); nothing to do.
+    }
+  }, []);
+  const toggleHidden = (id: string) =>
+    setHidden((h) => {
+      const next = h.includes(id) ? h.filter((x) => x !== id) : [...h, id];
+      try {
+        window.localStorage.setItem('bdb-schedule-hidden', JSON.stringify(next));
+      } catch {
+      // Storage or parsing can fail (private mode); nothing to do.
+    }
+      return next;
+    });
 
   useEffect(() => {
     const el = dialog.current;
@@ -76,7 +114,30 @@ export default function ScheduleGrid({
     if (!editing && el.open) el.close();
   }, [editing]);
 
+  const visibleRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = rows.filter((r) => !hidden.includes(r.id) && (!q || r.name.toLowerCase().includes(q) || r.role?.toLowerCase().includes(q)));
+    const sorted = [...list].sort((a, b) =>
+      viewBy === 'last'
+        ? (a.lastName || a.firstName).localeCompare(b.lastName || b.firstName)
+        : viewBy === 'role'
+          ? (a.role ?? '~').localeCompare(b.role ?? '~') || a.firstName.localeCompare(b.firstName)
+          : viewBy === 'hours'
+            ? b.hours - a.hours
+            : a.firstName.localeCompare(b.firstName),
+    );
+    // The signed-in person stays on top.
+    return [...sorted.filter((r) => r.highlight), ...sorted.filter((r) => !r.highlight)];
+  }, [rows, hidden, query, viewBy]);
+
   const openShifts = shifts.filter((s) => s.employeeId === null);
+  const openHours = openShifts.reduce((sum, s) => {
+    const [sh, sm] = s.start.split(':').map(Number);
+    const [eh, em] = s.end.split(':').map(Number);
+    let mins = eh * 60 + em - (sh * 60 + sm);
+    if (mins <= 0) mins += 24 * 60;
+    return sum + Math.max(0, mins - s.breakMinutes);
+  }, 0);
   const current = editing?.kind === 'edit' ? editing.shift : null;
   const formKey = editing ? (editing.kind === 'edit' ? editing.shift.id : `${editing.employeeId}-${editing.date}`) : 'none';
 
@@ -84,23 +145,19 @@ export default function ScheduleGrid({
     const own = shifts.filter((s) => s.employeeId === employeeId && s.date === day.ymd);
     const off = employeeId ? timeOff.filter((t) => t.employeeId === employeeId && t.date === day.ymd) : [];
     return (
-      <td key={day.ymd} className={`group relative h-[3.6rem] border-b border-l border-stone/40 p-1 align-top ${day.isToday ? 'bg-brass/[0.04]' : ''}`}>
+      <td key={day.ymd} className={`group relative h-[3.75rem] border-b border-l border-stone/50 p-1 align-top ${day.isToday ? 'bg-violet-50/40' : ''}`}>
         <div className="space-y-1">
-          {off.map((t) => (
-            <div key={t.id} className="flex items-center gap-1 rounded-lg bg-sand px-2 py-1 text-[0.68rem] leading-tight text-muted">
-              <Ban size={11} className="flex-none" /> <span><span className="block font-semibold text-ink/70">Time off</span>{t.label}</span>
-            </div>
-          ))}
+          {off.map((t) => <TimeOffChip key={t.id} label={t.label} />)}
           {own.map((s) => <ShiftChip key={s.id} s={s} onClick={canEdit ? () => setEditing({ kind: 'edit', shift: s }) : undefined} />)}
         </div>
         {canEdit && (
           <button
             type="button"
             onClick={() => setEditing({ kind: 'new', employeeId, date: day.ymd })}
-            className={`flex w-full items-center justify-center rounded-lg text-muted opacity-0 transition-opacity hover:bg-linen hover:text-ink focus:opacity-100 group-hover:opacity-100 ${own.length || off.length ? 'mt-1 h-5' : 'absolute inset-1 w-auto'}`}
+            className={`flex w-full items-center justify-center rounded-md border border-dashed border-violet-300 text-violet-500 opacity-0 transition-opacity hover:bg-violet-50 focus:opacity-100 group-hover:opacity-100 ${own.length || off.length ? 'mt-1 h-6' : 'absolute inset-1 w-auto'}`}
             aria-label={`Add shift on ${day.weekday} ${day.day}`}
           >
-            <Plus size={14} />
+            <Plus size={15} />
           </button>
         )}
       </td>
@@ -109,14 +166,32 @@ export default function ScheduleGrid({
 
   return (
     <>
-      <div className="b-card overflow-x-auto">
-        <table className="w-full min-w-[1040px] table-fixed border-collapse text-sm">
+      <div className="b-card overflow-x-auto !rounded-xl">
+        <table className="w-full min-w-[1080px] table-fixed border-collapse text-sm">
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 w-56 border-b border-stone/50 bg-white px-4 py-3 text-left text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-muted">Team member</th>
+              <th className="sticky left-0 z-20 w-[18rem] border-b border-stone/60 bg-white px-4 py-3 text-left font-normal">
+                {searching ? (
+                  <div className="flex items-center gap-2">
+                    <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} className="b-input !py-1.5" placeholder="Search name or role" aria-label="Search team members" />
+                    <button type="button" className="rounded-lg p-1.5 text-muted hover:bg-linen" onClick={() => { setSearching(false); setQuery(''); }} aria-label="Close search"><X size={16} /></button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-muted">
+                    <span>View by</span>
+                    <select value={viewBy} onChange={(e) => setViewBy(e.target.value as ViewBy)} className="b-input !w-auto !rounded-lg !py-1.5 !pr-8 font-medium text-ink">
+                      <option value="first">First name</option>
+                      <option value="last">Last name</option>
+                      <option value="role">Role</option>
+                      <option value="hours">Scheduled hours</option>
+                    </select>
+                    <button type="button" className="rounded-lg p-1.5 hover:bg-linen hover:text-ink" onClick={() => setSearching(true)} aria-label="Search team members"><Search size={17} /></button>
+                  </div>
+                )}
+              </th>
               {days.map((d) => (
-                <th key={d.ymd} className="border-b border-l border-stone/40 px-2 py-3 text-center font-medium">
-                  <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 ${d.isToday ? 'bg-ink text-ivory' : ''}`}>
+                <th key={d.ymd} className="border-b border-l border-stone/60 bg-white px-2 py-3 text-center">
+                  <span className={`inline-flex items-center rounded-full px-3.5 py-1 text-[0.95rem] font-semibold ${d.isToday ? 'text-violet-700 ring-2 ring-violet-500' : 'text-ink'}`}>
                     {d.weekday}, {d.day}
                   </span>
                 </th>
@@ -124,41 +199,63 @@ export default function ScheduleGrid({
             </tr>
           </thead>
           <tbody>
-            <tr className="bg-linen/40">
-              <td className="sticky left-0 z-10 border-b border-stone/40 bg-ivory px-4 py-2 text-xs text-muted">
-                <span className="flex items-center gap-2"><CalendarDays size={14} /> Events ({events.length})</span>
+            <tr>
+              <td className="sticky left-0 z-10 border-b border-stone/50 bg-white px-4 py-2.5 text-sm text-ink">
+                <span className="flex items-center gap-2.5"><CalendarDays size={16} className="text-muted" /> Events ({events.length})</span>
               </td>
               {days.map((d) => (
-                <td key={d.ymd} className="border-b border-l border-stone/40 p-1 align-top">
+                <td key={d.ymd} className="border-b border-l border-stone/50 p-1 align-top">
                   {events.filter((e) => e.dates.includes(d.ymd)).map((e) => (
-                    <div key={e.id} className="truncate rounded-md bg-sea/10 px-2 py-0.5 text-[0.68rem] font-medium text-sea" title={e.title}>{e.title}</div>
+                    <div key={e.id} className="truncate rounded-md bg-sea/15 px-2 py-1 text-[0.7rem] font-semibold text-sea" title={e.title}>{e.title}</div>
                   ))}
                 </td>
               ))}
             </tr>
-            <tr className="bg-linen/40">
-              <td className="sticky left-0 z-10 border-b border-stone/40 bg-ivory px-4 py-2 text-xs text-muted">
-                Open shifts ({openShifts.length})
+            <tr>
+              <td className="sticky left-0 z-10 border-b border-stone/50 bg-white px-4 py-2.5 text-sm text-ink">
+                <span className="flex items-center gap-2.5">
+                  <CircleDashed size={16} className="text-muted" />
+                  <span>Open shifts ({openShifts.length})<span className="block text-[0.7rem] text-muted">{(openHours / 60).toFixed(2)} Hrs</span></span>
+                </span>
               </td>
               {days.map((d) => cell(null, d))}
             </tr>
             <tr>
-              <td colSpan={8} className="border-b border-stone/40 bg-white px-4 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-muted">Team members ({rows.length})</td>
+              <td colSpan={8} className="border-b border-stone/50 bg-linen/80 px-4 py-2 text-[0.82rem] font-medium text-muted">
+                Team members ({visibleRows.length}{hidden.length ? ` of ${rows.length}` : ''})
+                {hidden.length > 0 && (
+                  <button type="button" onClick={() => { setHidden([]); try { window.localStorage.removeItem('bdb-schedule-hidden'); } catch {
+      // Storage or parsing can fail (private mode); nothing to do.
+    } }} className="ml-3 text-xs font-semibold text-violet-700 hover:underline">
+                    Show {hidden.length} hidden
+                  </button>
+                )}
+              </td>
             </tr>
-            {rows.map((r) => (
-              <tr key={r.id} className={r.highlight ? 'bg-brass/[0.05]' : ''}>
-                <td className="sticky left-0 z-10 border-b border-stone/40 bg-white px-4 py-2">
-                  <div className="flex items-center gap-2.5">
+            {visibleRows.map((r) => (
+              <tr key={r.id} className={r.highlight ? 'bg-violet-50/30' : ''}>
+                <td className="sticky left-0 z-10 border-b border-stone/50 bg-white px-4 py-2">
+                  <div className="flex items-center gap-3">
                     <Avatar name={r.name} size="sm" />
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{r.name}</p>
-                      <p className="text-[0.68rem] text-muted">{fmtDuration(r.hours * 60)}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-ink">{r.name}</p>
+                      <p className="text-[0.68rem] text-muted">{fmtDuration(r.hours * 60)} hrs{r.role ? ` · ${r.role}` : ''}</p>
                     </div>
+                    <button type="button" onClick={() => toggleHidden(r.id)} className="rounded-lg p-1.5 text-muted/70 hover:bg-linen hover:text-ink" aria-label={`Hide ${r.name} from this view`} title="Hide from this view">
+                      <Eye size={16} />
+                    </button>
                   </div>
                 </td>
                 {days.map((d) => cell(r.id, d))}
               </tr>
             ))}
+            {visibleRows.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-4 py-10 text-center text-sm text-muted">
+                  <EyeOff size={18} className="mx-auto mb-2" /> Nobody to show — clear the search or show hidden people.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -186,7 +283,7 @@ export default function ScheduleGrid({
                     </select>
                   </Field>
                   <div className="grid gap-4 sm:grid-cols-3">
-                    <Field label="Date" htmlFor="sh-date"><input id="sh-date" type="date" name="date" required className="b-input" defaultValue={current?.date ?? (editing.kind === 'new' ? editing.date : '')} /></Field>
+                    <Field label="Date" htmlFor="sh-date"><DatePicker id="sh-date" name="date" required defaultValue={current?.date ?? (editing.kind === 'new' ? editing.date : '')} zone={zone} weekStart={weekStart} /></Field>
                     <Field label="Start" htmlFor="sh-start"><input id="sh-start" type="time" name="start" required className="b-input" defaultValue={current?.start ?? '09:00'} /></Field>
                     <Field label="End" htmlFor="sh-end"><input id="sh-end" type="time" name="end" required className="b-input" defaultValue={current?.end ?? '17:00'} /></Field>
                   </div>
@@ -201,7 +298,7 @@ export default function ScheduleGrid({
                   </div>
                   {locations.length > 1 && (
                     <Field label="Location" htmlFor="sh-loc">
-                      <select id="sh-loc" name="location_id" className="b-input" defaultValue={current?.locationId ?? defaultLocationId ?? ''}>
+                      <select id="sh-loc" name="location_id" className="b-input" defaultValue={current?.locationId ?? (editing.kind === 'new' ? rows.find((r) => r.id === editing.employeeId)?.locationId : null) ?? defaultLocationId ?? ''}>
                         {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                       </select>
                     </Field>

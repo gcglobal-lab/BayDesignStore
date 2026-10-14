@@ -25,8 +25,23 @@ export function Avatar({ name, size = 'md' }: { name: string; size?: 'xs' | 'sm'
   );
 }
 
-/** The light pastel banner at the top of every Base page: eyebrow, title, description and actions. */
-export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?: string; title: string; description?: ReactNode; actions?: ReactNode }) {
+/**
+ * The top of every Base page: eyebrow, title, description and actions. `plain` is the
+ * Homebase-style version (big title, toolbar on the right, no banner) used by the
+ * schedule, time off, availability and manager pages.
+ */
+export function PageHeader({ eyebrow, title, description, actions, plain = false }: { eyebrow?: string; title: string; description?: ReactNode; actions?: ReactNode; plain?: boolean }) {
+  if (plain) {
+    return (
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-[1.9rem] font-semibold leading-tight tracking-tight text-ink sm:text-[2.1rem]">{title}</h1>
+          {description && <p className="mt-1 max-w-2xl text-sm text-muted">{description}</p>}
+        </div>
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      </div>
+    );
+  }
   return (
     <div className="relative mb-6 overflow-hidden rounded-3xl border border-sky-300 bg-gradient-to-br from-sky-200 via-sky-100 to-blue-200 px-5 py-6 shadow-[0_14px_34px_-30px_rgba(14,116,144,0.45)] sm:mb-8 sm:px-8 sm:py-7">
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { CalendarX2, Plane, Plus } from 'lucide-react';
+import { CalendarX2, Check, ChevronRight, Plane, Settings, X } from 'lucide-react';
 import { Dialog } from '@/components/base/Dialog';
 import { SubmitButton } from '@/components/base/forms';
 import { DefaultPaidLeaveForm, LeaveAllowanceAllForm, LeaveAllowanceForm } from '@/components/base/LeaveForms';
@@ -8,7 +8,7 @@ import TimeOffForm, { type PaidLeft } from '@/components/base/TimeOffForm';
 import { Avatar, Card, EmptyState, PageHeader, StatusBadge } from '@/components/base/ui';
 import { isManager, requireViewer } from '@/lib/base/auth';
 import { db, must } from '@/lib/base/db';
-import { leaveBalance, leaveBalances } from '@/lib/base/leave';
+import { leaveBalanceYears, leaveBalances } from '@/lib/base/leave';
 import PaidLeaveSummary from '@/components/base/PaidLeaveSummary';
 import { listEmployees } from '@/lib/base/queries';
 import { getSettings } from '@/lib/base/settings';
@@ -83,23 +83,31 @@ export default async function TimeOffPage({ searchParams }: PageProps<'/base/tim
   return (
     <>
       <PageHeader
-        eyebrow="Shifts"
+        plain
         title="Time off"
         actions={
-          <Dialog trigger={<><Plus size={15} /> Add time off</>} triggerClassName="b-btn-brass" title="Add time off" description="Recorded as approved straight away.">
-            <TimeOffForm today={today} employees={active.map((e) => ({ id: e.id, name: fullName(e) }))} paidLeft={paidLeft} />
-          </Dialog>
+          <>
+            {viewer.level === 'admin' && <Link href="/base/settings?section=time-off" className="rounded-xl p-2.5 text-ink hover:bg-white" aria-label="Time off settings" title="Time off settings"><Settings size={21} /></Link>}
+            <Dialog trigger="Add time off" triggerClassName="rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-5 py-2.5 text-[0.95rem] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(124,58,237,0.9)] hover:brightness-110" title="Add time off" description="Recorded as approved straight away.">
+              <TimeOffForm today={today} employees={active.map((e) => ({ id: e.id, name: fullName(e) }))} paidLeft={paidLeft} />
+            </Dialog>
+          </>
         }
       />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
-          <Card title={`Requests (${pending.length})`} actions={<Link href={q({ history: showHistory ? '0' : '1' })} className="text-sm font-medium text-brass-dark underline-offset-2 hover:underline">{showHistory ? 'Hide history' : 'View history'}</Link>} pad={false}>
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-xl font-semibold tracking-tight">Requests ({pending.length})</h2>
+              <Link href={q({ history: showHistory ? '0' : '1' })} className="text-[0.95rem] font-semibold text-violet-700 underline decoration-2 underline-offset-4 hover:text-violet-900">{showHistory ? 'Hide history' : 'View history'}</Link>
+            </div>
+          <div className="b-card overflow-hidden !rounded-xl">
             {pending.length === 0 ? (
               <EmptyState icon={<CalendarX2 size={20} />} title="No requests" />
             ) : (
               <div className="overflow-x-auto">
-                <table className="b-table min-w-[640px]">
+                <table className="b-table b-table-plain min-w-[640px]">
                   <thead><tr><th>Name</th><th>Category</th><th>Dates</th><th>Total hours</th><th /></tr></thead>
                   <tbody>
                     {pending.map((t) => (
@@ -112,9 +120,10 @@ export default async function TimeOffPage({ searchParams }: PageProps<'/base/tim
                           {t.employee_id === viewer.employeeId && viewer.level !== 'admin' ? (
                             <span className="text-xs text-muted">Another manager must review</span>
                           ) : (
-                            <div className="flex justify-end gap-1.5">
-                              <form action={reviewTimeOff}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="decision" value="approved" /><SubmitButton className="b-btn-primary b-btn-sm">Approve</SubmitButton></form>
-                              <form action={reviewTimeOff}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="decision" value="denied" /><SubmitButton className="b-btn-ghost b-btn-sm">Deny</SubmitButton></form>
+                            <div className="flex items-center justify-end gap-2">
+                              <form action={reviewTimeOff}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="decision" value="approved" /><SubmitButton className="flex h-10 w-10 items-center justify-center rounded-lg border border-stone bg-white text-emerald-600 shadow-sm transition-colors hover:border-emerald-400 hover:bg-emerald-50"><Check size={22} strokeWidth={2.5} /><span className="sr-only">Approve</span></SubmitButton></form>
+                              <form action={reviewTimeOff}><input type="hidden" name="id" value={t.id} /><input type="hidden" name="decision" value="denied" /><SubmitButton className="flex h-10 w-10 items-center justify-center rounded-lg border border-stone bg-white text-red-600 shadow-sm transition-colors hover:border-red-400 hover:bg-red-50"><X size={22} strokeWidth={2.5} /><span className="sr-only">Deny</span></SubmitButton></form>
+                              <ChevronRight size={18} className="text-muted" />
                             </div>
                           )}
                         </td>
@@ -137,28 +146,29 @@ export default async function TimeOffPage({ searchParams }: PageProps<'/base/tim
                 </ul>
               </div>
             )}
-          </Card>
+          </div>
+          </section>
 
-          <Card
-            pad={false}
-            title={
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="b-h2">Hours approved</h2>
-                <div className="flex gap-1">
-                  {[year - 1, year, year + 1].map((y) => (
-                    <Link key={y} href={q({ year: String(y) })} className={`rounded-full px-2.5 py-1 text-xs font-medium ${y === year ? 'bg-ink text-ivory' : 'text-muted hover:bg-linen'}`}>{y}</Link>
-                  ))}
-                </div>
-              </div>
-            }
-            actions={
-              <div className="b-segment !p-0.5 text-xs">
+          <section>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <form className="flex items-center gap-2">
+                <h2 className="text-xl font-semibold tracking-tight">Hours approved:</h2>
+                <input type="hidden" name="type" value={category} />
+                {showTerminated && <input type="hidden" name="terminated" value="1" />}
+                <select name="year" defaultValue={year} className="b-input !w-auto !rounded-xl !py-2 font-semibold" aria-label="Year">
+                  {[thisYear + 1, thisYear, thisYear - 1, thisYear - 2].map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <button type="submit" className="b-btn-ghost b-btn-sm">Go</button>
+              </form>
+              <div className="flex flex-wrap gap-1.5">
                 {LEAVE_TYPES.map((t) => (
-                  <Link key={t} href={q({ type: t })} aria-current={category === t ? 'page' : undefined} className="!px-3 !py-1 !text-xs">{timeOffTypeLabel[t]}</Link>
+                  <Link key={t} href={q({ type: t })} aria-current={category === t ? 'page' : undefined} className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${category === t ? 'bg-[#3B0764] text-white' : 'border border-stone bg-white text-muted hover:text-ink'}`}>
+                    {timeOffTypeLabel[t]}
+                  </Link>
                 ))}
               </div>
-            }
-          >
+            </div>
+          <div className="b-card overflow-hidden !rounded-xl">
             <div className="max-h-[420px] overflow-y-auto">
               <table className="b-table">
                 <thead className="sticky top-0 bg-white"><tr><th>Name</th><th>{timeOffTypeLabel[category]}</th><th className="text-right">Hours approved</th></tr></thead>
@@ -173,10 +183,12 @@ export default async function TimeOffPage({ searchParams }: PageProps<'/base/tim
                 </tbody>
               </table>
             </div>
-            <div className="border-t border-stone/50 px-6 py-3">
-              <Link href={q({ terminated: showTerminated ? '' : '1' })} className="text-xs text-muted hover:text-ink">{showTerminated ? 'Hide' : 'Show'} terminated employees</Link>
-            </div>
-          </Card>
+          </div>
+            <Link href={q({ terminated: showTerminated ? '' : '1' })} className="mt-3 inline-flex items-center gap-2.5 text-sm font-medium text-ink">
+              <span className={`relative inline-flex h-6 w-11 rounded-full transition-colors ${showTerminated ? 'bg-violet-600' : 'bg-stone'}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${showTerminated ? 'translate-x-[22px]' : 'translate-x-0.5'}`} /></span>
+              Show terminated employees
+            </Link>
+          </section>
 
           <Card
             pad={false}
@@ -217,19 +229,21 @@ export default async function TimeOffPage({ searchParams }: PageProps<'/base/tim
         </div>
 
         <aside className="space-y-6">
-          <Card title={`Upcoming time off (${upcoming.length})`} pad={false}>
+          <section>
+          <h2 className="mb-3 text-xl font-semibold tracking-tight">Upcoming time off ({upcoming.length})</h2>
+          <div className="b-card overflow-hidden !rounded-xl">
             {upcoming.length === 0 ? (
               <p className="px-6 py-5 text-sm text-muted">Nothing scheduled.</p>
             ) : (
-              <ul className="max-h-[360px] divide-y divide-stone/40 overflow-y-auto">
+              <ul className="max-h-[440px] overflow-y-auto px-2 py-2">
                 {upcoming.map((t) => (
-                  <li key={t.id} className="flex items-start justify-between gap-3 px-5 py-3">
+                  <li key={t.id} className="flex items-start justify-between gap-3 rounded-xl px-4 py-3 hover:bg-linen/70">
                     <div>
-                      <p className="text-sm font-medium">{nameOf(t.employee_id)}</p>
-                      <p className="text-xs text-muted">{detail(t)}</p>
+                      <p className="text-[0.95rem] font-semibold">{nameOf(t.employee_id)}</p>
+                      <p className="mt-1 text-sm text-muted">{detail(t)}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      <span className="whitespace-nowrap text-xs font-medium">{fmtDateRange(t.starts_on, t.ends_on, zone)}</span>
+                      <span className="whitespace-nowrap text-sm font-medium">{fmtDateRange(t.starts_on, t.ends_on, zone)}</span>
                       <form action={cancelTimeOff}>
                         <input type="hidden" name="id" value={t.id} />
                         <SubmitButton className="text-[0.7rem] text-muted hover:text-red-600" confirm="Cancel this approved time off?">Cancel</SubmitButton>
@@ -239,7 +253,8 @@ export default async function TimeOffPage({ searchParams }: PageProps<'/base/tim
                 ))}
               </ul>
             )}
-          </Card>
+          </div>
+          </section>
 
           <Card title="Paid leave">
             <div className="space-y-5 text-sm">
@@ -268,11 +283,12 @@ export default async function TimeOffPage({ searchParams }: PageProps<'/base/tim
 
 async function EmployeeTimeOff({ employeeId, zone, today }: { employeeId: string; zone: string; today: string }) {
   const year = Number(today.slice(0, 4));
-  const [requestsRes, balance, nextBalance] = await Promise.all([
+  const [requestsRes, balances] = await Promise.all([
     db().from('time_off_requests').select('*').eq('employee_id', employeeId).order('starts_on', { ascending: false }).limit(50),
-    leaveBalance(employeeId, year),
-    leaveBalance(employeeId, year + 1),
+    leaveBalanceYears(employeeId, [year, year + 1]),
   ]);
+  const balance = balances.get(year)!;
+  const nextBalance = balances.get(year + 1)!;
   const requests = must<TimeOffRequest[]>(requestsRes, 'load your time off');
   const upcoming = requests.filter((t) => t.ends_on >= today && (t.status === 'pending' || t.status === 'approved')).reverse();
   const past = requests.filter((t) => !upcoming.includes(t));
@@ -304,7 +320,7 @@ async function EmployeeTimeOff({ employeeId, zone, today }: { employeeId: string
   return (
     <>
       <PageHeader
-        eyebrow="Shifts"
+        plain
         title="Time off"
         actions={
           <Dialog trigger={<><Plane size={15} /> Request time off</>} triggerClassName="b-btn-brass" title="Request time off" description="Your manager will be asked to approve it.">

@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import { ChevronDown } from 'lucide-react';
 import { SubmitButton } from '@/components/base/forms';
 import { Avatar, PageHeader } from '@/components/base/ui';
-import WeekNav from '@/components/base/WeekNav';
+import Link from 'next/link';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import WeekJump from '@/components/base/WeekJump';
 import { requireManager } from '@/lib/base/auth';
 import { availabilityOn, fmtSlotTime, listAvailability, type Slot } from '@/lib/base/availability';
 import { listEmployees } from '@/lib/base/queries';
@@ -14,17 +16,17 @@ import { reviewAvailability } from './actions';
 export const metadata: Metadata = { title: 'Team Availability' };
 
 const KIND_STYLE = {
-  preferred: 'bg-[#EFE8F6] text-[#4F3A6B]',
-  available: 'bg-emerald-50 text-emerald-800',
-  unavailable: 'bg-red-50 text-red-700',
+  preferred: 'bg-[#EEE8F8] text-[#2E1F4D]',
+  available: 'bg-emerald-50 text-emerald-900',
+  unavailable: 'bg-red-50 text-red-800',
 } as const;
 const DAY_NAMES = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 function SlotChip({ slot }: { slot: Slot }) {
   return (
-    <div className={`rounded-lg px-2 py-1.5 text-center text-[0.7rem] leading-tight ${KIND_STYLE[slot.kind]}`}>
-      <p className="font-semibold capitalize">{slot.kind}</p>
-      <p>{slot.all_day ? 'All day' : `${fmtSlotTime(slot.start_time)} – ${fmtSlotTime(slot.end_time)}`}</p>
+    <div className={`flex h-full flex-col justify-center rounded-sm px-2 py-2 text-center leading-tight ${KIND_STYLE[slot.kind]}`}>
+      <p className="text-[0.88rem] font-semibold capitalize">{slot.kind}</p>
+      <p className="mt-0.5 text-[0.74rem] font-semibold">{slot.all_day ? 'All day' : `${fmtSlotTime(slot.start_time)} – ${fmtSlotTime(slot.end_time)}`}</p>
     </div>
   );
 }
@@ -44,24 +46,28 @@ export default async function TeamAvailabilityPage({ searchParams }: PageProps<'
   return (
     <>
       <PageHeader
-        eyebrow="Shifts"
+        plain
         title="Team Availability"
         actions={
-          <WeekNav
-            basePath="/base/team-availability"
-            label={`${fmtDate(week, zone, 'MMM d')} – ${fmtDate(days[6], zone, 'MMM d, yyyy')}`}
-            prev={addDaysYmd(week, -7, zone)}
-            next={addDaysYmd(week, 7, zone)}
-            today={week !== thisWeek ? thisWeek : undefined}
-          />
+          <>
+            {week !== thisWeek && <Link href={`/base/team-availability?week=${thisWeek}`} className="rounded-xl bg-linen px-4 py-2.5 text-sm font-semibold ring-1 ring-inset ring-stone hover:bg-sand">This week</Link>}
+            <WeekJump label={`${fmtDate(week, zone, 'MMM d, yyyy')} - ${fmtDate(days[6], zone, 'MMM d, yyyy')}`} value={week} href="/base/team-availability" zone={zone} weekStart={settings.week_start} />
+            <Link href={`/base/team-availability?week=${addDaysYmd(week, -7, zone)}`} className="rounded-xl p-2.5 hover:bg-white" aria-label="Previous week"><ChevronLeft size={20} /></Link>
+            <Link href={`/base/team-availability?week=${addDaysYmd(week, 7, zone)}`} className="rounded-xl p-2.5 hover:bg-white" aria-label="Next week"><ChevronRight size={20} /></Link>
+          </>
         }
       />
-      <div className="b-card overflow-x-auto">
-        <table className="b-table min-w-[960px] table-fixed">
+      <div className="b-card overflow-x-auto !rounded-xl p-3">
+        <table className="w-full min-w-[980px] table-fixed border-collapse text-sm">
           <thead>
             <tr>
-              <th className="w-56">Team member</th>
-              {days.map((d) => <th key={d} className="text-center">{fmtDate(d, zone, 'EEEE')}<span className="block font-normal normal-case tracking-normal">{fmtDate(d, zone, 'MMM d')}</span></th>)}
+              <th className="w-60 border border-[#D9D4B8] bg-white px-3 py-2.5" />
+              {days.map((d) => (
+                <th key={d} className="border border-[#D9D4B8] bg-white px-2 py-2.5 text-center text-[0.92rem] font-semibold text-ink">
+                  {fmtDate(d, zone, 'EEEE')}
+                  <span className="block text-[0.7rem] font-normal text-muted">{fmtDate(d, zone, 'MMM d')}</span>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -69,15 +75,15 @@ export default async function TeamAvailabilityPage({ searchParams }: PageProps<'
               const pending = requests.find((r) => r.employee_id === e.id && r.status === 'pending');
               return (
                 <tr key={e.id} className="align-top">
-                  <td>
+                  <td className="border border-[#D9D4B8] px-3 py-3">
                     <div className="flex items-center gap-2.5">
                       <Avatar name={fullName(e)} size="sm" />
                       <div className="min-w-0">
                         <p className="truncate font-medium">{fullName(e)}</p>
                         {pending && (
                           <details className="group mt-1">
-                            <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-brass-dark">
-                              <ChevronDown size={12} className="transition-transform group-open:rotate-180" /> View request
+                            <summary className="flex cursor-pointer list-none items-center gap-1 text-[0.85rem] font-semibold text-violet-700">
+                              <ChevronDown size={14} className="transition-transform group-open:rotate-180" fill="currentColor" /> View Requests
                             </summary>
                             <div className="mt-2 space-y-1 rounded-xl bg-linen p-2.5 text-xs">
                               <p className="text-muted">From {fmtDate(pending.effective_from, zone, 'MMM d, yyyy')}</p>
@@ -109,8 +115,8 @@ export default async function TeamAvailabilityPage({ searchParams }: PageProps<'
                   {days.map((d) => {
                     const slots = availabilityOn(requests, e.id, d)?.slots.filter((s) => s.weekday === isoWeekday(d, zone)) ?? [];
                     return (
-                      <td key={d} className="space-y-1 !px-2">
-                        {slots.map((s, i) => <SlotChip key={i} slot={s} />)}
+                      <td key={d} className="h-[4.2rem] border border-[#D9D4B8] p-1 align-middle">
+                        <div className="flex h-full flex-col gap-1">{slots.map((s, i) => <SlotChip key={i} slot={s} />)}</div>
                       </td>
                     );
                   })}

@@ -47,7 +47,6 @@ export async function signIn(_prev: ActionResult, formData: FormData): Promise<A
   }
 
   let claims: SessionClaims | null = null;
-  let mustChangePassword = false;
   let employeeId: string | null = null;
   let name = ADMIN_DISPLAY_NAME;
 
@@ -58,14 +57,13 @@ export async function signIn(_prev: ActionResult, formData: FormData): Promise<A
     const column = loginId.includes('@') ? 'email' : 'login_id';
     const { data } = await db()
       .from('employees')
-      .select('id, first_name, last_name, password_hash, access_level, status, session_version, must_change_password')
+      .select('id, first_name, last_name, password_hash, access_level, status, session_version')
       .eq(column, loginId)
       .maybeSingle();
     // verifyPassword spends the same time whether or not the account exists.
     const valid = await verifyPassword(password, data?.password_hash);
     if (valid && data && data.status !== 'terminated') {
       claims = { sub: data.id, lvl: data.access_level, sv: data.session_version };
-      mustChangePassword = data.must_change_password;
       employeeId = data.id;
       name = `${data.first_name} ${data.last_name}`.trim();
     }
@@ -86,7 +84,7 @@ export async function signIn(_prev: ActionResult, formData: FormData): Promise<A
   await createSession(claims);
   await audit({ employeeId, name }, 'auth.sign_in');
 
-  redirect(mustChangePassword ? '/base/account?welcome=1' : safeNext(next));
+  redirect(safeNext(next));
 }
 
 export async function signOut() {

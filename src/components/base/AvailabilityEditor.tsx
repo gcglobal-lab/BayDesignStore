@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { ActionForm, Field, SubmitButton } from './forms';
 import { submitAvailability } from '@/app/base/(app)/availability/actions';
+import { DatePicker } from './calendar/Calendar';
 
 type Kind = 'available' | 'preferred' | 'unavailable';
 export type EditorSlot = { weekday: number; kind: Kind; all_day: boolean; start_time: string | null; end_time: string | null };
@@ -96,7 +97,7 @@ export default function AvailabilityEditor({ initial, defaultEffective }: { init
 
       <div className="grid gap-4 sm:grid-cols-[200px_1fr_auto] sm:items-end">
         <Field label="Effective from" htmlFor="av-eff">
-          <input id="av-eff" type="date" name="effective_from" className="b-input" required defaultValue={defaultEffective} min={defaultEffective} />
+          <DatePicker id="av-eff" name="effective_from" required defaultValue={defaultEffective} min={defaultEffective} />
         </Field>
         <Field label="Note for your manager (optional)" htmlFor="av-note">
           <input id="av-note" name="note" className="b-input" maxLength={500} placeholder="e.g. Classes on Tuesday evenings" />

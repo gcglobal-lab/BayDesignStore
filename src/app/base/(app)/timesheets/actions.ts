@@ -7,7 +7,8 @@ import { audit } from '@/lib/base/audit';
 import { requireManager } from '@/lib/base/auth';
 import { db, isUniqueViolation } from '@/lib/base/db';
 import { getSettings } from '@/lib/base/settings';
-import { addDaysYmd, isHm, isYmd, zonedDateTime } from '@/lib/base/time';
+import { diff } from '@/lib/base/activity';
+import { addDaysYmd, fmtDate, fmtTime, isHm, isYmd, zonedDateTime } from '@/lib/base/time';
 
 const schema = z.object({
   id: z.string().uuid().optional(),
@@ -53,6 +54,7 @@ export async function saveTimeCard(_prev: ActionResult, formData: FormData): Pro
   const { count } = await overlap;
   if (count) return fail('This overlaps another time card for the same person.');
 
+  const before = v.id ? (await db().from('time_entries').select('clock_in_at, clock_out_at, notes').eq('id', v.id).maybeSingle()).data : null;
   const now = new Date().toISOString();
   const row = {
     employee_id: v.employee_id,
@@ -79,7 +81,11 @@ export async function saveTimeCard(_prev: ActionResult, formData: FormData): Pro
     }
   }
 
-  await audit(viewer, v.id ? 'timecard.edit' : 'timecard.add', 'time_entries', res.data.id, { employee_id: v.employee_id, clock_in: row.clock_in_at, clock_out: row.clock_out_at });
+  const stamp = (iso: string | null | undefined) => (iso ? `${fmtDate(new Date(iso), timezone, 'MMM d')} ${fmtTime(iso, timezone)}` : null);
+  const changes = before
+    ? diff({ clock_in: stamp(before.clock_in_at), clock_out: stamp(before.clock_out_at), notes: before.notes }, { clock_in: stamp(row.clock_in_at), clock_out: stamp(row.clock_out_at), notes: row.notes })
+    : undefined;
+  await audit(viewer, v.id ? 'timecard.edit' : 'timecard.add', 'time_entries', res.data.id, { employee_id: v.employee_id, date: v.date, clock_in: stamp(row.clock_in_at), clock_out: stamp(row.clock_out_at), changes });
   revalidatePath('/base', 'layout');
   return done(v.id ? 'Time card updated.' : 'Time card added.');
 }

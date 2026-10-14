@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { audit } from '@/lib/base/audit';
 import { requireManager } from '@/lib/base/auth';
 import { db } from '@/lib/base/db';
+import { CacheKeys, invalidate } from '@/lib/base/memo';
 
 /** Mark a website inquiry new / read / replied / archived. */
 export async function setInquiryStatus(formData: FormData) {
@@ -17,6 +18,7 @@ export async function setInquiryStatus(formData: FormData) {
     .from('inquiries')
     .update({ status: parsed.data.status, handled_by: viewer.employeeId, handled_at: new Date().toISOString() })
     .eq('id', parsed.data.id);
+  invalidate(CacheKeys.inquiries);
   await audit(viewer, `inquiry.${parsed.data.status}`, 'inquiries', parsed.data.id);
   revalidatePath('/base', 'layout');
 }

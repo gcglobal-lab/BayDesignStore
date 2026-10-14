@@ -3,6 +3,7 @@
 import { ActionForm, Field, SubmitButton } from './forms';
 import { useDialog } from './Dialog';
 import { deleteTimeCard, saveTimeCard } from '@/app/base/(app)/timesheets/actions';
+import { DatePicker } from './calendar/Calendar';
 
 export type TimeCardValues = { id: string; employee_id: string; date: string; clock_in: string; clock_out: string; meal_minutes: number; notes: string };
 
@@ -19,7 +20,7 @@ export default function TimeCardForm({ employees, date, values }: { employees: {
         {values && <input type="hidden" name="employee_id" value={values.employee_id} />}
       </Field>
       <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Date" htmlFor="tc-date"><input id="tc-date" type="date" name="date" required className="b-input" defaultValue={values?.date ?? date} /></Field>
+        <Field label="Date" htmlFor="tc-date"><DatePicker id="tc-date" name="date" required defaultValue={values?.date ?? date} /></Field>
         <Field label="Punch in" htmlFor="tc-in"><input id="tc-in" type="time" name="clock_in" required className="b-input" defaultValue={values?.clock_in ?? '09:00'} /></Field>
         <Field label="Punch out" htmlFor="tc-out" hint="Leave empty if still working."><input id="tc-out" type="time" name="clock_out" className="b-input" defaultValue={values?.clock_out ?? '17:00'} /></Field>
       </div>

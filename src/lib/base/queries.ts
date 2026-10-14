@@ -1,6 +1,7 @@
 import 'server-only';
 import { cache } from 'react';
 import { db, must } from './db';
+import { CacheKeys, memo } from './memo';
 import type { Department, Employee, Location, Role, TimeEntry } from './types';
 
 const EMPLOYEE_COLUMNS =
@@ -30,13 +31,16 @@ function shapeEmployee(row: EmployeeRow, today: string): Employee {
 }
 
 /** The roster, alphabetical by first name (like Homebase). Password hashes never leave this function. */
-export const listEmployees = cache(async (includeTerminated = false): Promise<Employee[]> => {
-  let query = db().from('employees').select(EMPLOYEE_COLUMNS).order('first_name').order('last_name');
-  if (!includeTerminated) query = query.neq('status', 'terminated');
-  const rows = must<EmployeeRow[]>(await query, 'load the team roster');
-  const today = new Date().toISOString().slice(0, 10);
-  return rows.map((r) => shapeEmployee(r, today));
-});
+export const listEmployees = cache(
+  (includeTerminated = false): Promise<Employee[]> =>
+    memo(`${CacheKeys.employees}:${includeTerminated}`, 15_000, async () => {
+      let query = db().from('employees').select(EMPLOYEE_COLUMNS).order('first_name').order('last_name');
+      if (!includeTerminated) query = query.neq('status', 'terminated');
+      const rows = must<EmployeeRow[]>(await query, 'load the team roster');
+      const today = new Date().toISOString().slice(0, 10);
+      return rows.map((r) => shapeEmployee(r, today));
+    }),
+);
 
 export const getEmployee = cache(async (id: string): Promise<Employee | null> => {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
@@ -44,16 +48,17 @@ export const getEmployee = cache(async (id: string): Promise<Employee | null> =>
   return row ? shapeEmployee(row, new Date().toISOString().slice(0, 10)) : null;
 });
 
-export const listRoles = cache(async (): Promise<Role[]> =>
-  must<Role[]>(await db().from('job_roles').select('id, name, color, department_id, work_type').order('name'), 'load roles'),
+export const listRoles = cache(
+  (): Promise<Role[]> =>
+    memo(CacheKeys.roles, 60_000, async () => must<Role[]>(await db().from('job_roles').select('id, name, color, department_id, work_type').order('name'), 'load roles')),
 );
 
-export const listDepartments = cache(async (): Promise<Department[]> =>
-  must<Department[]>(await db().from('departments').select('id, name').order('name'), 'load departments'),
+export const listDepartments = cache(
+  (): Promise<Department[]> => memo(CacheKeys.departments, 60_000, async () => must<Department[]>(await db().from('departments').select('id, name').order('name'), 'load departments')),
 );
 
-export const listLocations = cache(async (): Promise<Location[]> =>
-  must<Location[]>(await db().from('locations').select('*').order('created_at'), 'load locations'),
+export const listLocations = cache(
+  (): Promise<Location[]> => memo(CacheKeys.locations, 60_000, async () => must<Location[]>(await db().from('locations').select('*').order('created_at'), 'load locations')),
 );
 
 const ENTRY_COLUMNS = '*, breaks:time_entry_breaks(id, type, started_at, ended_at)';

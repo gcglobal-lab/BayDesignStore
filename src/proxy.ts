@@ -29,7 +29,8 @@ export async function proxy(request: NextRequest) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    // Map tiles for the punch-location maps (CARTO streets, Esri satellite).
+    "img-src 'self' data: blob: https://*.basemaps.cartocdn.com https://basemaps.cartocdn.com https://tile.openstreetmap.org https://server.arcgisonline.com",
     "font-src 'self'",
     "frame-src https://www.openstreetmap.org",
     "connect-src 'self'",

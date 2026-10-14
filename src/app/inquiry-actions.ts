@@ -1,9 +1,11 @@
 'use server';
 
+import { after } from 'next/server';
 import { z } from 'zod';
 import { done, fail, type ActionResult } from '@/lib/base/actionResult';
 import { db, isUniqueViolation } from '@/lib/base/db';
 import { isDbConfigured } from '@/lib/base/env';
+import { CacheKeys, invalidate } from '@/lib/base/memo';
 import { clientIp, userAgent } from '@/lib/base/request';
 import { escapeHtml, sendEmail } from '@/lib/email';
 
@@ -27,6 +29,16 @@ const inquirySchema = z.object({
 const MAX_PER_IP_PER_HOUR = 5;
 
 export async function submitInquiry(input: unknown): Promise<ActionResult> {
+  return createInquiry(input, 'contact_form');
+}
+
+/** An inquiry sent from the website chat assistant (same checks, alerts and inbox). */
+export async function submitChatInquiry(input: unknown): Promise<ActionResult> {
+  const raw = (input ?? {}) as Record<string, unknown>;
+  return createInquiry({ ...raw, interest: undefined, page: 'Website chat' }, 'website_chat');
+}
+
+async function createInquiry(input: unknown, source: 'contact_form' | 'website_chat'): Promise<ActionResult> {
   const raw = (input ?? {}) as Record<string, unknown>;
   // Honeypot: a hidden field people never see; bots fill it in. Pretend it worked.
   if (typeof raw.website === 'string' && raw.website.trim() !== '') return done();
@@ -45,7 +57,7 @@ export async function submitInquiry(input: unknown): Promise<ActionResult> {
 
   const { data, error } = await db()
     .from('inquiries')
-    .insert({ name: v.name, email: v.email, phone: v.phone ?? null, interest: v.interest ?? null, message: v.message, page: v.page ?? null, ip, user_agent: await userAgent() })
+    .insert({ name: v.name, email: v.email, phone: v.phone ?? null, interest: v.interest ?? null, message: v.message, page: v.page ?? null, ip, user_agent: await userAgent(), source })
     .select('id, created_at')
     .single();
   if (error) {
@@ -58,7 +70,9 @@ export async function submitInquiry(input: unknown): Promise<ActionResult> {
     ['Email', v.email],
     ['Phone', v.phone || '—'],
     ['Interested in', v.interest || '—'],
+    ['Sent from', source === 'website_chat' ? 'Website chat assistant' : 'Contact form'],
   ];
+  invalidate(CacheKeys.inquiries);
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:auto;color:#17173a">
       <div style="background:linear-gradient(135deg,#4f46e5,#7c3aed,#db2777);color:#fff;padding:22px 26px;border-radius:14px 14px 0 0">
@@ -74,9 +88,12 @@ export async function submitInquiry(input: unknown): Promise<ActionResult> {
       </div>
     </div>`;
   const text = `New website inquiry\n\n${rows.map(([k, val]) => `${k}: ${val}`).join('\n')}\n\n${v.message}\n\nReply to this email to answer directly. All inquiries are in Bay Design Base > Inquiries.`;
-  const sent = await sendEmail({ subject: `New inquiry: ${v.name}${v.interest ? ` · ${v.interest}` : ''}`, html, text, replyTo: v.email });
-  await db().from('inquiries').update(sent.ok ? { email_sent: true } : { email_sent: false, email_error: sent.error.slice(0, 500) }).eq('id', data.id);
-  if (!sent.ok) console.error('[inquiry] email alert failed (message is saved):', sent.error);
+  // The message is saved; the email alert goes out after the visitor gets their answer.
+  after(async () => {
+    const sent = await sendEmail({ subject: `New inquiry: ${v.name}${v.interest ? ` · ${v.interest}` : source === 'website_chat' ? ' · website chat' : ''}`, html, text, replyTo: v.email });
+    await db().from('inquiries').update(sent.ok ? { email_sent: true } : { email_sent: false, email_error: sent.error.slice(0, 500) }).eq('id', data.id);
+    if (!sent.ok) console.error('[inquiry] email alert failed (message is saved):', sent.error);
+  });
 
   return done('Thank you — our design team will be in touch soon.');
 }

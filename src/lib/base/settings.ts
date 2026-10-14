@@ -2,6 +2,7 @@ import 'server-only';
 import { cache } from 'react';
 import { db } from './db';
 import { DEFAULT_TIMEZONE, isDbConfigured } from './env';
+import { CacheKeys, memo } from './memo';
 
 export type CompanySettings = {
   company_name: string;
@@ -43,8 +44,12 @@ export const DEFAULT_SETTINGS: CompanySettings = {
 /** Company settings for this request (falls back to defaults before the database is connected). */
 export const getSettings = cache(async (): Promise<CompanySettings> => {
   if (!isDbConfigured()) return DEFAULT_SETTINGS;
+  return memo(CacheKeys.settings, 30_000, loadSettings).catch(() => DEFAULT_SETTINGS);
+});
+
+async function loadSettings(): Promise<CompanySettings> {
   const { data, error } = await db().from('company_settings').select('*').eq('id', 1).maybeSingle();
-  if (error || !data) return DEFAULT_SETTINGS;
+  if (error || !data) throw new Error(error?.message ?? 'The company settings row is missing.');
   return {
     ...DEFAULT_SETTINGS,
     ...data,
@@ -52,4 +57,4 @@ export const getSettings = cache(async (): Promise<CompanySettings> => {
     weekly_overtime_hours: data.weekly_overtime_hours == null ? null : Number(data.weekly_overtime_hours),
     paid_leave_days_per_year: Number(data.paid_leave_days_per_year ?? DEFAULT_SETTINGS.paid_leave_days_per_year),
   };
-});
+}

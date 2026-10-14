@@ -52,3 +52,34 @@ export async function leaveBalances(year: number, employeeIds?: string[]): Promi
 export async function leaveBalance(employeeId: string, year: number): Promise<LeaveBalance> {
   return (await leaveBalances(year, [employeeId])).get(employeeId)!;
 }
+
+/** One person's balances for several years, with two queries in total (e.g. this year and next). */
+export async function leaveBalanceYears(employeeId: string, years: number[]): Promise<Map<number, LeaveBalance>> {
+  const first = Math.min(...years);
+  const last = Math.max(...years);
+  const [settings, allowancesRes, requestsRes] = await Promise.all([
+    getSettings(),
+    db().from('leave_allowances').select('year, paid_days').eq('employee_id', employeeId).in('year', years),
+    db()
+      .from('time_off_requests')
+      .select('starts_on, hours, status')
+      .eq('employee_id', employeeId)
+      .in('type', [...PAID_LEAVE_TYPES])
+      .in('status', ['approved', 'pending'])
+      .gte('starts_on', `${first}-01-01`)
+      .lte('starts_on', `${last}-12-31`),
+  ]);
+  const allowances = must<{ year: number; paid_days: number | string }[]>(allowancesRes, 'load leave allowances');
+  const requests = must<{ starts_on: string; hours: number | string; status: 'approved' | 'pending' }[]>(requestsRes, 'load paid leave');
+  const result = new Map<number, LeaveBalance>();
+  for (const year of years) {
+    const own = allowances.find((a) => Number(a.year) === year);
+    const allowance = own ? Number(own.paid_days) : settings.paid_leave_days_per_year;
+    const inYear = requests.filter((r) => r.starts_on.startsWith(`${year}-`));
+    const sum = (status: 'approved' | 'pending') => inYear.filter((r) => r.status === status).reduce((s, r) => s + Number(r.hours) / HOURS_PER_DAY, 0);
+    const used = sum('approved');
+    const pending = sum('pending');
+    result.set(year, { year, allowance, isDefault: !own, used, pending, remaining: Math.round((allowance - used - pending) * 100) / 100 });
+  }
+  return result;
+}

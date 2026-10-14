@@ -43,22 +43,23 @@ export async function verifyPassword(password: string, stored: string | null | u
   return timingSafeEqual(actual, expected);
 }
 
-/** Rules shared by every place a password is chosen. Returns an error message, or null if acceptable. */
-export function checkPasswordStrength(password: string, loginId?: string): string | null {
-  if (password.length < 10) return 'Use at least 10 characters.';
+/**
+ * Passwords are chosen by an admin and handed to the team member, so the rules stay simple.
+ * Returns an error message, or null if acceptable.
+ */
+export function checkPasswordStrength(password: string): string | null {
+  if (password.length < 6) return 'Use at least 6 characters.';
   if (password.length > 200) return 'Use at most 200 characters.';
-  if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) return 'Use a mix of letters and numbers.';
-  if (loginId && password.toLowerCase().includes(loginId.toLowerCase())) return 'Your password can’t contain your login ID.';
-  if (/^(.)\1+$/.test(password) || /password|123456|qwerty|baydesign/i.test(password)) return 'That password is too easy to guess.';
+  if (/^\s|\s$/.test(password)) return 'A password can’t start or end with a space.';
   return null;
 }
 
-/** A random temporary password, e.g. for a new team member: 4 groups, letters + digits, easy to read aloud. */
+/** A random password that's easy to read out and type on a phone, e.g. "kp7d-Rw4m-x9Tq". */
 export function generateTemporaryPassword(): string {
   const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  const bytes = randomBytes(16);
+  const bytes = randomBytes(12);
   let out = '';
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 12; i++) {
     if (i > 0 && i % 4 === 0) out += '-';
     out += alphabet[bytes[i] % alphabet.length];
   }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ActionForm, Field, SubmitButton } from './forms';
 import { useDialog } from './Dialog';
 import { addTimeOff, requestTimeOff } from '@/app/base/(app)/time-off/actions';
+import { DatePicker } from './calendar/Calendar';
 
 type LeaveType = 'vacation' | 'pto' | 'sick' | 'unpaid';
 
@@ -101,16 +102,16 @@ export default function TimeOffForm({
       {allDay ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="First day off" htmlFor="to-start">
-            <input id="to-start" type="date" name="starts_on" className="b-input" required value={start} onChange={(e) => setStart(e.target.value)} />
+            <DatePicker id="to-start" name="starts_on" required value={start} onChange={setStart} />
           </Field>
           <Field label="Last day off" htmlFor="to-end">
-            <input id="to-end" type="date" name="ends_on" className="b-input" required min={start} defaultValue={start} key={start} />
+            <DatePicker id="to-end" name="ends_on" required min={start} defaultValue={start} key={start} />
           </Field>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Date" htmlFor="to-date">
-            <input id="to-date" type="date" name="starts_on" className="b-input" required value={start} onChange={(e) => setStart(e.target.value)} />
+            <DatePicker id="to-date" name="starts_on" required value={start} onChange={setStart} />
           </Field>
           <Field label="From" htmlFor="to-from"><input id="to-from" type="time" name="start_time" className="b-input" required defaultValue="12:00" /></Field>
           <Field label="To" htmlFor="to-to"><input id="to-to" type="time" name="end_time" className="b-input" required defaultValue="17:00" /></Field>

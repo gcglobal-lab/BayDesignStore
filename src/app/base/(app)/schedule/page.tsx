@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import { Copy, Send } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronLeft, ChevronRight, Copy, Send } from 'lucide-react';
 import { SubmitButton } from '@/components/base/forms';
 import ScheduleGrid, { type GridDay, type GridEvent, type GridRow, type GridShift, type GridTimeOff } from '@/components/base/ScheduleGrid';
 import { PageHeader } from '@/components/base/ui';
-import WeekNav from '@/components/base/WeekNav';
+import WeekJump from '@/components/base/WeekJump';
 import { isManager, requireViewer } from '@/lib/base/auth';
 import { db, must } from '@/lib/base/db';
 import { listEmployees, listLocations, listRoles } from '@/lib/base/queries';
@@ -79,6 +80,10 @@ export default async function SchedulePage({ searchParams }: PageProps<'/base/sc
   const rows: GridRow[] = rowEmployees.map((e) => ({
     id: e.id,
     name: fullName(e),
+    firstName: e.first_name,
+    lastName: e.last_name,
+    role: e.roles[0]?.name ?? null,
+    locationId: e.location_id,
     highlight: e.id === viewer.employeeId,
     hours: shifts.filter((s) => s.employee_id === e.id).reduce((sum, s) => sum + Math.max(0, minutesBetween(s.starts_at, s.ends_at) - s.break_minutes), 0) / 60,
   }));
@@ -86,50 +91,49 @@ export default async function SchedulePage({ searchParams }: PageProps<'/base/sc
   const drafts = shifts.filter((s) => !s.published_at).length;
   const totalHours = rows.reduce((s, r) => s + r.hours, 0);
 
+  const weekHref = (w: string) => `/base/schedule?${new URLSearchParams({ week: w, ...(roleFilter ? { role: roleFilter } : {}) }).toString()}`;
+
   return (
     <>
       <PageHeader
-        eyebrow="Shifts"
+        plain
         title="Schedule"
         description={manager ? `${totalHours.toFixed(1)} scheduled hours this week${drafts ? ` · ${drafts} draft shift${drafts === 1 ? '' : 's'} not yet visible to the team` : ''}` : 'The published schedule for the whole team.'}
-        actions={
-          <>
-            <WeekNav
-              basePath="/base/schedule"
-              label={`${fmtDate(week, zone, 'MMM d')} – ${fmtDate(ymds[6], zone, 'MMM d, yyyy')}`}
-              prev={addDaysYmd(week, -7, zone)}
-              next={addDaysYmd(week, 7, zone)}
-              today={week !== thisWeek ? thisWeek : undefined}
-              extra={roleFilter ? { role: roleFilter } : {}}
-            />
-            {manager && (
-              <>
-                <form action={copyPreviousWeek}>
-                  <input type="hidden" name="week" value={week} />
-                  <SubmitButton className="b-btn-ghost" confirm="Copy last week’s shifts into this week as drafts? People who already have shifts this week are skipped."><Copy size={15} /> Copy last week</SubmitButton>
-                </form>
-                <form action={publishWeek}>
-                  <input type="hidden" name="week" value={week} />
-                  <SubmitButton className="b-btn-brass" confirm={drafts ? `Publish ${drafts} shift${drafts === 1 ? '' : 's'}? The team will see them right away.` : undefined}>
-                    <Send size={15} /> Publish ({drafts})
-                  </SubmitButton>
-                </form>
-              </>
-            )}
-          </>
-        }
       />
 
-      <form className="mb-4 flex flex-wrap items-center gap-2 text-sm">
-        <input type="hidden" name="week" value={week} />
-        <label htmlFor="role-filter" className="text-muted">Filter by role</label>
-        <select id="role-filter" name="role" defaultValue={roleFilter} className="b-input !w-auto !py-1.5">
-          <option value="">All roles</option>
-          {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-        </select>
-        <button type="submit" className="b-btn-ghost b-btn-sm">Apply</button>
-        {manager && <span className="ml-auto hidden text-xs text-muted md:block">Click an empty cell to add a shift, or a shift to edit it. Dashed shifts are drafts.</span>}
-      </form>
+      {/* Toolbar, like Homebase: Today · date range · arrows … filters · publish */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {week !== thisWeek ? <Link href={weekHref(thisWeek)} className="rounded-xl bg-linen px-4 py-2.5 text-[0.95rem] font-semibold text-ink ring-1 ring-inset ring-stone transition-colors hover:bg-sand">Today</Link> : <span className="rounded-xl bg-linen px-4 py-2.5 text-[0.95rem] font-semibold text-muted ring-1 ring-inset ring-stone">Today</span>}
+        <WeekJump label={`${fmtDate(week, zone, 'MMM d, yyyy')} - ${fmtDate(ymds[6], zone, 'MMM d, yyyy')}`} value={week} href="/base/schedule" extra={roleFilter ? { role: roleFilter } : {}} zone={zone} weekStart={settings.week_start} />
+        <Link href={weekHref(addDaysYmd(week, -7, zone))} className="rounded-xl p-2.5 text-ink hover:bg-white" aria-label="Previous week"><ChevronLeft size={20} /></Link>
+        <Link href={weekHref(addDaysYmd(week, 7, zone))} className="rounded-xl p-2.5 text-ink hover:bg-white" aria-label="Next week"><ChevronRight size={20} /></Link>
+
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <form className="flex items-center">
+            <input type="hidden" name="week" value={week} />
+            <select name="role" defaultValue={roleFilter} className="b-input !w-auto !rounded-xl !bg-linen !py-2.5 font-semibold" aria-label="Filter by role">
+              <option value="">Filters: all roles</option>
+              {roles.map((r) => <option key={r.id} value={r.id}>Role: {r.name}</option>)}
+            </select>
+            <button type="submit" className="b-btn-ghost b-btn-sm ml-1.5">Apply</button>
+          </form>
+          {manager && (
+            <>
+              <form action={copyPreviousWeek}>
+                <input type="hidden" name="week" value={week} />
+                <SubmitButton className="b-btn-ghost" confirm="Copy last week’s shifts into this week as drafts? People who already have shifts this week are skipped."><Copy size={15} /> Copy last week</SubmitButton>
+              </form>
+              <form action={publishWeek}>
+                <input type="hidden" name="week" value={week} />
+                <SubmitButton className="b-btn-brass" confirm={drafts ? `Publish ${drafts} shift${drafts === 1 ? '' : 's'}? The team will see them right away.` : undefined}>
+                  <Send size={15} /> Publish ({drafts})
+                </SubmitButton>
+              </form>
+            </>
+          )}
+        </div>
+      </div>
+      {manager && <p className="mb-3 hidden text-xs text-muted md:block">Click an empty cell to add a shift, or a shift to edit it. Dashed shifts are drafts. The eye hides someone from your view.</p>}
 
       <ScheduleGrid
         days={days}
@@ -141,6 +145,8 @@ export default async function SchedulePage({ searchParams }: PageProps<'/base/sc
         locations={locations.filter((l) => l.is_active)}
         canEdit={manager}
         defaultLocationId={locations[0]?.id ?? null}
+        zone={zone}
+        weekStart={settings.week_start}
       />
     </>
   );

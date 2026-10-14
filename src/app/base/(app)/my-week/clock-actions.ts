@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { z } from 'zod';
 import { done, fail, type ActionResult } from '@/lib/base/actionResult';
 import { audit } from '@/lib/base/audit';
@@ -41,11 +41,11 @@ type FixCheck =
       distance: number | null;
       inside: boolean | null;
       locationId: string | null;
-      /** "Uptown" / "Downtown" inside a store, otherwise the street address. */
+      /** "Uptown" / "Downtown" inside a store. Off site it's looked up after the response (see recordAddress). */
       place: string | null;
     };
 
-async function checkFix(input: unknown, settings: CompanySettings, verb: 'in' | 'out'): Promise<FixCheck> {
+async function checkFix(input: unknown, settings: CompanySettings, verb: 'in' | 'out', locationsPromise: ReturnType<typeof listLocations>): Promise<FixCheck> {
   const parsed = fixSchema.safeParse(input);
   if (!parsed.success) return { error: 'We couldn’t read your location. Please try again.' };
   const fix = parsed.data;
@@ -58,7 +58,7 @@ async function checkFix(input: unknown, settings: CompanySettings, verb: 'in' | 
   // Any reading is accepted, wherever the phone is: the exact coordinates and how accurate
   // they were are stored with the punch, so a vague fix is visible rather than blocking work.
 
-  const locations = (await listLocations()).filter((l) => l.is_active);
+  const locations = (await locationsPromise).filter((l) => l.is_active);
   const match = matchLocation(fix.lat, fix.lng, fix.accuracy, locations);
   const location = locations.find((l) => l.id === match.locationId) ?? null;
   if (settings.enforce_geofence && match.inside === false) {
@@ -72,9 +72,31 @@ async function checkFix(input: unknown, settings: CompanySettings, verb: 'in' | 
     inside: match.inside,
     // Off site the card belongs to no store; the address says where they were.
     locationId: match.inside ? match.locationId : null,
-    place: match.inside && location ? location.name : await placeName(fix.lat, fix.lng),
+    place: match.inside && location ? location.name : null,
   };
 }
+
+/**
+ * Off site, the street address is looked up after the punch is saved and the response is
+ * sent (it can take a couple of seconds), so punching in never waits for it.
+ */
+function recordAddress(entryId: string, check: Extract<FixCheck, { lat: number | null }>, column: 'clock_in_place' | 'clock_out_place') {
+  if (check.place || check.lat == null || check.lng == null) return;
+  const { lat, lng } = check;
+  after(async () => {
+    const place = await placeName(lat, lng);
+    const { error } = await db().from('time_entries').update({ [column]: place }).eq('id', entryId);
+    if (error) console.error('[clock] saving the address failed', error.message);
+  });
+}
+
+/** What the time clock needs to show the new state straight away (before the page refreshes). */
+const punchData = (at: string, check: Extract<FixCheck, { lat: number | null }>): Record<string, string> => ({
+  at,
+  ...(check.lat != null && check.lng != null
+    ? { lat: String(check.lat), lng: String(check.lng), accuracy: String(check.accuracy ?? ''), atStore: check.inside ? '1' : '', place: check.place ?? '' }
+    : {}),
+});
 
 const where = (check: Extract<FixCheck, { lat: number | null }>) => (check.place ? ` at ${check.place}` : '');
 
@@ -82,22 +104,26 @@ export async function clockIn(fix: GpsFix, noteInput: string | null = null): Pro
   const viewer = await requireEmployee();
   const note = noteSchema.safeParse(noteInput);
   if (!note.success) return fail(note.error.issues[0]?.message ?? 'Check the note.');
-  const settings = await getSettings();
-  const check = await checkFix(fix, settings, 'in');
-  if ('error' in check) return fail(check.error);
-
   const now = new Date();
-  // Link the time card to today's shift (published, starting within 4 hours either side).
-  const { data: shift } = await db()
-    .from('shifts')
-    .select('id, starts_at')
-    .eq('employee_id', viewer.employeeId)
-    .not('published_at', 'is', null)
-    .gte('starts_at', new Date(now.getTime() - 4 * 3600_000).toISOString())
-    .lte('starts_at', new Date(now.getTime() + 4 * 3600_000).toISOString())
-    .order('starts_at')
-    .limit(1)
-    .maybeSingle();
+  // Everything the punch needs, fetched at the same time.
+  const [settings, { data: shift }, ip, ua] = await Promise.all([
+    getSettings(),
+    // Link the time card to today's shift (published, starting within 4 hours either side).
+    db()
+      .from('shifts')
+      .select('id, starts_at')
+      .eq('employee_id', viewer.employeeId)
+      .not('published_at', 'is', null)
+      .gte('starts_at', new Date(now.getTime() - 4 * 3600_000).toISOString())
+      .lte('starts_at', new Date(now.getTime() + 4 * 3600_000).toISOString())
+      .order('starts_at')
+      .limit(1)
+      .maybeSingle(),
+    clientIp(),
+    userAgent(),
+  ]);
+  const check = await checkFix(fix, settings, 'in', listLocations());
+  if ('error' in check) return fail(check.error);
 
   if (shift && settings.early_clock_in_minutes >= 0) {
     const earliest = new Date(shift.starts_at).getTime() - settings.early_clock_in_minutes * 60_000;
@@ -120,8 +146,8 @@ export async function clockIn(fix: GpsFix, noteInput: string | null = null): Pro
       clock_in_in_geofence: check.inside,
       clock_in_place: check.place,
       clock_in_note: note.data,
-      clock_in_ip: await clientIp(),
-      clock_in_user_agent: await userAgent(),
+      clock_in_ip: ip,
+      clock_in_user_agent: ua,
       source: 'web',
     })
     .select('id')
@@ -132,18 +158,18 @@ export async function clockIn(fix: GpsFix, noteInput: string | null = null): Pro
     return fail('Punch in didn’t go through. Please try again.');
   }
 
+  recordAddress(res.data.id, check, 'clock_in_place');
   await audit(viewer, 'clock.in', 'time_entries', res.data.id, { place: check.place, inside: check.inside, accuracy: check.accuracy });
-  revalidatePath('/base', 'layout');
-  return done(`Punched in at ${fmtTime(now, settings.timezone)}${where(check)}.`);
+  // No revalidatePath: the time clock updates itself at once and refreshes the page in the background.
+  return done(`Punched in at ${fmtTime(now, settings.timezone)}${where(check)}.`, punchData(now.toISOString(), check));
 }
 
 export async function clockOut(fix: GpsFix): Promise<ActionResult> {
   const viewer = await requireEmployee();
-  const settings = await getSettings();
-  const entry = await getOpenEntry(viewer.employeeId);
+  const [settings, entry, ip, ua] = await Promise.all([getSettings(), getOpenEntry(viewer.employeeId), clientIp(), userAgent()]);
   if (!entry) return fail('You’re not punched in.');
 
-  const check = await checkFix(fix, settings, 'out');
+  const check = await checkFix(fix, settings, 'out', listLocations());
   if ('error' in check) return fail(check.error);
 
   const now = new Date().toISOString();
@@ -159,8 +185,8 @@ export async function clockOut(fix: GpsFix): Promise<ActionResult> {
       clock_out_distance_m: check.distance,
       clock_out_in_geofence: check.inside,
       clock_out_place: check.place,
-      clock_out_ip: await clientIp(),
-      clock_out_user_agent: await userAgent(),
+      clock_out_ip: ip,
+      clock_out_user_agent: ua,
     })
     .eq('id', entry.id)
     .is('clock_out_at', null);
@@ -169,9 +195,9 @@ export async function clockOut(fix: GpsFix): Promise<ActionResult> {
     return fail('Punch out didn’t go through. Please try again.');
   }
 
+  recordAddress(entry.id, check, 'clock_out_place');
   await audit(viewer, 'clock.out', 'time_entries', entry.id, { place: check.place, inside: check.inside, accuracy: check.accuracy });
-  revalidatePath('/base', 'layout');
-  return done(`Punched out at ${fmtTime(now, settings.timezone)}${where(check)}. Have a good one!`);
+  return done(`Punched out at ${fmtTime(now, settings.timezone)}${where(check)}. Have a good one!`, punchData(now, check));
 }
 
 export async function startBreak(type: 'rest' | 'meal'): Promise<ActionResult> {
@@ -182,7 +208,7 @@ export async function startBreak(type: 'rest' | 'meal'): Promise<ActionResult> {
   const res = await db().from('time_entry_breaks').insert({ time_entry_id: entry.id, type, started_at: new Date().toISOString() });
   if (isUniqueViolation(res)) return fail('You’re already on a break.');
   if (res.error) return fail('Couldn’t start the break. Please try again.');
-  revalidatePath('/base', 'layout');
+  await audit(viewer, 'clock.break_start', 'time_entries', entry.id, { type });
   return done(type === 'meal' ? 'Meal break started — enjoy!' : 'Rest break started.');
 }
 
@@ -198,6 +224,6 @@ export async function endBreak(): Promise<ActionResult> {
     .select('id');
   if (error) return fail('Couldn’t end the break. Please try again.');
   if (!data?.length) return fail('You’re not on a break.');
-  revalidatePath('/base', 'layout');
+  await audit(viewer, 'clock.break_end', 'time_entries', entry.id);
   return done('Welcome back — break ended.');
 }

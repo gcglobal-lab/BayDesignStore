@@ -5,7 +5,10 @@ import { z } from 'zod';
 import { done, fail, type ActionResult } from '@/lib/base/actionResult';
 import { audit } from '@/lib/base/audit';
 import { requireAdmin } from '@/lib/base/auth';
+import { diff } from '@/lib/base/activity';
 import { db } from '@/lib/base/db';
+import { CacheKeys, invalidate } from '@/lib/base/memo';
+import { getSettings } from '@/lib/base/settings';
 import { isYmd } from '@/lib/base/time';
 
 const text = (max: number) =>
@@ -44,32 +47,35 @@ const settingsSchema = z.object({
   enforce_geofence: z.boolean(),
   early_clock_in_minutes: z.coerce.number().int().min(0).max(240),
   late_grace_minutes: z.coerce.number().int().min(0).max(120),
+  paid_leave_days_per_year: z.coerce.number().min(0).max(365),
 });
 
+type SettingsField = keyof typeof settingsSchema.shape;
+const BOOLEAN_FIELDS: SettingsField[] = ['require_location', 'enforce_geofence'];
+
+/**
+ * Saves one section of the settings page. Each section's form lists its fields in a hidden
+ * `fields` input, so saving "Overtime" never touches the time clock options.
+ */
 export async function saveSettings(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const viewer = await requireAdmin();
-  const get = (k: string) => String(formData.get(k) ?? '');
-  const parsed = settingsSchema.safeParse({
-    company_name: get('company_name'),
-    account_owner_name: get('account_owner_name'),
-    phone: get('phone'),
-    timezone: get('timezone'),
-    week_start: get('week_start'),
-    pay_period_days: get('pay_period_days'),
-    pay_period_anchor: get('pay_period_anchor'),
-    daily_overtime_hours: get('daily_overtime_hours'),
-    weekly_overtime_hours: get('weekly_overtime_hours'),
-    require_location: formData.get('require_location') === 'on',
-    enforce_geofence: formData.get('enforce_geofence') === 'on',
-    early_clock_in_minutes: get('early_clock_in_minutes'),
-    late_grace_minutes: get('late_grace_minutes'),
-  });
+  const fields = String(formData.get('fields') ?? '')
+    .split(',')
+    .filter((f): f is SettingsField => f in settingsSchema.shape);
+  if (!fields.length) return fail('Nothing to save.');
+  const input = Object.fromEntries(fields.map((f) => [f, BOOLEAN_FIELDS.includes(f) ? formData.get(f) === 'on' : String(formData.get(f) ?? '')]));
+  const schema = settingsSchema.pick(Object.fromEntries(fields.map((f) => [f, true])) as Partial<Record<SettingsField, true>>);
+  const parsed = schema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Check the settings.');
-  const { error } = await db().from('company_settings').upsert({ id: 1, ...parsed.data });
+
+  const before = await getSettings();
+  const { error } = await db().from('company_settings').update(parsed.data).eq('id', 1);
   if (error) return fail('Couldn’t save settings.');
-  await audit(viewer, 'settings.update', 'company_settings', '1', parsed.data);
+  invalidate(CacheKeys.settings);
+  const changes = diff(before as unknown as Record<string, unknown>, parsed.data as Record<string, unknown>);
+  await audit(viewer, 'settings.update', 'company_settings', '1', { changes });
   revalidatePath('/base', 'layout');
-  return done('Settings saved.');
+  return done(changes.length ? 'Settings saved.' : 'Nothing changed.');
 }
 
 const locationSchema = z
@@ -118,9 +124,11 @@ export async function saveLocation(_prev: ActionResult, formData: FormData): Pro
   });
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Check the location details.');
   const { id, ...row } = parsed.data;
+  const before = id ? (await db().from('locations').select('*').eq('id', id).maybeSingle()).data : null;
   const res = id ? await db().from('locations').update(row).eq('id', id).select('id').single() : await db().from('locations').insert(row).select('id').single();
   if (res.error) return fail('Couldn’t save the location.');
-  await audit(viewer, id ? 'location.update' : 'location.create', 'locations', res.data.id, { geofence: row.latitude !== null, radius: row.geofence_radius_m });
+  invalidate(CacheKeys.locations);
+  await audit(viewer, id ? 'location.update' : 'location.create', 'locations', res.data.id, { name: row.name, changes: id ? diff(before, row) : undefined });
   revalidatePath('/base', 'layout');
   return done(id ? 'Location saved.' : 'Location added.');
 }

@@ -8,6 +8,7 @@ import { audit } from '@/lib/base/audit';
 import { requireAdmin, requireEmployee, requireManager, requireViewer, type Viewer } from '@/lib/base/auth';
 import { db } from '@/lib/base/db';
 import { leaveBalance } from '@/lib/base/leave';
+import { CacheKeys, invalidate } from '@/lib/base/memo';
 import { getSettings } from '@/lib/base/settings';
 import { addDaysYmd, isHm, isYmd, todayYmd } from '@/lib/base/time';
 import { fmtDays, HOURS_PER_DAY, PAID_LEAVE_TYPES, timeOffTypeLabel } from '@/lib/base/types';
@@ -100,7 +101,7 @@ export async function requestTimeOff(_prev: ActionResult, formData: FormData): P
     .select('id')
     .single();
   if (error) return fail('Couldn’t send your request. Please try again.');
-  await audit(viewer, 'time_off.request', 'time_off_requests', data.id);
+  await audit(viewer, 'time_off.request', 'time_off_requests', data.id, { from: v.starts_on, to: v.ends_on, type: v.type });
   revalidatePath('/base', 'layout');
   return done('Request sent — your manager will review it.');
 }
@@ -137,7 +138,7 @@ export async function addTimeOff(_prev: ActionResult, formData: FormData): Promi
     .select('id')
     .single();
   if (error) return fail('Couldn’t add the time off. Please try again.');
-  await audit(viewer, 'time_off.add', 'time_off_requests', data.id, { employee_id: employeeId.data });
+  await audit(viewer, 'time_off.add', 'time_off_requests', data.id, { employee_id: employeeId.data, from: v.starts_on, to: v.ends_on, type: v.type });
   revalidatePath('/base', 'layout');
   return done('Time off added.');
 }
@@ -236,6 +237,7 @@ export async function setDefaultPaidLeave(_prev: ActionResult, formData: FormDat
   if (!days.success) return fail(firstIssue(days.error));
   const { error } = await db().from('company_settings').update({ paid_leave_days_per_year: days.data }).eq('id', 1);
   if (error) return fail('Couldn’t save the setting.');
+  invalidate(CacheKeys.settings);
   await audit(viewer, 'leave.default_set', 'company_settings', null, { paid_days: days.data });
   revalidatePath('/base', 'layout');
   return done(`Saved — ${fmtDays(days.data)} of paid leave per year.`);

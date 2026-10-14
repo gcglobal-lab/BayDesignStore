@@ -1,19 +1,20 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Clock3, MapPin, Pencil, Plus } from 'lucide-react';
+import { Clock3, Map as MapIcon, MapPin, Pencil, Plus } from 'lucide-react';
 import AutoRefresh from '@/components/base/AutoRefresh';
 import LiveDuration from '@/components/base/LiveDuration';
 import TimesheetFilter from '@/components/base/TimesheetFilter';
-import { parseRange, rangePresets } from '@/lib/base/timesheetRange';
+import { MAX_RANGE_DAYS, parseRange, rangePresets } from '@/lib/base/timesheetRange';
 import { Dialog } from '@/components/base/Dialog';
-import MapEmbed from '@/components/base/MapEmbed';
+import PunchMap, { type MapStore } from '@/components/base/map/PunchMap';
+import { punchPoints, storePoints } from '@/lib/base/mapPoints';
 import TimeCardForm from '@/components/base/TimeCardForm';
 import { Avatar, Card, EmptyState, PageHeader } from '@/components/base/ui';
 import WeekNav from '@/components/base/WeekNav';
 import { isManager, requireViewer } from '@/lib/base/auth';
 import { fmtDistance, mapLink } from '@/lib/base/geo';
 import { entryIssues, summarizeHours } from '@/lib/base/payroll';
-import { breakMinutes, listEmployees, listEntries, workedMinutes } from '@/lib/base/queries';
+import { breakMinutes, listEmployees, listEntries, listLocations, workedMinutes } from '@/lib/base/queries';
 import { getSettings } from '@/lib/base/settings';
 import { addDaysYmd, dayRangeIso, fmtDate, fmtDuration, fmtTime, isYmd, payPeriodStartYmd, toYmd, todayYmd } from '@/lib/base/time';
 import { fullName, type TimeEntry } from '@/lib/base/types';
@@ -55,10 +56,12 @@ export default async function TimesheetsPage({ searchParams }: PageProps<'/base/
     customRange && !('error' in customRange) ? [customRange.from, customRange.to] : view === 'day' ? [date, date] : [periodStart, periodEnd];
   const employeeFilter = manager ? (typeof sp.employee === 'string' && /^[0-9a-f-]{36}$/i.test(sp.employee) ? sp.employee : undefined) : viewer.employeeId!;
 
-  const [employees, entries] = await Promise.all([
+  const [employees, entries, locations] = await Promise.all([
     listEmployees(true),
     listEntries(dayRangeIso(rangeFrom, zone)[0], dayRangeIso(rangeTo, zone)[1], employeeFilter),
+    listLocations(),
   ]);
+  const stores = storePoints(locations);
   const nameOf = (id: string) => {
     const e = employees.find((x) => x.id === id);
     return e ? fullName(e) : 'Former team member';
@@ -76,6 +79,15 @@ export default async function TimesheetsPage({ searchParams }: PageProps<'/base/
         description={(view === 'period' ? `Pay period ${rangeLabel}` : rangeLabel) + who}
         actions={
           <>
+            <Dialog
+              trigger={<><MapIcon size={15} /> Punch map</>}
+              triggerClassName="b-btn-ghost"
+              title="Where people punched in and out"
+              description={`${rangeLabel}${who} · tap a pin for details`}
+              wide
+            >
+              <PunchMap points={punchPoints(entries.slice(-400), zone, nameOf)} stores={stores} height={520} />
+            </Dialog>
             {manager && (
               <div className="b-segment">
                 <Link href={segment('day')} aria-current={view === 'day' ? 'page' : undefined}>Day</Link>
@@ -104,6 +116,9 @@ export default async function TimesheetsPage({ searchParams }: PageProps<'/base/
         to={rangeTo}
         employee={manager ? (employeeFilter ?? '') : undefined}
         employees={manager ? pickable : undefined}
+        zone={zone}
+        weekStart={settings.week_start}
+        maxDays={MAX_RANGE_DAYS}
       />
     </>
   );
@@ -173,7 +188,7 @@ export default async function TimesheetsPage({ searchParams }: PageProps<'/base/
                       </div>
                     </td>
                   </tr>
-                  {g.list.map((e, i) => <EntryRow key={e.id} e={e} name={g.name} zone={zone} settings={settings} employees={pickable} canEdit={manager} now={now} striped={i % 2 === 1} />)}
+                  {g.list.map((e, i) => <EntryRow key={e.id} e={e} name={g.name} zone={zone} settings={settings} employees={pickable} canEdit={manager} now={now} striped={i % 2 === 1} stores={stores} />)}
                 </tbody>
               ))}
             </table>
@@ -204,6 +219,7 @@ function EntryRow({
   canEdit,
   now,
   striped,
+  stores,
 }: {
   e: TimeEntry;
   name: string;
@@ -213,6 +229,7 @@ function EntryRow({
   canEdit: boolean;
   now: number;
   striped: boolean;
+  stores: MapStore[];
 }) {
   const issues = entryIssues(e, settings, now);
   const meal = Math.round(breakMinutes(e, 'meal', now));
@@ -244,14 +261,20 @@ function EntryRow({
         {e.clock_out_at && <Place label="Out" lat={e.clock_out_lat} lng={e.clock_out_lng} accuracy={e.clock_out_accuracy_m} inside={e.clock_out_in_geofence} distance={e.clock_out_distance_m} place={e.clock_out_place} />}
         {e.clock_in_note && <p className="max-w-[220px] text-xs text-ink">{e.clock_in_note}</p>}
         {e.clock_in_lat != null && e.clock_in_lng != null && (
-          <Dialog trigger="View map" triggerClassName="block text-[0.7rem] font-medium text-brass-dark hover:underline" title={`${name} · punch-in location`} description={`${fmtTime(e.clock_in_at, zone)} · ${e.clock_in_accuracy_m != null ? `accurate to ±${Math.round(e.clock_in_accuracy_m)} m` : ''}`}>
-            <div className="space-y-4">
-              <MapEmbed lat={e.clock_in_lat} lng={e.clock_in_lng} title="Punch-in location" />
-              {e.clock_out_lat != null && e.clock_out_lng != null && (
-                <>
-                  <p className="text-sm font-medium">Punch-out location · {e.clock_out_at && fmtTime(e.clock_out_at, zone)}</p>
-                  <MapEmbed lat={e.clock_out_lat} lng={e.clock_out_lng} title="Punch-out location" />
-                </>
+          <Dialog
+            trigger={<><MapPin size={11} /> View map</>}
+            triggerClassName="mt-1 inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-[0.7rem] font-semibold text-violet-700 ring-1 ring-inset ring-violet-200 hover:bg-violet-100"
+            title={`${name} · ${fmtDate(new Date(e.clock_in_at), zone, 'EEE, MMM d')}`}
+            description={`In ${fmtTime(e.clock_in_at, zone)}${e.clock_out_at ? ` · Out ${fmtTime(e.clock_out_at, zone)}` : ' · still on the clock'}`}
+            wide
+          >
+            <PunchMap points={punchPoints([e], zone)} stores={stores} height={420} />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <PunchCard kind="in" time={fmtTime(e.clock_in_at, zone)} place={e.clock_in_place} accuracy={e.clock_in_accuracy_m} distance={e.clock_in_distance_m} inside={e.clock_in_in_geofence} />
+              {e.clock_out_at ? (
+                <PunchCard kind="out" time={fmtTime(e.clock_out_at, zone)} place={e.clock_out_place} accuracy={e.clock_out_accuracy_m} distance={e.clock_out_distance_m} inside={e.clock_out_in_geofence} />
+              ) : (
+                <div className="flex items-center justify-center rounded-2xl border border-dashed border-emerald-300 bg-emerald-50/60 p-4 text-sm font-medium text-emerald-800">Still on the clock</div>
               )}
             </div>
           </Dialog>
@@ -284,3 +307,18 @@ function EntryRow({
   );
 }
 
+
+function PunchCard({ kind, time, place, accuracy, distance, inside }: { kind: 'in' | 'out'; time: string; place: string | null; accuracy: number | null; distance: number | null; inside: boolean | null }) {
+  const tone = kind === 'in' ? 'from-emerald-50 to-white ring-emerald-200 text-emerald-800' : 'from-rose-50 to-white ring-rose-200 text-rose-800';
+  return (
+    <div className={`rounded-2xl bg-gradient-to-br p-4 ring-1 ring-inset ${tone}`}>
+      <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em]">{kind === 'in' ? 'Punch in' : 'Punch out'}</p>
+      <p className="mt-1 text-xl font-semibold text-ink">{time}</p>
+      <p className="mt-1 text-sm text-ink">{place ?? 'Location recorded'}</p>
+      <p className="mt-1 text-xs text-muted">
+        {inside === true ? 'At a store' : inside === false ? `${fmtDistance(distance)} from the nearest store` : 'No store nearby to compare'}
+        {accuracy != null && ` · ±${Math.round(accuracy)} m`}
+      </p>
+    </div>
+  );
+}

@@ -104,9 +104,13 @@ Bay Design Base gives the team one place to manage their work week — built aro
 | 📅 **Scheduling** | Weekly schedules, personal "My Week" view, and team availability |
 | 📍 **Clock In / Out** | GPS-tagged punches — designers can clock in on-site or at client visits |
 | 🌴 **Time Off** | Requests, approvals, vacation allowances, and leave balances |
-| ⏱️ **Timesheets** | Date-range filtering and downloadable PDF timesheets |
-| 📥 **Inquiries** | Contact-form messages and newsletter subscribers from the public website |
-| ⚙️ **Settings** | Company settings, time zone, and first-time setup |
+| ⏱️ **Timesheets** | Quick ranges, month filter (Jan–Dec), From → To range calendar, punch map; PDF, Excel and CSV |
+| 📊 **Reports** | Hours summary, payroll by pay period, time cards, attendance, time off, roster, activity, inquiries — PDF / Excel / CSV |
+| 🔑 **Passwords** | Created and changed only by admins; admins can see each person’s current password (stored encrypted) |
+| 🧾 **Recent activity** | Every action in plain sentences, with a View panel showing what changed |
+| 🤖 **AI assistants** | Website chat (store questions, sends inquiries) and the Base assistant (how-to help, admin-confirmed password actions) |
+| 📥 **Inquiries** | Contact-form, chat and newsletter messages from the public website |
+| ⚙️ **Settings** | Basic info, stores & geofences, schedule enforcement, time clock, overtime, payroll, time off |
 
 > 🔒 **Security by design:** all secrets stay on the server (none are `NEXT_PUBLIC_*`), sessions use signed cookies, and passwords are stored as hashes.
 
@@ -123,7 +127,9 @@ Bay Design Base gives the team one place to manage their work week — built aro
 | **Auth** | Signed session cookies with `jose` |
 | **Validation** | Zod |
 | **Dates & Time Zones** | date-fns, @date-fns/tz |
-| **PDF** | jsPDF + jspdf-autotable |
+| **PDF / Excel** | jsPDF + jspdf-autotable, ExcelJS |
+| **Maps** | Leaflet (CARTO streets, Esri satellite) |
+| **AI** | NVIDIA NIM (optional) → OpenRouter free models |
 | **Email** | Resend |
 | **Tooling** | ESLint, TypeScript, Git & GitHub |
 
@@ -184,6 +190,21 @@ Open **http://localhost:3000** for the website and **http://localhost:3000/base*
 | `npm run typecheck` | Type-check without emitting |
 | `npm run hash-password` | Hash an admin password |
 | `npm run db:migrate` | Apply Supabase migrations (`-- --seed` to seed) |
+| `npm run load-test -- --users 500 --requests 1000` | Load + data-integrity test against a running server (creates and removes temporary test people) |
+| `node scripts/db-latency.mjs` | How fast the database answers from this machine |
+
+### 🐳 Production with Docker
+
+```bash
+docker compose up -d --build                       # 4 app copies behind Caddy → https://localhost
+SITE_ADDRESS=baydesignstore.com docker compose up -d --build   # real HTTPS certificate
+APP_REPLICAS=6 docker compose up -d --build        # more copies for more traffic
+```
+
+Every copy reads `.env.local`. HTTPS is required in production (the sign-in cookie is Secure).
+Speed tips: run the app in the same region as the Supabase project (each query is ~5 ms there
+instead of ~350 ms across the world), and upgrade the Supabase plan if you need more than
+~45 database queries per second.
 
 ---
 

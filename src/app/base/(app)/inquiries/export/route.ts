@@ -9,7 +9,7 @@ import { fmtTime, toYmd } from '@/lib/base/time';
 /** CSV of website inquiries or newsletter subscribers (managers only). */
 export async function GET(request: Request) {
   const viewer = await getViewer();
-  if (!viewer || viewer.mustChangePassword || !isManager(viewer) || !isDbConfigured()) return new Response('Not found', { status: 404 });
+  if (!viewer || !isManager(viewer) || !isDbConfigured()) return new Response('Not found', { status: 404 });
   const type = new URL(request.url).searchParams.get('type') === 'newsletter' ? 'newsletter' : 'inquiries';
   const { timezone: zone } = await getSettings();
   const today = toYmd(new Date(), zone);

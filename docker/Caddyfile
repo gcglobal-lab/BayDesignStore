@@ -1,0 +1,20 @@
+# Load balancer in front of every "app" container (docker-compose.yml).
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	# Build assets never change (their names contain a hash): let browsers keep them.
+	@static path /_next/static/*
+	header @static Cache-Control "public, max-age=31536000, immutable"
+
+	reverse_proxy {
+		# Every running copy of the app, found through Docker's DNS.
+		dynamic a app 3000 {
+			refresh 10s
+		}
+		lb_policy least_conn
+		lb_retries 2
+		health_uri /api/health
+		health_interval 10s
+		header_up X-Real-IP {remote_host}
+	}
+}

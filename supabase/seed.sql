@@ -3,9 +3,8 @@
 -- =============================================================================
 -- Contains staff names, emails and phone numbers: keep this repository private.
 --
--- Nobody can sign in until an admin sets their password in Team ▸ Roster ▸ (person) ▸
--- "Set password". People are created with must_change_password = true, so they
--- choose their own password on first sign-in.
+-- Nobody can sign in until an admin sets their password in Team ▸ Roster (click the name,
+-- type or generate a password, Save) — or "Passwords for N without one" for everyone at once.
 -- =============================================================================
 
 -- Location (Settings ▸ Basic info). Set latitude/longitude from Settings ▸ Locations

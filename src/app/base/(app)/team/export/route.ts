@@ -7,7 +7,7 @@ import { fullName } from '@/lib/base/types';
 
 export async function GET(request: Request) {
   const viewer = await getViewer();
-  if (!viewer || viewer.mustChangePassword || !isManager(viewer) || !isDbConfigured()) return new Response('Not found', { status: 404 });
+  if (!viewer || !isManager(viewer) || !isDbConfigured()) return new Response('Not found', { status: 404 });
 
   const includeTerminated = new URL(request.url).searchParams.get('terminated') === '1';
   const [employees, locations] = await Promise.all([listEmployees(includeTerminated), listLocations()]);

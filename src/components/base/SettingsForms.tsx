@@ -5,74 +5,141 @@ import { LocateFixed, Loader2 } from 'lucide-react';
 import type { CompanySettings } from '@/lib/base/settings';
 import type { Location } from '@/lib/base/types';
 import { ActionForm, Field, SubmitButton } from './forms';
+import { DatePicker } from './calendar/Calendar';
 import { saveLocation, saveSettings } from '@/app/base/(app)/settings/actions';
 
 const TIMEZONES = ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Phoenix', 'America/Los_Angeles', 'America/Anchorage', 'Pacific/Honolulu'];
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+/** One "label | control" row, like Homebase's settings panels. */
+function Row({ label, hint, htmlFor, children }: { label: string; hint?: ReactNode; htmlFor?: string; children: ReactNode }) {
   return (
-    <div className="grid gap-4 border-b border-stone/50 py-6 first:pt-0 last:border-0 last:pb-0 lg:grid-cols-[220px_1fr] lg:gap-8">
+    <div className="grid gap-2 border-b border-stone/40 py-4 last:border-0 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-center sm:gap-6">
       <div>
-        <h3 className="font-medium">{title}</h3>
-        {description && <p className="mt-1 text-xs leading-relaxed text-muted">{description}</p>}
+        <label htmlFor={htmlFor} className="text-sm font-medium text-ink">{label}</label>
+        {hint && <p className="mt-0.5 text-xs leading-relaxed text-muted">{hint}</p>}
       </div>
-      <div className="space-y-4">{children}</div>
+      <div className="max-w-md">{children}</div>
     </div>
   );
 }
 
-export function CompanySettingsForm({ settings }: { settings: CompanySettings }) {
+function Toggle({ name, defaultChecked, label, hint }: { name: string; defaultChecked: boolean; label: string; hint: string }) {
+  const [on, setOn] = useState(defaultChecked);
   return (
-    <ActionForm action={saveSettings}>
-      <Section title="Company info">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Company name" htmlFor="s-name"><input id="s-name" name="company_name" required maxLength={120} className="b-input" defaultValue={settings.company_name} /></Field>
-          <Field label="Account owner" htmlFor="s-owner"><input id="s-owner" name="account_owner_name" maxLength={120} className="b-input" defaultValue={settings.account_owner_name ?? ''} /></Field>
-          <Field label="Phone number" htmlFor="s-phone"><input id="s-phone" name="phone" maxLength={40} className="b-input" defaultValue={settings.phone ?? ''} /></Field>
-          <Field label="Timezone" htmlFor="s-tz">
-            <select id="s-tz" name="timezone" className="b-input" defaultValue={settings.timezone}>
-              {[...new Set([settings.timezone, ...TIMEZONES])].map((t) => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
-            </select>
-          </Field>
-        </div>
-      </Section>
+    <label className="flex cursor-pointer items-start justify-between gap-6 border-b border-stone/40 py-4 last:border-0">
+      <span>
+        <span className="block text-sm font-medium">{label}</span>
+        <span className="mt-0.5 block text-xs leading-relaxed text-muted">{hint}</span>
+      </span>
+      <input type="checkbox" name={name} checked={on} onChange={(e) => setOn(e.target.checked)} className="peer sr-only" />
+      <span className={`relative mt-0.5 inline-flex h-6 w-11 flex-none rounded-full transition-colors ${on ? 'bg-gradient-to-r from-indigo-500 to-violet-500' : 'bg-stone'}`} aria-hidden="true">
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+      </span>
+    </label>
+  );
+}
 
-      <Section title="Time clock" description="How punch in / punch out works on phones.">
-        <label className="flex items-start gap-2.5 text-sm">
-          <input type="checkbox" name="require_location" className="b-check mt-0.5" defaultChecked={settings.require_location} />
-          <span><span className="font-medium">Require location</span><span className="block text-xs text-muted">People must share their GPS location to punch in or out.</span></span>
-        </label>
-        <label className="flex items-start gap-2.5 text-sm">
-          <input type="checkbox" name="enforce_geofence" className="b-check mt-0.5" defaultChecked={settings.enforce_geofence} />
-          <span><span className="font-medium">Only allow punching in on site</span><span className="block text-xs text-muted">Reject punch-ins outside every location’s geofence. When off (recommended — designers visit clients), they’re allowed and the street address is recorded.</span></span>
-        </label>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Early punch-in (min)" htmlFor="s-early" hint="How early before a shift."><input id="s-early" name="early_clock_in_minutes" type="number" min={0} max={240} className="b-input" defaultValue={settings.early_clock_in_minutes} /></Field>
-          <Field label="Late after (min)" htmlFor="s-late" hint="Grace period before “Late”."><input id="s-late" name="late_grace_minutes" type="number" min={0} max={120} className="b-input" defaultValue={settings.late_grace_minutes} /></Field>
+/** A settings panel: title + Save in the header (like Homebase), rows below. Saves only its own fields. */
+export function SettingsPanel({ title, description, fields, children }: { title: string; description?: string; fields: (keyof CompanySettings)[]; children: ReactNode }) {
+  return (
+    <ActionForm action={saveSettings} className="b-card overflow-hidden">
+      <input type="hidden" name="fields" value={fields.join(',')} />
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-stone/50 bg-gradient-to-r from-white to-linen/60 px-5 py-5 sm:px-7">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight text-ink">{title}</h2>
+          {description && <p className="mt-1 max-w-xl text-sm text-muted">{description}</p>}
         </div>
-      </Section>
-
-      <Section title="Overtime & pay periods">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Weekly overtime after (hours)" htmlFor="s-wot" hint="Federal (FLSA) rule: 40. Leave empty to turn off."><input id="s-wot" name="weekly_overtime_hours" type="number" step="0.5" min={1} max={168} className="b-input" defaultValue={settings.weekly_overtime_hours ?? ''} /></Field>
-          <Field label="Daily overtime after (hours)" htmlFor="s-dot" hint="Not required in Florida. Leave empty to turn off."><input id="s-dot" name="daily_overtime_hours" type="number" step="0.5" min={1} max={24} className="b-input" defaultValue={settings.daily_overtime_hours ?? ''} /></Field>
-          <Field label="Week starts on" htmlFor="s-ws">
-            <select id="s-ws" name="week_start" className="b-input" defaultValue={settings.week_start}>
-              {DAY_NAMES.map((d, i) => <option key={d} value={i}>{d}</option>)}
-            </select>
-          </Field>
-          <Field label="Pay period" htmlFor="s-pp">
-            <select id="s-pp" name="pay_period_days" className="b-input" defaultValue={settings.pay_period_days}>
-              <option value={7}>Weekly</option>
-              <option value={14}>Every two weeks</option>
-            </select>
-          </Field>
-          <Field label="A pay period starts on" htmlFor="s-anchor" hint="Any past first day of a pay period."><input id="s-anchor" name="pay_period_anchor" type="date" required className="b-input" defaultValue={settings.pay_period_anchor} /></Field>
-        </div>
-      </Section>
-      <div className="flex justify-end pt-2"><SubmitButton className="b-btn-brass" pendingLabel="Saving…">Save settings</SubmitButton></div>
+        <SubmitButton className="b-btn-brass" pendingLabel="Saving…">Save</SubmitButton>
+      </div>
+      <div className="px-5 py-2 sm:px-7">{children}</div>
     </ActionForm>
+  );
+}
+
+export function BasicInfoPanel({ settings }: { settings: CompanySettings }) {
+  return (
+    <SettingsPanel title="Basic info" description="Your company details. The timezone is used for every schedule, time card and report." fields={['company_name', 'account_owner_name', 'phone', 'timezone']}>
+      <Row label="Company name" htmlFor="s-name"><input id="s-name" name="company_name" required maxLength={120} className="b-input" defaultValue={settings.company_name} /></Row>
+      <Row label="Account owner" htmlFor="s-owner"><input id="s-owner" name="account_owner_name" maxLength={120} className="b-input" defaultValue={settings.account_owner_name ?? ''} /></Row>
+      <Row label="Phone number" htmlFor="s-phone"><input id="s-phone" name="phone" maxLength={40} className="b-input" defaultValue={settings.phone ?? ''} /></Row>
+      <Row label="Time zone" htmlFor="s-tz">
+        <select id="s-tz" name="timezone" className="b-input" defaultValue={settings.timezone}>
+          {[...new Set([settings.timezone, ...TIMEZONES])].map((t) => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
+        </select>
+      </Row>
+    </SettingsPanel>
+  );
+}
+
+export function SchedulePanel({ settings }: { settings: CompanySettings }) {
+  return (
+    <SettingsPanel title="Schedule enforcement" description="When people can punch in around their shifts, and when they count as late." fields={['early_clock_in_minutes', 'late_grace_minutes', 'week_start']}>
+      <Row label="Early punch-in" hint="How many minutes before a shift someone may punch in." htmlFor="s-early">
+        <div className="flex items-center gap-2"><input id="s-early" name="early_clock_in_minutes" type="number" min={0} max={240} className="b-input !w-28" defaultValue={settings.early_clock_in_minutes} /><span className="text-sm text-muted">minutes</span></div>
+      </Row>
+      <Row label="Late after" hint="Grace period before someone shows as “Late” on Manager View." htmlFor="s-late">
+        <div className="flex items-center gap-2"><input id="s-late" name="late_grace_minutes" type="number" min={0} max={120} className="b-input !w-28" defaultValue={settings.late_grace_minutes} /><span className="text-sm text-muted">minutes</span></div>
+      </Row>
+      <Row label="Week starts on" htmlFor="s-ws">
+        <select id="s-ws" name="week_start" className="b-input" defaultValue={settings.week_start}>
+          {DAY_NAMES.map((d, i) => <option key={d} value={i}>{d}</option>)}
+        </select>
+      </Row>
+    </SettingsPanel>
+  );
+}
+
+export function TimeClockPanel({ settings }: { settings: CompanySettings }) {
+  return (
+    <SettingsPanel title="Time clock options" description="How punch in / punch out works on phones." fields={['require_location', 'enforce_geofence']}>
+      <Toggle name="require_location" defaultChecked={settings.require_location} label="Require location" hint="People must share their GPS location to punch in or out. The location is recorded only at the punch — never in between." />
+      <Toggle
+        name="enforce_geofence"
+        defaultChecked={settings.enforce_geofence}
+        label="Only allow punching in on site"
+        hint="Reject punch-ins outside every store’s geofence. Keep this off (recommended) so designers and drivers can punch in at clients — the street address is recorded instead."
+      />
+    </SettingsPanel>
+  );
+}
+
+export function OvertimePanel({ settings }: { settings: CompanySettings }) {
+  return (
+    <SettingsPanel title="Overtime" description="Overtime is shown on timesheets and reports, estimated at 1.5× the hourly wage." fields={['weekly_overtime_hours', 'daily_overtime_hours']}>
+      <Row label="Weekly overtime after" hint="Federal (FLSA) rule: 40. Leave empty to turn off." htmlFor="s-wot">
+        <div className="flex items-center gap-2"><input id="s-wot" name="weekly_overtime_hours" type="number" step="0.5" min={1} max={168} className="b-input !w-28" defaultValue={settings.weekly_overtime_hours ?? ''} /><span className="text-sm text-muted">hours / week</span></div>
+      </Row>
+      <Row label="Daily overtime after" hint="Not required in Florida. Leave empty to turn off." htmlFor="s-dot">
+        <div className="flex items-center gap-2"><input id="s-dot" name="daily_overtime_hours" type="number" step="0.5" min={1} max={24} className="b-input !w-28" defaultValue={settings.daily_overtime_hours ?? ''} /><span className="text-sm text-muted">hours / day</span></div>
+      </Row>
+    </SettingsPanel>
+  );
+}
+
+export function PayrollPanel({ settings }: { settings: CompanySettings }) {
+  return (
+    <SettingsPanel title="Payroll settings" description="Pay periods used by timesheets and the payroll report." fields={['pay_period_days', 'pay_period_anchor']}>
+      <Row label="Pay period" htmlFor="s-pp">
+        <select id="s-pp" name="pay_period_days" className="b-input" defaultValue={settings.pay_period_days}>
+          <option value={7}>Weekly</option>
+          <option value={14}>Every two weeks</option>
+        </select>
+      </Row>
+      <Row label="A pay period starts on" hint="Any past first day of a pay period." htmlFor="s-anchor">
+        <DatePicker id="s-anchor" name="pay_period_anchor" required defaultValue={settings.pay_period_anchor} weekStart={settings.week_start} zone={settings.timezone} />
+      </Row>
+    </SettingsPanel>
+  );
+}
+
+export function TimeOffPanel({ settings }: { settings: CompanySettings }) {
+  return (
+    <SettingsPanel title="Time off" description="Vacation and paid time off come out of each person’s paid-leave days (1 day = 8 hours)." fields={['paid_leave_days_per_year']}>
+      <Row label="Paid leave per year" hint="Everyone without their own number for a year gets this. Set individual days in Time Off ▸ balances." htmlFor="s-pl">
+        <div className="flex items-center gap-2"><input id="s-pl" name="paid_leave_days_per_year" type="number" step="0.5" min={0} max={365} className="b-input !w-28" defaultValue={settings.paid_leave_days_per_year} /><span className="text-sm text-muted">days</span></div>
+      </Row>
+    </SettingsPanel>
   );
 }
 

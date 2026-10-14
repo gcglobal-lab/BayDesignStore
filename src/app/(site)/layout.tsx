@@ -2,12 +2,14 @@ import type { ReactNode } from 'react';
 import Layout from '@/components/Layout';
 import JsonLd from '@/components/JsonLd';
 import { organizationJsonLd } from '@/lib/structuredData';
+import StoreChat from '@/components/chat/StoreChat';
 
 export default function SiteLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <JsonLd data={organizationJsonLd} />
       <Layout>{children}</Layout>
+      <StoreChat />
       <noscript>
         <h1>Bay Design Store — Naples, Florida Interior Design &amp; Fine Furniture</h1>
         <p>

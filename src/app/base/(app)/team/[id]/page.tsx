@@ -2,8 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, LogOut, UserCheck, UserX } from 'lucide-react';
-import { PasswordForm, WageForm } from '@/components/base/EmployeeAdminForms';
+import { PasswordPanel, WageForm } from '@/components/base/EmployeeAdminForms';
 import EmployeeForm from '@/components/base/EmployeeForm';
+import StoreSelect from '@/components/base/StoreSelect';
 import { SubmitButton } from '@/components/base/forms';
 import { Avatar, Card } from '@/components/base/ui';
 import { requireManager } from '@/lib/base/auth';
@@ -14,6 +15,7 @@ import { getSettings } from '@/lib/base/settings';
 import { fmtDate, fmtDuration, fmtTime, todayYmd } from '@/lib/base/time';
 import { fmtDays, fullName, wageLabel, type TimeEntry } from '@/lib/base/types';
 import { leaveBalance } from '@/lib/base/leave';
+import { passwordsFor } from '@/lib/base/passwords';
 import { LeaveAllowanceForm } from '@/components/base/LeaveForms';
 import { setEmployeeStatus, signOutEverywhere } from '../actions';
 
@@ -28,13 +30,15 @@ export default async function EmployeePage({ params }: PageProps<'/base/team/[id
   const settings = await getSettings();
   const zone = settings.timezone;
   const thisYear = Number(todayYmd(zone).slice(0, 4));
-  const [roles, locations, entriesRes, wagesRes, leave] = await Promise.all([
+  const [roles, locations, entriesRes, wagesRes, leave, passwords] = await Promise.all([
     listRoles(),
     listLocations(),
     db().from('time_entries').select('*, breaks:time_entry_breaks(id, type, started_at, ended_at)').eq('employee_id', id).order('clock_in_at', { ascending: false }).limit(8),
     db().from('employee_wages').select('id, wage_type, amount, effective_from').eq('employee_id', id).order('effective_from', { ascending: false }).limit(10),
     leaveBalance(id, thisYear),
+    passwordsFor(viewer, [id]),
   ]);
+  const admin = viewer.level === 'admin';
   const entries = must<TimeEntry[]>(entriesRes, 'load recent time cards');
   const wages = must<{ id: string; wage_type: 'hourly' | 'salary'; amount: number; effective_from: string }[]>(wagesRes, 'load wages');
 
@@ -65,7 +69,8 @@ export default async function EmployeePage({ params }: PageProps<'/base/team/[id
           {canEdit ? (
             <EmployeeForm
               isSelf={self}
-              canSetLevel={viewer.level === 'admin'}
+              isAdmin={admin}
+              canSetLevel={admin}
               roles={roles}
               locations={locations}
               values={{
@@ -83,6 +88,7 @@ export default async function EmployeePage({ params }: PageProps<'/base/team/[id
                 hire_date: employee.hire_date,
                 role_ids: employee.roles.map((r) => r.id),
                 primary_role_id: employee.roles.find((r) => r.is_primary)?.id ?? null,
+                password: admin ? (employee.has_password ? (passwords.get(employee.id) ?? null) : '') : undefined,
               }}
             />
           ) : (
@@ -91,12 +97,16 @@ export default async function EmployeePage({ params }: PageProps<'/base/team/[id
         </Card>
 
         <aside className="space-y-6">
-          {manageable && !self && employee.status !== 'terminated' && (
+          {manageable && employee.status !== 'terminated' && (
             <Card title="Sign-in">
               <div className="space-y-4">
                 <p className="text-sm">Login ID: <code className="rounded bg-linen px-1.5 py-0.5 font-mono">{employee.login_id}</code></p>
-                <PasswordForm id={employee.id} hasPassword={employee.has_password} />
-                {employee.has_password && (
+                {admin ? (
+                  <PasswordPanel id={employee.id} current={passwords.get(employee.id) ?? null} hasPassword={employee.has_password} />
+                ) : (
+                  <p className="text-sm text-muted">{employee.has_password ? 'Has a password.' : 'No password yet.'} Only an admin can see, set or change passwords.</p>
+                )}
+                {employee.has_password && !self && (
                   <form action={signOutEverywhere} className="border-t border-stone/50 pt-4">
                     <input type="hidden" name="id" value={employee.id} />
                     <SubmitButton className="b-btn-quiet b-btn-sm" confirm={`Sign ${employee.first_name} out on every device?`}><LogOut size={13} /> Sign out everywhere</SubmitButton>
@@ -105,6 +115,11 @@ export default async function EmployeePage({ params }: PageProps<'/base/team/[id
               </div>
             </Card>
           )}
+
+          <Card title="Store">
+            <p className="mb-3 text-sm text-muted">Where {employee.first_name} works. It stays until you change it; new shifts start at this store (you can still pick the other store for a particular shift).</p>
+            <StoreSelect employeeId={employee.id} value={employee.location_id} locations={locations.filter((l) => l.is_active).map((l) => ({ id: l.id, name: l.name }))} disabled={!manageable && !self} />
+          </Card>
 
           <Card title={<h2 id="wage" className="b-h2">Wage</h2>}>
             <p className="mb-3 text-sm">Current: <span className="font-medium">{wageLabel(employee.wage) ?? 'Not set'}</span></p>

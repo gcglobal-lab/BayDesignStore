@@ -7,12 +7,12 @@ import TimeClock, { type ClockState } from '@/components/base/TimeClock';
 import LiveDuration from '@/components/base/LiveDuration';
 import PaidLeaveSummary from '@/components/base/PaidLeaveSummary';
 import TimeOffForm, { type PaidLeft } from '@/components/base/TimeOffForm';
-import { leaveBalance } from '@/lib/base/leave';
+import { leaveBalanceYears } from '@/lib/base/leave';
 import { Card, EmptyState, PageHeader, Stat, StatusBadge } from '@/components/base/ui';
 import WeekNav from '@/components/base/WeekNav';
 import { requireEmployee } from '@/lib/base/auth';
 import { db, must } from '@/lib/base/db';
-import { getEmployee, getOpenEntry, listEntries, listLocations, listRoles, workedMinutes } from '@/lib/base/queries';
+import { getOpenEntry, listEmployees, listEntries, listLocations, listRoles, workedMinutes } from '@/lib/base/queries';
 import { getSettings } from '@/lib/base/settings';
 import {
   addDaysYmd, dayRangeIso, fmtDate, fmtDateRange, fmtDuration, fmtTime, isYmd, minutesBetween, todayYmd, weekStartYmd, type Ymd,
@@ -56,8 +56,9 @@ export default async function MyWeekPage({ searchParams }: PageProps<'/base/my-w
   const nowIso = new Date().toISOString();
 
   const thisYear = Number(today.slice(0, 4));
-  const [me, roles, locations, openEntry, myShifts, openShifts, requests, timeOff, entries, paidBalance, paidBalanceNext] = await Promise.all([
-    getEmployee(viewer.employeeId),
+  // The roster and leave come from shared, cached loads — fewer database calls per page view.
+  const [roster, roles, locations, openEntry, myShifts, openShifts, requests, timeOff, entries, balances] = await Promise.all([
+    listEmployees(true),
     listRoles(),
     listLocations(),
     getOpenEntry(viewer.employeeId),
@@ -71,9 +72,11 @@ export default async function MyWeekPage({ searchParams }: PageProps<'/base/my-w
       .limit(40),
     db().from('time_off_requests').select('*').eq('employee_id', viewer.employeeId).in('status', ['pending', 'approved']).gte('ends_on', today).order('starts_on').limit(10),
     listEntries(weekStartIso, weekEndIso, viewer.employeeId),
-    leaveBalance(viewer.employeeId, thisYear),
-    leaveBalance(viewer.employeeId, thisYear + 1),
+    leaveBalanceYears(viewer.employeeId, [thisYear, thisYear + 1]),
   ]);
+  const me = roster.find((e) => e.id === viewer.employeeId) ?? null;
+  const paidBalance = balances.get(thisYear)!;
+  const paidBalanceNext = balances.get(thisYear + 1)!;
   const paidLeft: PaidLeft = { me: { [thisYear]: paidBalance.remaining, [thisYear + 1]: paidBalanceNext.remaining } };
   const noPaidLeave = paidBalance.remaining <= 0;
 

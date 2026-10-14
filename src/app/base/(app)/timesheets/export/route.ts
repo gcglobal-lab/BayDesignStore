@@ -12,7 +12,7 @@ import { fullName } from '@/lib/base/types';
 /** Every time card in a date range, one row each — for payroll. */
 export async function GET(request: Request) {
   const viewer = await getViewer();
-  if (!viewer || viewer.mustChangePassword || !isManager(viewer) || !isDbConfigured()) return new Response('Not found', { status: 404 });
+  if (!viewer || !isManager(viewer) || !isDbConfigured()) return new Response('Not found', { status: 404 });
 
   const params = new URL(request.url).searchParams;
   const range = parseRange(params.get('from'), params.get('to'));

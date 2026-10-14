@@ -14,7 +14,7 @@ import { fullName } from '@/lib/base/types';
  */
 export async function GET(request: Request) {
   const viewer = await getViewer();
-  if (!viewer || viewer.mustChangePassword || !isDbConfigured()) return new Response('Not found', { status: 404 });
+  if (!viewer || !isDbConfigured()) return new Response('Not found', { status: 404 });
   const manager = isManager(viewer);
   if (!manager && !viewer.employeeId) return new Response('Not found', { status: 404 });
 

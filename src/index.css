@@ -229,6 +229,10 @@ body::after {
   .b-table tbody tr {
     @apply transition-colors hover:bg-linen/60;
   }
+  /* Homebase-style table: white header, sentence case. */
+  .b-table-plain th {
+    @apply bg-white text-[0.8rem] font-semibold normal-case tracking-normal text-ink/80;
+  }
 
   .b-badge {
     @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[0.7rem] font-semibold;

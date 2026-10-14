@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Coffee, Loader2, LocateFixed, LogIn, LogOut, MapPin, MapPinOff, UtensilsCrossed } from 'lucide-react';
 import type { ActionResult } from '@/lib/base/actionResult';
 import { FormMessage } from './forms';
@@ -19,10 +20,14 @@ export type ClockKind = { clockTitle: string; note: { label: string; placeholder
 type Phase = { kind: 'idle' } | { kind: 'locating'; accuracy: number | null } | { kind: 'saving' };
 
 /** How long a punch waits for the GPS to sharpen before using the best reading so far. */
-const LOCATE_MS = 5000;
+const LOCATE_MS = 1500;
+/** A reading this precise is used straight away. */
+const GOOD_ENOUGH_M = 50;
+/** A warmed-up reading (see useWarmGps) younger than this is used without asking the GPS again. */
+const WARM_MAX_AGE_MS = 20_000;
 
 /**
- * Best GPS fix we can get in ~5 s: phones often start with a coarse Wi-Fi/cell
+ * Best GPS fix we can get in about 1.5 s: phones often start with a coarse Wi-Fi/cell
  * position and sharpen as GPS locks on, so keep watching and take the most precise.
  * If there's no reading at all by then (GPS still cold), take the first one that arrives.
  */
@@ -47,13 +52,13 @@ function getBestPosition(onProgress: (accuracy: number) => void): Promise<Geoloc
           best = pos;
           onProgress(pos.coords.accuracy);
         }
-        if (pos.coords.accuracy <= 20 || timeUp) finish();
+        if (pos.coords.accuracy <= GOOD_ENOUGH_M || timeUp) finish();
       },
       (err) => {
         lastError = err;
         if (err.code === err.PERMISSION_DENIED || err.code === err.TIMEOUT) finish();
       },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
+      { enableHighAccuracy: true, maximumAge: 10_000, timeout: 15000 },
     );
     const timer = window.setTimeout(() => {
       timeUp = true;
@@ -81,8 +86,40 @@ function useNow(intervalMs: number) {
   return now;
 }
 
+/**
+ * If location is already allowed for this site, keep a fresh GPS reading while the time clock
+ * is on screen, so pressing Punch doesn’t have to wait for the GPS at all. Nothing is sent
+ * anywhere until a punch — the reading only lives in this page.
+ */
+function useWarmGps() {
+  const latest = useRef<GeolocationPosition | null>(null);
+  useEffect(() => {
+    if (!('geolocation' in navigator) || !navigator.permissions?.query) return;
+    let watchId: number | null = null;
+    let cancelled = false;
+    navigator.permissions
+      .query({ name: 'geolocation' as PermissionName })
+      .then((status) => {
+        if (cancelled || status.state !== 'granted') return;
+        watchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            latest.current = pos;
+          },
+          () => {},
+          { enableHighAccuracy: true, maximumAge: 10_000, timeout: 30_000 },
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
+  return latest;
+}
+
 export default function TimeClock({
-  state,
+  state: serverState,
   timezone,
   requireLocation,
   nextShiftLabel,
@@ -99,6 +136,12 @@ export default function TimeClock({
   const [result, setResult] = useState<ActionResult>(null);
   const [isPending, startTransition] = useTransition();
   const now = useNow(1000);
+  const router = useRouter();
+  // Shown right after a punch, until the refreshed page brings the saved state.
+  const [optimistic, setOptimistic] = useState<ClockState | null>(null);
+  useEffect(() => setOptimistic(null), [serverState]);
+  const state = optimistic ?? serverState;
+  const warm = useWarmGps();
 
   const onClock = state.clockInAt !== null;
   const busy = phase.kind !== 'idle' || isPending;
@@ -116,30 +159,71 @@ export default function TimeClock({
   async function punch() {
     setResult(null);
     let fix: GpsFix = null;
-    setPhase({ kind: 'locating', accuracy: null });
-    try {
-      const pos = await getBestPosition((accuracy) => setPhase({ kind: 'locating', accuracy }));
-      fix = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, ageMs: Math.max(0, Date.now() - pos.timestamp) };
-    } catch (err) {
-      if (requireLocation) {
-        setPhase({ kind: 'idle' });
-        setResult({ ok: false, message: locationError(err) });
-        return;
+    const ready = warm.current;
+    if (ready && Date.now() - ready.timestamp < WARM_MAX_AGE_MS && ready.coords.accuracy <= 100) {
+      // A fresh reading is already here: no waiting for the GPS.
+      fix = { lat: ready.coords.latitude, lng: ready.coords.longitude, accuracy: ready.coords.accuracy, ageMs: Math.max(0, Date.now() - ready.timestamp) };
+    } else {
+      setPhase({ kind: 'locating', accuracy: null });
+      try {
+        const pos = await getBestPosition((accuracy) => setPhase({ kind: 'locating', accuracy }));
+        fix = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, ageMs: Math.max(0, Date.now() - pos.timestamp) };
+      } catch (err) {
+        if (requireLocation) {
+          setPhase({ kind: 'idle' });
+          setResult({ ok: false, message: locationError(err) });
+          return;
+        }
       }
     }
     setPhase({ kind: 'saving' });
+    const wasOnClock = onClock;
+    const typedNote = note.trim();
     startTransition(async () => {
-      const res = await (onClock ? clockOut(fix) : clockIn(fix, note));
+      const res = await (wasOnClock ? clockOut(fix) : clockIn(fix, note));
       setResult(res);
-      if (res?.ok) setNote('');
+      if (res?.ok) {
+        const d = res.data ?? {};
+        setOptimistic(
+          wasOnClock
+            ? { clockInAt: null, mealBreaks: [], onBreak: null, clockInPlace: null, clockInNote: null }
+            : {
+                clockInAt: d.at ?? new Date().toISOString(),
+                mealBreaks: [],
+                onBreak: null,
+                clockInPlace: d.lat ? { lat: Number(d.lat), lng: Number(d.lng), accuracy: d.accuracy ? Number(d.accuracy) : null, atStore: d.atStore === '1', place: d.place || null } : null,
+                clockInNote: typedNote || null,
+              },
+        );
+        setNote('');
+        router.refresh();
+      }
       setPhase({ kind: 'idle' });
     });
   }
 
-  function onBreakAction(action: () => Promise<ActionResult>) {
+  function onBreakAction(action: () => Promise<ActionResult>, next: (s: ClockState) => ClockState) {
     setResult(null);
-    startTransition(async () => setResult(await action()));
+    const before = state;
+    startTransition(async () => {
+      const res = await action();
+      setResult(res);
+      if (res?.ok) {
+        setOptimistic(next(before));
+        router.refresh();
+      }
+    });
   }
+
+  const startMeal = (s: ClockState): ClockState => {
+    const startedAt = new Date().toISOString();
+    return { ...s, onBreak: { type: 'meal', startedAt }, mealBreaks: [...s.mealBreaks, { startedAt, endedAt: null }] };
+  };
+  const endAnyBreak = (s: ClockState): ClockState => ({
+    ...s,
+    onBreak: null,
+    mealBreaks: s.mealBreaks.map((b) => (b.endedAt ? b : { ...b, endedAt: new Date().toISOString() })),
+  });
 
   return (
     <section className="b-card relative overflow-hidden">
@@ -179,7 +263,7 @@ export default function TimeClock({
             >
               <MapPin size={13} className={state.clockInPlace.atStore ? 'text-emerald-600' : 'text-brass'} />
               Punched in at {state.clockInPlace.place ?? 'your location'}
-              {state.clockInPlace.accuracy != null && ` (±${state.clockInPlace.accuracy} m)`}
+              {state.clockInPlace.accuracy != null && ` (±${Math.round(state.clockInPlace.accuracy)} m)`}
             </a>
           )}
           {onClock && state.clockInNote && <p className="mt-1 text-xs text-ink">{kind.note?.label.replace(' (optional)', '') ?? 'Note'}: <span className="font-medium">{state.clockInNote}</span></p>}
@@ -219,22 +303,21 @@ export default function TimeClock({
             )}
           </button>
 
-          {onClock && (
-            state.onBreak ? (
-              <button type="button" className="b-btn-ghost !py-2.5" disabled={busy} onClick={() => onBreakAction(endBreak)}>
+          {onClock &&
+            (state.onBreak ? (
+              <button type="button" className="b-btn-ghost !py-2.5" disabled={busy} onClick={() => onBreakAction(endBreak, endAnyBreak)}>
                 End {state.onBreak.type} break
               </button>
             ) : (
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" className="b-btn-ghost !px-2 !py-2.5" disabled={busy} onClick={() => onBreakAction(() => startBreak('rest'))}>
+                <button type="button" className="b-btn-ghost !px-2 !py-2.5" disabled={busy} onClick={() => onBreakAction(() => startBreak('rest'), (s) => ({ ...s, onBreak: { type: 'rest', startedAt: new Date().toISOString() } }))}>
                   <Coffee size={15} /> Rest break
                 </button>
-                <button type="button" className="b-btn-ghost !px-2 !py-2.5" disabled={busy} onClick={() => onBreakAction(() => startBreak('meal'))}>
+                <button type="button" className="b-btn-ghost !px-2 !py-2.5" disabled={busy} onClick={() => onBreakAction(() => startBreak('meal'), startMeal)}>
                   <UtensilsCrossed size={15} /> Meal break
                 </button>
               </div>
-            )
-          )}
+            ))}
 
           <p className="flex items-start gap-1.5 text-[0.72rem] leading-snug text-muted">
             {requireLocation ? <MapPin size={13} className="mt-px flex-none text-brass" /> : <MapPinOff size={13} className="mt-px flex-none" />}
