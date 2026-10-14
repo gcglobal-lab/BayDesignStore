@@ -12,14 +12,61 @@ const VIDEO_MS = 10000;
 
 type Renditions = NonNullable<HeroSlide['video']>;
 
-/** Sharpest rendition the screen can actually show, without sending 4K to phones or data-saver users. */
+/**
+ * Sharpest rendition the screen can actually show. Phones and tablets always get 1080p: decoding
+ * 1440p/4K there can stall playback or make the browser drop images to free memory.
+ */
 function pickRendition(video: Renditions) {
   const nav = navigator as Navigator & { connection?: { saveData?: boolean } };
   if (nav.connection?.saveData) return video.hd;
-  const px = Math.max(window.innerWidth, window.innerHeight * (16 / 9)) * Math.min(window.devicePixelRatio || 1, 2);
-  if (px > 2700 && video.uhd) return video.uhd;
-  if (px > 1500) return video.qhd;
+  if (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 1024) return video.hd;
+  const px = window.innerWidth * Math.min(window.devicePixelRatio || 1, 2);
+  if (px > 3200 && video.uhd) return video.uhd;
+  if (px > 2000) return video.qhd;
   return video.hd;
+}
+
+/**
+ * Background video that reliably starts. React sets `muted` only as a property, and browsers can
+ * skip autoplay for a video added after a client-side navigation, so start it by hand — and again
+ * when the page comes back from the back/forward cache or a hidden tab.
+ */
+function HeroVideo({ src, poster }: { src?: string; poster: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !src) return;
+    v.muted = true;
+    v.defaultMuted = true;
+    v.setAttribute('muted', '');
+    const play = () => {
+      if (document.visibilityState === 'visible' && v.paused) v.play().catch(() => {});
+    };
+    play();
+    v.addEventListener('canplay', play);
+    window.addEventListener('pageshow', play);
+    document.addEventListener('visibilitychange', play);
+    return () => {
+      v.removeEventListener('canplay', play);
+      window.removeEventListener('pageshow', play);
+      document.removeEventListener('visibilitychange', play);
+    };
+  }, [src]);
+
+  return (
+    <video
+      ref={ref}
+      className="absolute inset-0 h-full w-full object-cover"
+      src={src}
+      poster={poster}
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="auto"
+    />
+  );
 }
 
 const slideVariants = {
@@ -88,16 +135,7 @@ export default function HeroSlider() {
           className="absolute inset-0"
         >
           {slide.video ? (
-            <video
-              className="absolute inset-0 h-full w-full object-cover"
-              src={mounted ? pickRendition(slide.video) : undefined}
-              poster={slide.poster}
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="auto"
-            />
+            <HeroVideo src={mounted ? pickRendition(slide.video) : undefined} poster={slide.poster} />
           ) : (
             <img src={slide.poster} alt="" className="absolute inset-0 h-full w-full animate-kenburns object-cover" />
           )}

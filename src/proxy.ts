@@ -1,5 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { SESSION_COOKIE, verifySession } from '@/lib/base/token';
+import {
+  SESSION_COOKIE,
+  SESSION_REFRESH_AFTER_SECONDS,
+  SESSION_TTL_SECONDS,
+  sessionCookieOptions,
+  signSession,
+  verifySession,
+} from '@/lib/base/token';
 
 /**
  * Gatekeeper for Bay Design Base (/base). Runs before any page renders:
@@ -48,6 +55,11 @@ export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set('Content-Security-Policy', csp);
   if (expired) response.cookies.delete(SESSION_COOKIE);
+  else if (session && request.method === 'GET' && Date.now() / 1000 - session.iat > SESSION_REFRESH_AFTER_SECONDS) {
+    // Keep active devices signed in indefinitely: re-issue the token (same claims) once a week.
+    const { sub, lvl, sv } = session;
+    response.cookies.set(SESSION_COOKIE, await signSession({ sub, lvl, sv }, SESSION_TTL_SECONDS), sessionCookieOptions);
+  }
   return secure(response);
 }
 

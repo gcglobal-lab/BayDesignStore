@@ -1,18 +1,10 @@
 import 'server-only';
 import { cookies } from 'next/headers';
-import { SESSION_COOKIE, sessionTtlSeconds, signSession, verifySession, type SessionClaims } from './token';
+import { SESSION_COOKIE, SESSION_TTL_SECONDS, sessionCookieOptions, signSession, verifySession, type SessionClaims } from './token';
 
 export async function createSession(claims: SessionClaims) {
-  const ttl = sessionTtlSeconds(claims.lvl);
-  const token = await signSession(claims, ttl);
-  (await cookies()).set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: ttl,
-    priority: 'high',
-  });
+  const token = await signSession(claims, SESSION_TTL_SECONDS);
+  (await cookies()).set(SESSION_COOKIE, token, sessionCookieOptions);
 }
 
 export async function readSession(): Promise<SessionClaims | null> {

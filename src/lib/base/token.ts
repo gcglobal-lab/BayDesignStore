@@ -34,18 +34,36 @@ export async function signSession(claims: SessionClaims, ttlSeconds: number): Pr
     .sign(secretKey());
 }
 
-export async function verifySession(token: string | undefined): Promise<SessionClaims | null> {
+/** A verified session, plus when its token was issued (seconds since epoch). */
+export type VerifiedSession = SessionClaims & { iat: number };
+
+export async function verifySession(token: string | undefined): Promise<VerifiedSession | null> {
   if (!token || token.length > 2048) return null;
   try {
     const { payload } = await jwtVerify(token, secretKey(), { issuer: ISSUER, audience: AUDIENCE, algorithms: ['HS256'] });
     const lvl = payload.lvl;
-    if (typeof payload.sub !== 'string' || typeof payload.sv !== 'number') return null;
+    if (typeof payload.sub !== 'string' || typeof payload.sv !== 'number' || typeof payload.iat !== 'number') return null;
     if (lvl !== 'employee' && lvl !== 'manager' && lvl !== 'admin') return null;
-    return { sub: payload.sub, lvl, sv: payload.sv };
+    return { sub: payload.sub, lvl, sv: payload.sv, iat: payload.iat };
   } catch {
     return null;
   }
 }
 
-/** Managers and admins sign in for a working day; employees stay signed in on their phone for a week. */
-export const sessionTtlSeconds = (lvl: AccessLevel) => (lvl === 'employee' ? 7 * 24 * 3600 : 12 * 3600);
+/**
+ * Everyone stays signed in until they sign out. 400 days is the longest a browser keeps a cookie,
+ * and the proxy re-issues the token once it is a week old, so an active device never expires.
+ * Sign-out, terminating someone or an admin's "sign out everywhere" still end it immediately
+ * (session_version is checked against the database on every request).
+ */
+export const SESSION_TTL_SECONDS = 400 * 24 * 3600;
+export const SESSION_REFRESH_AFTER_SECONDS = 7 * 24 * 3600;
+
+export const sessionCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/',
+  maxAge: SESSION_TTL_SECONDS,
+  priority: 'high',
+} as const;

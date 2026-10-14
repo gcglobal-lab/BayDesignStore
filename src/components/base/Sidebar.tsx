@@ -170,11 +170,19 @@ function ViewerCard({ viewer }: { viewer: SidebarViewer }) {
             {viewer.level === 'admin' && <ShieldCheck size={11} />} {viewer.level}
           </p>
         </Link>
-        <form action={signOut}>
-          <button type="submit" className="rounded-lg p-2 text-ivory/50 transition-colors hover:bg-white/10 hover:text-ivory" aria-label="Sign out" title="Sign out">
-            <LogOut size={16} />
-          </button>
-        </form>
+        <button
+          type="button"
+          onClick={async () => {
+            await signOut();
+            // Full page load (replacing this history entry) drops every cached signed-in page.
+            window.location.replace('/base/login');
+          }}
+          className="rounded-lg p-2 text-ivory/50 transition-colors hover:bg-white/10 hover:text-ivory"
+          aria-label="Sign out"
+          title="Sign out"
+        >
+          <LogOut size={16} />
+        </button>
       </div>
     </div>
   );
@@ -185,6 +193,16 @@ export default function Sidebar({ viewer }: { viewer: SidebarViewer }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => setOpen(false), [pathname]);
+
+  // A page restored from the browser's back/forward cache skips the server, so it could show a
+  // signed-in screen after sign-out. Reload it instead — the proxy then sends signed-out people to sign in.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) window.location.reload();
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, []);
 
   return (
     <>

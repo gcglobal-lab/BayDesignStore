@@ -87,9 +87,12 @@ export async function signIn(_prev: ActionResult, formData: FormData): Promise<A
   redirect(safeNext(next));
 }
 
+/**
+ * Ends the session. The sign-out button then does a full page load (see Sidebar) so the in-memory
+ * router cache of signed-in pages is thrown away and Back/Forward can't show them again.
+ */
 export async function signOut() {
   const viewer = await getViewer();
   if (viewer) await audit(viewer, 'auth.sign_out');
   await destroySession();
-  redirect('/base/login');
 }
