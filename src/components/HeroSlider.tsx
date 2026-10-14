@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, ArrowUpRight, Pause, Play } from 'lucide-react';
@@ -26,73 +26,143 @@ function pickRendition(video: Renditions) {
   return video.hd;
 }
 
-/**
- * Background video that reliably starts. React sets `muted` only as a property, and browsers can
- * skip autoplay for a video added after a client-side navigation, so start it by hand — and again
- * when the page comes back from the back/forward cache or a hidden tab.
- */
-function HeroVideo({ src, poster }: { src?: string; poster: string }) {
-  const ref = useRef<HTMLVideoElement>(null);
+const FADE_MS = 1200;
+/** How long to wait for the next video to start before showing its poster instead. */
+const READY_TIMEOUT_MS = 3000;
 
+/**
+ * One slide's background. Every slide keeps its own layer mounted so switching is just an opacity
+ * crossfade (handled by the GPU) — no clip-path repaints over a playing video. Only the slides
+ * around the current one are loaded; the next one buffers in the background so it is already
+ * playing when it fades in.
+ */
+function SlideLayer({
+  slide,
+  src,
+  load,
+  play,
+  shown,
+  leaving,
+  onReady,
+}: {
+  slide: HeroSlide;
+  src?: string;
+  load: boolean;
+  play: boolean;
+  shown: boolean;
+  leaving: boolean;
+  onReady: (ready: boolean) => void;
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [started, setStarted] = useState(false);
+
+  // Release the download and decoder of slides that are no longer nearby.
   useEffect(() => {
     const v = ref.current;
-    if (!v || !src) return;
+    if (v && !load && v.networkState !== v.NETWORK_EMPTY) v.load();
+  }, [load]);
+
+  // React sets `muted` only as a property and browsers may skip autoplay for videos added after a
+  // client-side navigation, so start playback by hand — and again after the back/forward cache or a hidden tab.
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !load || !src) return;
     v.muted = true;
     v.defaultMuted = true;
-    v.setAttribute('muted', '');
-    const play = () => {
+    if (!play) {
+      v.pause();
+      return;
+    }
+    const start = () => {
       if (document.visibilityState === 'visible' && v.paused) v.play().catch(() => {});
     };
-    play();
-    v.addEventListener('canplay', play);
-    window.addEventListener('pageshow', play);
-    document.addEventListener('visibilitychange', play);
+    start();
+    v.addEventListener('canplay', start);
+    window.addEventListener('pageshow', start);
+    document.addEventListener('visibilitychange', start);
     return () => {
-      v.removeEventListener('canplay', play);
-      window.removeEventListener('pageshow', play);
-      document.removeEventListener('visibilitychange', play);
+      v.removeEventListener('canplay', start);
+      window.removeEventListener('pageshow', start);
+      document.removeEventListener('visibilitychange', start);
     };
-  }, [src]);
+  }, [load, play, src]);
 
   return (
-    <video
-      ref={ref}
-      className="absolute inset-0 h-full w-full object-cover"
-      src={src}
-      poster={poster}
-      autoPlay
-      muted
-      loop
-      playsInline
-      preload="auto"
-    />
+    <div
+      aria-hidden="true"
+      className={`absolute inset-0 ${
+        shown ? 'z-[2] opacity-100 transition-opacity duration-[1200ms] ease-out' : leaving ? 'z-[1] opacity-100' : 'z-0 opacity-0'
+      }`}
+    >
+      {load && (
+        <img
+          src={slide.poster}
+          alt=""
+          className={`absolute inset-0 h-full w-full object-cover ${!slide.video && (shown || leaving) ? 'animate-kenburns' : ''}`}
+        />
+      )}
+      {slide.video && (
+        <video
+          ref={ref}
+          // Fades over the poster only when it starts on screen (first load); a video buffered off screen just appears.
+          className={`absolute inset-0 h-full w-full object-cover ${shown ? 'transition-opacity duration-700' : ''} ${started ? 'opacity-100' : 'opacity-0'}`}
+          src={load ? src : undefined}
+          muted
+          loop
+          playsInline
+          preload="auto"
+          onPlaying={() => {
+            setStarted(true);
+            onReady(true);
+          }}
+          onEmptied={() => {
+            setStarted(false);
+            onReady(false);
+          }}
+        />
+      )}
+    </div>
   );
 }
 
-const slideVariants = {
-  enter: (dir: number) => ({
-    clipPath: dir > 0 ? 'inset(0% 0% 0% 100%)' : 'inset(0% 100% 0% 0%)',
-    zIndex: 2,
-  }),
-  center: { clipPath: 'inset(0% 0% 0% 0%)', zIndex: 2 },
-  exit: { zIndex: 1, scale: 1.04, transition: { duration: 1.3, ease } },
-};
-
 export default function HeroSlider() {
-  const [[index, direction], setState] = useState<[number, number]>([0, 1]);
+  /** The slide asked for (arrows, dots, timer) and the slide on screen, which waits until its video plays. */
+  const [target, setTarget] = useState(0);
+  const [index, setIndex] = useState(0);
+  const [leaving, setLeaving] = useState<number | null>(null);
+  const [ready, setReady] = useState<Record<number, boolean>>({});
   const [paused, setPaused] = useState(false);
   const touchX = useRef<number | null>(null);
   // The rendition depends on the screen, so it is only chosen in the browser (the poster shows until then).
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  const sources = useMemo(() => (mounted ? heroSlides.map((s) => (s.video ? pickRendition(s.video) : undefined)) : []), [mounted]);
+  const n = heroSlides.length;
   const slide = heroSlides[index];
-  const next = heroSlides[(index + 1) % heroSlides.length];
+  const next = heroSlides[(index + 1) % n];
   const duration = slide.video ? VIDEO_MS : IMAGE_MS;
 
-  const go = useCallback((dir: number) => {
-    setState(([i]) => [(i + dir + heroSlides.length) % heroSlides.length, dir]);
-  }, []);
-  const goTo = (i: number) => setState(([cur]) => [i, i > cur ? 1 : -1]);
+  const go = useCallback((dir: number) => setTarget((t) => (t + dir + n) % n), [n]);
+  const goTo = (i: number) => setTarget(i);
+
+  // Switch once the requested slide's video is actually playing (or after a short timeout).
+  useEffect(() => {
+    if (target === index) return;
+    const reveal = () => {
+      setLeaving(index);
+      setIndex(target);
+    };
+    const waitForVideo = mounted && heroSlides[target].video && !ready[target];
+    const id = window.setTimeout(reveal, waitForVideo ? READY_TIMEOUT_MS : 0);
+    return () => window.clearTimeout(id);
+  }, [target, index, ready, mounted]);
+
+  // The previous slide stays underneath until the new one has fully faded in.
+  useEffect(() => {
+    if (leaving === null) return;
+    const id = window.setTimeout(() => setLeaving(null), FADE_MS + 100);
+    return () => window.clearTimeout(id);
+  }, [leaving, index]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -104,11 +174,7 @@ export default function HeroSlider() {
     return () => window.removeEventListener('keydown', onKey);
   }, [go]);
 
-  // Warm the cache for the upcoming slide's poster so the wipe never shows a blank frame.
-  useEffect(() => {
-    const img = new Image();
-    img.src = next.poster;
-  }, [next.poster]);
+  const near = (i: number) => i === index || i === target || i === leaving || i === (index + 1) % n || i === (target + 1) % n;
 
   return (
     <section
@@ -123,26 +189,20 @@ export default function HeroSlider() {
         touchX.current = null;
       }}
     >
-      <AnimatePresence initial={false} custom={direction}>
-        <motion.div
-          key={slide.id}
-          custom={direction}
-          variants={slideVariants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={{ duration: 1.3, ease }}
-          className="absolute inset-0"
-        >
-          {slide.video ? (
-            <HeroVideo src={mounted ? pickRendition(slide.video) : undefined} poster={slide.poster} />
-          ) : (
-            <img src={slide.poster} alt="" className="absolute inset-0 h-full w-full animate-kenburns object-cover" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-r from-ink/70 via-ink/25 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-transparent to-ink/30" />
-        </motion.div>
-      </AnimatePresence>
+      {heroSlides.map((s, i) => (
+        <SlideLayer
+          key={s.id}
+          slide={s}
+          src={sources[i]}
+          load={near(i)}
+          play={i === index || i === target || i === leaving}
+          shown={i === index}
+          leaving={i === leaving}
+          onReady={(r) => setReady((prev) => (prev[i] === r ? prev : { ...prev, [i]: r }))}
+        />
+      ))}
+      <div className="pointer-events-none absolute inset-0 z-[3] bg-gradient-to-r from-ink/70 via-ink/25 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-ink/70 via-transparent to-ink/30" />
 
       {/* Copy */}
       <div className="shell relative z-10 flex h-full flex-col justify-end pb-44 pt-32 sm:pb-48 lg:pb-52">
