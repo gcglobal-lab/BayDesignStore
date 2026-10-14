@@ -361,6 +361,20 @@ export default function Navbar() {
                     </Link>
                   </motion.li>
                 ))}
+                {/* Phones only — tablets and up keep the original menu */}
+                <motion.li
+                  initial={{ opacity: 0, y: 40 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 + navLinks.length * 0.06, duration: 0.6, ease }}
+                  className="md:hidden"
+                >
+                  <a href="/base" className="group flex items-baseline gap-4 py-1.5">
+                    <span className="font-sans text-xs text-brass">0{navLinks.length + 1}</span>
+                    <span className="display text-[2.6rem] text-ink transition-all duration-500 group-hover:translate-x-2 group-hover:italic">
+                      Bay Design Base
+                    </span>
+                  </a>
+                </motion.li>
               </ul>
               <motion.div
                 initial={{ opacity: 0 }}
