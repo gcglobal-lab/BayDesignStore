@@ -38,6 +38,7 @@ function navFor({ level, onRoster, newInquiries = 0 }: SidebarViewer): Entry[] {
   const entries: Entry[] = [];
   const home: Item[] = [
     ...(manager ? [{ href: '/base/manager', label: 'Manager View', icon: LayoutDashboard }] : []),
+    ...(manager ? [{ href: '/base/calendar', label: 'Calendar View', icon: CalendarRange }] : []),
     // Managers' home is Manager View; My Week (the personal time clock) is for employees.
     ...(onRoster && !manager ? [{ href: '/base/my-week', label: 'My Week', icon: Home }] : []),
   ];
@@ -58,7 +59,6 @@ function navFor({ level, onRoster, newInquiries = 0 }: SidebarViewer): Entry[] {
     icon: CalendarDays,
     items: [
       { href: '/base/schedule', label: 'Schedule', icon: CalendarDays },
-      ...(manager ? [{ href: '/base/calendar', label: 'Calendar View', icon: CalendarRange }] : []),
       { href: '/base/time-off', label: 'Time Off', icon: CalendarX2 },
       ...(onRoster ? [{ href: '/base/availability', label: 'My Availability', icon: CalendarRange }] : []),
       ...(manager ? [{ href: '/base/team-availability', label: 'Team Availability', icon: CalendarRange }] : []),
