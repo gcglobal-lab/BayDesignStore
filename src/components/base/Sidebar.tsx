@@ -19,6 +19,7 @@ import {
   Inbox,
   KanbanSquare,
   LayoutDashboard,
+  LayoutGrid,
   ListTodo,
   LogOut,
   Map,
@@ -100,6 +101,7 @@ function timeNav({ level, onRoster, newInquiries = 0 }: SidebarViewer): Entry[] 
 function crmNav({ crm, newLeads = 0, tasksDue = 0 }: SidebarViewer): Entry[] {
   return [
     { href: '/base/crm', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+    { href: '/base/crm/boards', label: 'Boards', icon: LayoutGrid },
     { href: '/base/crm/leads', label: 'Leads', icon: Inbox, badge: newLeads },
     { href: '/base/crm/deals', label: 'Deals', icon: KanbanSquare },
     { href: '/base/crm/contacts', label: 'Contacts', icon: Contact },

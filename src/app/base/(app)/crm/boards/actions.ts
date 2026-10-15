@@ -1,0 +1,441 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { z } from 'zod';
+import { done, fail, type ActionResult } from '@/lib/base/actionResult';
+import { audit } from '@/lib/base/audit';
+import { requireCrm, type Viewer } from '@/lib/base/auth';
+import { db } from '@/lib/base/db';
+import { listEmployees } from '@/lib/base/queries';
+import { fullName, workTypeOf } from '@/lib/base/types';
+import { BOARD_TEMPLATES, GROUP_COLORS, type BoardColumn, type BoardItem, type BoardUpdate, type ColumnType } from '@/lib/crm/boardTypes';
+import { boardAccess } from '@/lib/crm/boards';
+
+const uuid = z.string().uuid();
+const hex = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
+type Need = 'see' | 'edit' | 'manage';
+
+/** Checks the person may do this on the board; returns the viewer or an error result. */
+async function guard(boardId: string, need: Need): Promise<{ viewer: Viewer } | { error: ActionResult }> {
+  const viewer = await requireCrm();
+  if (!uuid.safeParse(boardId).success) return { error: fail('Board not found.') };
+  const { data: board } = await db().from('crm_boards').select('id, visibility, created_by').eq('id', boardId).maybeSingle();
+  if (!board) return { error: fail('Board not found.') };
+  const access = await boardAccess(viewer, board);
+  if (!access[need]) return { error: fail(need === 'manage' ? 'Only a Workflow manager or the board’s owner can change the board’s setup.' : 'You can view this board but not change it.') };
+  return { viewer };
+}
+async function boardOf(table: 'crm_board_items' | 'crm_board_groups' | 'crm_board_columns', id: string): Promise<string | null> {
+  if (!uuid.safeParse(id).success) return null;
+  const { data } = await db().from(table).select('board_id').eq('id', id).maybeSingle();
+  return (data?.board_id as string | undefined) ?? null;
+}
+const touch = (boardId: string) => db().from('crm_boards').update({ updated_at: new Date().toISOString() }).eq('id', boardId);
+
+// ------------------------------------------------------------------ boards --
+
+export async function createBoard(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
+  const viewer = await requireCrm({ manager: true });
+  const parsed = z
+    .object({
+      name: z.string().trim().min(1, 'Name the board.').max(120),
+      description: z.string().trim().max(5000),
+      folder: z.string().trim().max(80),
+      template: z.string(),
+      visibility: z.enum(['everyone', 'members']).catch('everyone'),
+      designer_groups: z.boolean(),
+    })
+    .safeParse({ name: fd.get('name'), description: fd.get('description') ?? '', folder: fd.get('folder') ?? '', template: fd.get('template') ?? 'blank', visibility: fd.get('visibility'), designer_groups: fd.get('designer_groups') === 'on' });
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Please check the board.');
+  const v = parsed.data;
+  const tpl = BOARD_TEMPLATES.find((t) => t.key === v.template) ?? BOARD_TEMPLATES[BOARD_TEMPLATES.length - 1];
+  const { count } = await db().from('crm_boards').select('id', { count: 'exact', head: true });
+  const { data: board, error } = await db()
+    .from('crm_boards')
+    .insert({ name: v.name, description: v.description || null, folder: v.folder || null, visibility: v.visibility, item_label: tpl.item_label, group_label: tpl.group_label, position: count ?? 0, created_by: viewer.employeeId })
+    .select('id')
+    .single();
+  if (error || !board) return fail('Couldn’t create the board.');
+
+  // Columns (formulas point at other columns by template key → real id).
+  const keyToId = new Map<string, string>();
+  const scopes = ['item', 'subitem'] as const;
+  for (const scope of scopes) {
+    const cols = tpl.columns.filter((c) => (c.scope ?? 'item') === scope);
+    const { data: made } = await db()
+      .from('crm_board_columns')
+      .insert(cols.map((c, i) => ({ board_id: board.id, scope, name: c.name, type: c.type, settings: c.type === 'formula' ? {} : (c.settings ?? {}), width: c.width ?? 160, position: i })))
+      .select('id, position');
+    (made ?? []).forEach((m) => {
+      const c = cols[m.position];
+      if (c.key) keyToId.set(c.key, m.id);
+      if (c.type === 'formula') keyToId.set(`formula:${scope}:${m.position}`, m.id);
+    });
+    for (const [i, c] of cols.entries()) {
+      if (c.type !== 'formula' || !c.settings) continue;
+      const settings = { op: c.settings.op, a: c.settings.a ? keyToId.get(c.settings.a) : undefined, b: c.settings.b ? keyToId.get(c.settings.b) : undefined };
+      await db().from('crm_board_columns').update({ settings }).eq('id', keyToId.get(`formula:${scope}:${i}`)!);
+    }
+  }
+
+  // Groups: the template's, or one per designer on the team.
+  let groups = tpl.groups.map((name) => ({ name, employee_id: null as string | null }));
+  if (v.designer_groups) {
+    const designers = (await listEmployees()).filter((e) => workTypeOf(e) === 'designer');
+    if (designers.length) groups = designers.map((e) => ({ name: fullName(e), employee_id: e.id }));
+  }
+  await db().from('crm_board_groups').insert(groups.map((g, i) => ({ board_id: board.id, name: g.name, employee_id: g.employee_id, color: GROUP_COLORS[i % GROUP_COLORS.length], position: i })));
+  if (v.visibility === 'members' && viewer.employeeId) await db().from('crm_board_members').insert({ board_id: board.id, employee_id: viewer.employeeId, role: 'editor' });
+  await audit(viewer, 'crm.board', 'crm_boards', board.id, { text: `created the board “${v.name}”` });
+  revalidatePath('/base/crm/boards');
+  redirect(`/base/crm/boards/${board.id}`);
+}
+
+export async function updateBoard(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
+  const id = String(fd.get('id') ?? '');
+  const g = await guard(id, 'manage');
+  if ('error' in g) return g.error;
+  const parsed = z
+    .object({
+      name: z.string().trim().min(1, 'Name the board.').max(120),
+      description: z.string().trim().max(5000),
+      folder: z.string().trim().max(80),
+      color: hex.catch('#6366F1'),
+      visibility: z.enum(['everyone', 'members']).catch('everyone'),
+      item_label: z.string().trim().min(1).max(40).catch('Item'),
+      group_label: z.string().trim().min(1).max(40).catch('Group'),
+    })
+    .safeParse(Object.fromEntries(['name', 'description', 'folder', 'color', 'visibility', 'item_label', 'group_label'].map((k) => [k, fd.get(k) ?? ''])));
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Please check the board.');
+  const v = parsed.data;
+  await db().from('crm_boards').update({ ...v, description: v.description || null, folder: v.folder || null }).eq('id', id);
+  await audit(g.viewer, 'crm.board', 'crm_boards', id, { text: `updated the board “${v.name}”` });
+  revalidatePath('/base/crm/boards', 'layout');
+  return done('Board saved.');
+}
+
+export async function archiveBoard(fd: FormData) {
+  const id = String(fd.get('id') ?? '');
+  const g = await guard(id, 'manage');
+  if ('error' in g) return;
+  const archived = fd.get('archived') === 'true';
+  const { data } = await db().from('crm_boards').update({ archived }).eq('id', id).select('name').maybeSingle();
+  await audit(g.viewer, 'crm.board', 'crm_boards', id, { text: `${archived ? 'archived' : 'restored'} the board “${data?.name ?? ''}”` });
+  revalidatePath('/base/crm/boards', 'layout');
+  if (archived) redirect('/base/crm/boards');
+}
+
+export async function deleteBoard(fd: FormData) {
+  const viewer = await requireCrm({ manager: true });
+  const id = uuid.safeParse(fd.get('id'));
+  if (!id.success) return;
+  const { data } = await db().from('crm_boards').delete().eq('id', id.data).select('name').maybeSingle();
+  await audit(viewer, 'crm.board', 'crm_boards', id.data, { text: `deleted the board “${data?.name ?? ''}”` });
+  revalidatePath('/base/crm/boards', 'layout');
+  redirect('/base/crm/boards');
+}
+
+/** Copy a board's setup (columns, groups) and, if asked, its items and sub-items. */
+export async function duplicateBoard(fd: FormData) {
+  const viewer = await requireCrm({ manager: true });
+  const id = uuid.safeParse(fd.get('id'));
+  if (!id.success) return;
+  const withItems = fd.get('with_items') === 'on';
+  const [{ data: b }, { data: cols }, { data: groups }, { data: items }] = await Promise.all([
+    db().from('crm_boards').select('*').eq('id', id.data).single(),
+    db().from('crm_board_columns').select('*').eq('board_id', id.data),
+    db().from('crm_board_groups').select('*').eq('board_id', id.data),
+    withItems ? db().from('crm_board_items').select('*').eq('board_id', id.data) : Promise.resolve({ data: [] as BoardItem[] }),
+  ]);
+  if (!b) return;
+  const { data: copy } = await db()
+    .from('crm_boards')
+    .insert({ name: `${b.name} (copy)`.slice(0, 120), description: b.description, folder: b.folder, color: b.color, visibility: b.visibility, item_label: b.item_label, group_label: b.group_label, position: b.position + 1, created_by: viewer.employeeId })
+    .select('id')
+    .single();
+  if (!copy) return;
+  const colMap = new Map<string, string>();
+  for (const c of (cols ?? []) as BoardColumn[]) {
+    const { data } = await db().from('crm_board_columns').insert({ board_id: copy.id, scope: c.scope, name: c.name, type: c.type, settings: c.settings, width: c.width, position: c.position }).select('id').single();
+    if (data) colMap.set(c.id, data.id);
+  }
+  for (const c of (cols ?? []) as BoardColumn[]) {
+    if (c.type !== 'formula') continue;
+    await db().from('crm_board_columns').update({ settings: { ...c.settings, a: c.settings.a ? colMap.get(c.settings.a) : undefined, b: c.settings.b ? colMap.get(c.settings.b) : undefined } }).eq('id', colMap.get(c.id)!);
+  }
+  const groupMap = new Map<string, string>();
+  for (const gr of groups ?? []) {
+    const { data } = await db().from('crm_board_groups').insert({ board_id: copy.id, name: gr.name, color: gr.color, employee_id: gr.employee_id, position: gr.position }).select('id').single();
+    if (data) groupMap.set(gr.id, data.id);
+  }
+  const remap = (values: Record<string, unknown>) => Object.fromEntries(Object.entries(values).flatMap(([k, val]) => (colMap.has(k) ? [[colMap.get(k)!, val]] : [])));
+  const itemMap = new Map<string, string>();
+  const all = (items ?? []) as BoardItem[];
+  for (const it of [...all.filter((x) => !x.parent_id), ...all.filter((x) => x.parent_id)]) {
+    const { data } = await db()
+      .from('crm_board_items')
+      .insert({ board_id: copy.id, group_id: groupMap.get(it.group_id), parent_id: it.parent_id ? itemMap.get(it.parent_id) : null, name: it.name, description: it.description, values: remap(it.values), contact_id: it.contact_id, position: it.position, created_by: viewer.employeeId })
+      .select('id')
+      .single();
+    if (data) itemMap.set(it.id, data.id);
+  }
+  await audit(viewer, 'crm.board', 'crm_boards', copy.id, { text: `duplicated the board “${b.name}”` });
+  revalidatePath('/base/crm/boards', 'layout');
+  redirect(`/base/crm/boards/${copy.id}`);
+}
+
+/** Add / change / remove a board member (role null = remove). */
+export async function setBoardMember(boardId: string, employeeId: string, role: 'editor' | 'viewer' | null): Promise<ActionResult> {
+  const g = await guard(boardId, 'manage');
+  if ('error' in g) return g.error;
+  if (!uuid.safeParse(employeeId).success) return fail('Choose a person.');
+  if (role) await db().from('crm_board_members').upsert({ board_id: boardId, employee_id: employeeId, role });
+  else await db().from('crm_board_members').delete().eq('board_id', boardId).eq('employee_id', employeeId);
+  revalidatePath(`/base/crm/boards/${boardId}`);
+  return done(role ? 'Member saved.' : 'Removed.');
+}
+
+// ------------------------------------------------------------------ groups --
+
+export async function addGroup(boardId: string, name: string, employeeId?: string | null): Promise<ActionResult> {
+  const g = await guard(boardId, 'edit');
+  if ('error' in g) return g.error;
+  const n = name.trim().slice(0, 120);
+  if (!n) return fail('Give it a name.');
+  const { count } = await db().from('crm_board_groups').select('id', { count: 'exact', head: true }).eq('board_id', boardId);
+  const { data, error } = await db()
+    .from('crm_board_groups')
+    .insert({ board_id: boardId, name: n, employee_id: employeeId && uuid.safeParse(employeeId).success ? employeeId : null, color: GROUP_COLORS[(count ?? 0) % GROUP_COLORS.length], position: count ?? 0 })
+    .select('id, color, position')
+    .single();
+  if (error || !data) return fail('Couldn’t add it.');
+  await touch(boardId);
+  return done(undefined, { id: data.id, color: data.color, position: String(data.position) });
+}
+
+export async function updateGroup(id: string, patch: { name?: string; color?: string; employee_id?: string | null; position?: number }): Promise<ActionResult> {
+  const boardId = await boardOf('crm_board_groups', id);
+  if (!boardId) return fail('Not found.');
+  const g = await guard(boardId, 'edit');
+  if ('error' in g) return g.error;
+  const clean: Record<string, unknown> = {};
+  if (patch.name !== undefined) {
+    const n = patch.name.trim().slice(0, 120);
+    if (!n) return fail('Give it a name.');
+    clean.name = n;
+  }
+  if (patch.color !== undefined && hex.safeParse(patch.color).success) clean.color = patch.color;
+  if (patch.employee_id !== undefined) clean.employee_id = patch.employee_id && uuid.safeParse(patch.employee_id).success ? patch.employee_id : null;
+  if (patch.position !== undefined && Number.isFinite(patch.position)) clean.position = Math.round(patch.position);
+  await db().from('crm_board_groups').update(clean).eq('id', id);
+  return done();
+}
+
+export async function deleteGroup(id: string): Promise<ActionResult> {
+  const boardId = await boardOf('crm_board_groups', id);
+  if (!boardId) return fail('Not found.');
+  const g = await guard(boardId, 'manage');
+  if ('error' in g) return g.error;
+  const { count } = await db().from('crm_board_groups').select('id', { count: 'exact', head: true }).eq('board_id', boardId);
+  if ((count ?? 0) <= 1) return fail('A board needs at least one group.');
+  const { data } = await db().from('crm_board_groups').delete().eq('id', id).select('name').maybeSingle();
+  await audit(g.viewer, 'crm.board', 'crm_board_groups', id, { text: `deleted the group “${data?.name ?? ''}” and its rows` });
+  return done();
+}
+
+// ----------------------------------------------------------------- columns --
+
+const TYPES: ColumnType[] = ['text', 'long_text', 'number', 'currency', 'date', 'status', 'person', 'email', 'phone', 'link', 'checkbox', 'formula'];
+const settingsSchema = z
+  .object({
+    labels: z.array(z.object({ id: z.string().max(20), label: z.string().trim().max(40), color: hex })).max(30).optional(),
+    op: z.enum(['subtract', 'add', 'multiply', 'divide', 'subitems_sum']).optional(),
+    a: z.string().uuid().optional(),
+    b: z.string().uuid().optional(),
+  })
+  .catch({});
+
+export async function addColumn(boardId: string, scope: 'item' | 'subitem', name: string, type: ColumnType, settings: unknown): Promise<ActionResult> {
+  const g = await guard(boardId, 'manage');
+  if ('error' in g) return g.error;
+  const n = name.trim().slice(0, 60);
+  if (!n || !TYPES.includes(type) || (scope !== 'item' && scope !== 'subitem')) return fail('Choose a name and a type.');
+  const s = settingsSchema.parse(settings ?? {});
+  if (type === 'status' && !s.labels?.length) s.labels = [{ id: 's0', label: 'Not started', color: '#94A3B8' }, { id: 's1', label: 'Working on it', color: '#F59E0B' }, { id: 's2', label: 'Done', color: '#10B981' }];
+  const { count } = await db().from('crm_board_columns').select('id', { count: 'exact', head: true }).eq('board_id', boardId).eq('scope', scope);
+  const { data, error } = await db()
+    .from('crm_board_columns')
+    .insert({ board_id: boardId, scope, name: n, type, settings: s, width: type === 'long_text' ? 240 : type === 'checkbox' ? 90 : 150, position: count ?? 0 })
+    .select('*')
+    .single();
+  if (error || !data) return fail('Couldn’t add the column.');
+  await touch(boardId);
+  return done(undefined, { column: JSON.stringify(data) });
+}
+
+export async function updateColumn(id: string, patch: { name?: string; settings?: unknown; width?: number; position?: number }): Promise<ActionResult> {
+  const boardId = await boardOf('crm_board_columns', id);
+  if (!boardId) return fail('Not found.');
+  const g = await guard(boardId, 'manage');
+  if ('error' in g) return g.error;
+  const clean: Record<string, unknown> = {};
+  if (patch.name !== undefined) {
+    const n = patch.name.trim().slice(0, 60);
+    if (!n) return fail('Give the column a name.');
+    clean.name = n;
+  }
+  if (patch.settings !== undefined) clean.settings = settingsSchema.parse(patch.settings);
+  if (patch.width !== undefined) clean.width = Math.max(60, Math.min(600, Math.round(patch.width)));
+  if (patch.position !== undefined && Number.isFinite(patch.position)) clean.position = Math.round(patch.position);
+  await db().from('crm_board_columns').update(clean).eq('id', id);
+  return done();
+}
+
+export async function deleteColumn(id: string): Promise<ActionResult> {
+  const boardId = await boardOf('crm_board_columns', id);
+  if (!boardId) return fail('Not found.');
+  const g = await guard(boardId, 'manage');
+  if ('error' in g) return g.error;
+  const { data } = await db().from('crm_board_columns').delete().eq('id', id).select('name').maybeSingle();
+  await audit(g.viewer, 'crm.board', 'crm_board_columns', id, { text: `deleted the column “${data?.name ?? ''}”` });
+  return done();
+}
+
+// ------------------------------------------------------------------- items --
+
+export async function addItem(boardId: string, groupId: string, name: string, parentId?: string | null): Promise<ActionResult> {
+  const g = await guard(boardId, 'edit');
+  if ('error' in g) return g.error;
+  const n = name.trim().slice(0, 200);
+  if (!n) return fail('Type a name first.');
+  if (!uuid.safeParse(groupId).success || (parentId && !uuid.safeParse(parentId).success)) return fail('Not found.');
+  const { data: last } = await db().from('crm_board_items').select('position').eq('board_id', boardId).order('position', { ascending: false }).limit(1).maybeSingle();
+  const { data, error } = await db()
+    .from('crm_board_items')
+    .insert({ board_id: boardId, group_id: groupId, parent_id: parentId ?? null, name: n, position: (last?.position ?? 0) + 1, created_by: g.viewer.employeeId })
+    .select('*')
+    .single();
+  if (error || !data) return fail('Couldn’t add it.');
+  await db().from('crm_board_updates').insert({ item_id: data.id, kind: 'log', body: `Created by ${g.viewer.name}`, author_id: g.viewer.employeeId, author_name: g.viewer.name });
+  await touch(boardId);
+  return done(undefined, { item: JSON.stringify(data) });
+}
+
+export async function updateItem(id: string, patch: { name?: string; description?: string; group_id?: string; position?: number; contact_id?: string | null }): Promise<ActionResult> {
+  const boardId = await boardOf('crm_board_items', id);
+  if (!boardId) return fail('Not found.');
+  const g = await guard(boardId, 'edit');
+  if ('error' in g) return g.error;
+  const clean: Record<string, unknown> = {};
+  if (patch.name !== undefined) {
+    const n = patch.name.trim().slice(0, 200);
+    if (!n) return fail('The name can’t be empty.');
+    clean.name = n;
+  }
+  if (patch.description !== undefined) clean.description = patch.description.slice(0, 10000) || null;
+  if (patch.group_id !== undefined && uuid.safeParse(patch.group_id).success) {
+    clean.group_id = patch.group_id;
+    // sub-items follow their parent
+    await db().from('crm_board_items').update({ group_id: patch.group_id }).eq('parent_id', id);
+  }
+  if (patch.position !== undefined && Number.isFinite(patch.position)) clean.position = patch.position;
+  if (patch.contact_id !== undefined) clean.contact_id = patch.contact_id && uuid.safeParse(patch.contact_id).success ? patch.contact_id : null;
+  const { error } = await db().from('crm_board_items').update(clean).eq('id', id);
+  if (error) return fail('Couldn’t save.');
+  return done();
+}
+
+/** Save one cell. Status changes are noted in the item's updates. */
+export async function setCell(itemId: string, columnId: string, value: unknown): Promise<ActionResult> {
+  const boardId = await boardOf('crm_board_items', itemId);
+  if (!boardId) return fail('Not found.');
+  const g = await guard(boardId, 'edit');
+  if ('error' in g) return g.error;
+  const { data: col } = await db().from('crm_board_columns').select('name, type, settings, board_id').eq('id', columnId).maybeSingle();
+  if (!col || col.board_id !== boardId || col.type === 'formula') return fail('That column can’t be edited.');
+  let v: unknown = value;
+  if (v === '' || v === undefined) v = null;
+  switch (col.type as ColumnType) {
+    case 'number':
+    case 'currency':
+      if (v !== null) {
+        v = Number(String(v).replace(/[$,\s]/g, ''));
+        if (!Number.isFinite(v as number)) return fail('Enter a number.');
+      }
+      break;
+    case 'date':
+      if (v !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(v))) return fail('Pick a date.');
+      break;
+    case 'checkbox':
+      v = Boolean(v) || null;
+      break;
+    case 'person':
+      if (v !== null && !uuid.safeParse(v).success) return fail('Choose a person.');
+      break;
+    case 'status':
+      if (v !== null && !(col.settings?.labels ?? []).some((l: { id: string }) => l.id === v)) return fail('Choose a label.');
+      break;
+    default:
+      if (v !== null) v = String(v).slice(0, col.type === 'long_text' ? 5000 : 500);
+  }
+  const { error } = await db().rpc('crm_board_set_value', { p_item: itemId, p_column: columnId, p_value: v });
+  if (error) return fail('Couldn’t save.');
+  if (col.type === 'status') {
+    const label = (col.settings?.labels ?? []).find((l: { id: string }) => l.id === v)?.label ?? 'cleared';
+    await db().from('crm_board_updates').insert({ item_id: itemId, kind: 'log', body: `${col.name}: ${label}`, author_id: g.viewer.employeeId, author_name: g.viewer.name });
+  }
+  await db().from('crm_board_items').update({ updated_at: new Date().toISOString() }).eq('id', itemId);
+  return done();
+}
+
+export async function deleteItem(id: string): Promise<ActionResult> {
+  const boardId = await boardOf('crm_board_items', id);
+  if (!boardId) return fail('Not found.');
+  const g = await guard(boardId, 'edit');
+  if ('error' in g) return g.error;
+  const { data } = await db().from('crm_board_items').delete().eq('id', id).select('name').maybeSingle();
+  await audit(g.viewer, 'crm.board', 'crm_board_items', id, { text: `deleted “${data?.name ?? ''}” from a board` });
+  return done();
+}
+
+export async function duplicateItem(id: string): Promise<ActionResult> {
+  const boardId = await boardOf('crm_board_items', id);
+  if (!boardId) return fail('Not found.');
+  const g = await guard(boardId, 'edit');
+  if ('error' in g) return g.error;
+  const { data: it } = await db().from('crm_board_items').select('*').eq('id', id).single();
+  const { data: subs } = await db().from('crm_board_items').select('*').eq('parent_id', id);
+  const { data: copy } = await db()
+    .from('crm_board_items')
+    .insert({ board_id: it.board_id, group_id: it.group_id, parent_id: it.parent_id, name: `${it.name} (copy)`.slice(0, 200), description: it.description, values: it.values, contact_id: it.contact_id, position: it.position + 0.5, created_by: g.viewer.employeeId })
+    .select('*')
+    .single();
+  if (!copy) return fail('Couldn’t duplicate.');
+  const subCopies = (subs ?? []).length
+    ? ((await db().from('crm_board_items').insert((subs ?? []).map((s) => ({ board_id: s.board_id, group_id: s.group_id, parent_id: copy.id, name: s.name, description: s.description, values: s.values, position: s.position, created_by: g.viewer.employeeId }))).select('*')).data ?? [])
+    : [];
+  return done(undefined, { items: JSON.stringify([copy, ...subCopies]) });
+}
+
+// ----------------------------------------------------------------- updates --
+
+export async function itemUpdates(itemId: string): Promise<BoardUpdate[]> {
+  const boardId = await boardOf('crm_board_items', itemId);
+  if (!boardId) return [];
+  const g = await guard(boardId, 'see');
+  if ('error' in g) return [];
+  const { data } = await db().from('crm_board_updates').select('id, item_id, kind, body, author_name, created_at').eq('item_id', itemId).order('created_at', { ascending: false }).limit(200);
+  return (data ?? []) as BoardUpdate[];
+}
+
+export async function addItemUpdate(itemId: string, body: string): Promise<ActionResult> {
+  const boardId = await boardOf('crm_board_items', itemId);
+  if (!boardId) return fail('Not found.');
+  const g = await guard(boardId, 'edit');
+  if ('error' in g) return g.error;
+  const text = body.trim().slice(0, 5000);
+  if (!text) return fail('Write something first.');
+  await db().from('crm_board_updates').insert({ item_id: itemId, kind: 'comment', body: text, author_id: g.viewer.employeeId, author_name: g.viewer.name });
+  return done();
+}
