@@ -10,7 +10,7 @@ import { serviceLabel, type ServiceType } from '@/lib/deliveries/types';
 
 export const metadata: Metadata = { title: 'Delivery reports' };
 
-type Row = { id: string; status: string; service_type: ServiceType; scheduled_date: string; window_end: string | null; completed_at: string | null; failed_reason: string | null; route: { driver_id: string | null; distance_miles: number | null } | null };
+type Row = { id: string; status: string; service_type: ServiceType; scheduled_date: string; window_end: string | null; completed_at: string | null; failed_reason: string | null; rating: number | null; route: { driver_id: string | null; distance_miles: number | null } | null };
 
 export default async function DeliveryReportsPage({ searchParams }: PageProps<'/base/deliveries/reports'>) {
   await requireDeliveries({ dispatcher: true });
@@ -23,7 +23,7 @@ export default async function DeliveryReportsPage({ searchParams }: PageProps<'/
   const to = preset === 'custom' ? (sp.to as string) : today;
 
   const [ordersRes, routesRes] = await Promise.all([
-    db().from('dl_orders').select('id, status, service_type, scheduled_date, window_end, completed_at, failed_reason, route:dl_routes(driver_id, distance_miles)').gte('scheduled_date', from).lte('scheduled_date', to).neq('status', 'cancelled').limit(20000),
+    db().from('dl_orders').select('id, status, service_type, scheduled_date, window_end, completed_at, failed_reason, rating, route:dl_routes(driver_id, distance_miles)').gte('scheduled_date', from).lte('scheduled_date', to).neq('status', 'cancelled').limit(20000),
     db().from('dl_routes').select('id, driver_id, distance_miles, route_date').gte('route_date', from).lte('route_date', to),
   ]);
   const orders = must<Row[]>(ordersRes, 'load orders');
@@ -31,6 +31,8 @@ export default async function DeliveryReportsPage({ searchParams }: PageProps<'/
   const delivered = orders.filter((o) => o.status === 'delivered');
   const failed = orders.filter((o) => o.status === 'failed');
   const onTime = (o: Row) => !o.window_end || !o.completed_at || new Date(o.completed_at).getTime() <= zonedDateTime(o.scheduled_date, o.window_end.slice(0, 5), zone).getTime() + 15 * 60_000;
+  const rated = orders.filter((o) => o.rating);
+  const avgRating = rated.length ? (rated.reduce((s, o) => s + (o.rating ?? 0), 0) / rated.length).toFixed(1) : null;
   const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '—');
 
   const drivers = new Map<string, { stops: number; delivered: number; failed: number; onTime: number; routes: number; miles: number }>();
@@ -72,12 +74,13 @@ export default async function DeliveryReportsPage({ searchParams }: PageProps<'/
           <button className="b-btn-ghost" type="submit">Apply</button>
         </form>
       </div>
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-6">
         {[
           ['Stops', String(orders.length), `${routes.length} routes`],
           ['Delivered', String(delivered.length), `${pct(delivered.length, delivered.length + failed.length)} first-try success`],
           ['On time', pct(delivered.filter(onTime).length, delivered.length), 'within the window (+15 min)'],
           ['Not delivered', String(failed.length), 'needs a new date'],
+          ['Customer rating', avgRating ? `${avgRating} ★` : '—', `${rated.length} rating${rated.length === 1 ? '' : 's'}`],
           ['Miles (est.)', String(Math.round(routes.reduce((s, r) => s + Number(r.distance_miles ?? 0), 0))), 'planned route distance'],
         ].map(([k, v, h]) => (
           <div key={k} className="b-card px-4 py-3"><p className="text-xs text-muted">{k}</p><p className="text-2xl font-semibold tracking-tight">{v}</p><p className="text-[0.7rem] text-muted">{h}</p></div>

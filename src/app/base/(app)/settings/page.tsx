@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { Activity, BadgeDollarSign, LayoutGrid, CalendarClock, ChevronLeft, ChevronRight, Clock3, Eye, Info, KeyRound, MapPin, Palmtree, Plus, Tags, Timer } from 'lucide-react';
+import { Activity, BadgeDollarSign, LayoutGrid, Truck, Workflow, CalendarClock, ChevronLeft, ChevronRight, Clock3, Eye, Info, KeyRound, MapPin, Palmtree, Plus, Tags, Timer } from 'lucide-react';
 import { Dialog } from '@/components/base/Dialog';
 import PunchMap from '@/components/base/map/PunchMap';
 import { BasicInfoPanel, LocationForm, OvertimePanel, PayrollPanel, SchedulePanel, TimeClockPanel, TimeOffPanel } from '@/components/base/SettingsForms';
 import { Avatar } from '@/components/base/ui';
-import AppAccessForm from '@/components/portal/AppAccessForm';
+import { AppAccessTable } from '@/components/portal/AppAccessForm';
 import { describeActivity, FIELD_LABELS, fmtChangeValue, type ActivityDetails, type Change } from '@/lib/base/activity';
 import { requireAdmin } from '@/lib/base/auth';
 import { db, must } from '@/lib/base/db';
@@ -140,27 +140,22 @@ async function AppAccessPanel() {
   const people = (await listEmployees()).filter((e) => e.status !== 'terminated');
   const levelRank = { admin: 0, manager: 1, employee: 2 } as const;
   people.sort((a, b) => levelRank[a.access_level] - levelRank[b.access_level] || fullName(a).localeCompare(fullName(b)));
+  const others = people.filter((e) => e.access_level !== 'admin');
   return (
-    <PanelShell
-      title="App access"
-      description={<>Everyone can use <b>Time</b>. Choose who can open <b>Workflow</b> (the CRM) and <b>Deliveries</b>. Workflow users work their own leads and deals and see everyone’s; Workflow managers can also delete, change settings and automations. Drivers see only their own route; dispatchers run everything. Admins always have full access.</>}
-    >
-      <ul className="divide-y divide-stone/50">
-        {people.map((e) => (
-          <li key={e.id} className="flex flex-wrap items-center gap-3 py-3">
-            <Avatar name={fullName(e)} size="sm" />
-            <div className="min-w-[10rem] flex-1">
-              <Link href={`/base/team/${e.id}`} className="font-medium hover:text-brass-dark">{fullName(e)}</Link>
-              <p className="text-xs capitalize text-muted">{e.access_level}{e.roles[0] ? ` · ${e.roles[0].name}` : ''}</p>
-            </div>
-            {e.access_level === 'admin' ? (
-              <span className="b-badge-green">Full access to all apps</span>
-            ) : (
-              <AppAccessForm id={e.id} crm={e.crm_role} deliveries={e.deliveries_role} compact />
-            )}
-          </li>
-        ))}
-      </ul>
+    <PanelShell title="App access" description={<>Everyone can use <b>Time</b>. You decide, person by person, who can also open <b>Workflow</b> and <b>Deliveries</b>. Click a button — it saves straight away.</>}>
+      <div className="mb-5 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl bg-linen/70 px-4 py-3 text-sm">
+          <p className="mb-1 flex items-center gap-1.5 font-semibold"><Workflow size={15} /> Workflow — {others.filter((e) => e.crm_role !== 'none').length} people</p>
+          <p className="text-xs text-muted"><b>User</b>: works their own leads and deals, sees everyone’s. <b>Manager</b>: also deletes and changes pipelines, automations and settings.</p>
+        </div>
+        <div className="rounded-2xl bg-linen/70 px-4 py-3 text-sm">
+          <p className="mb-1 flex items-center gap-1.5 font-semibold"><Truck size={15} /> Deliveries — {others.filter((e) => e.deliveries_role !== 'none').length} people</p>
+          <p className="text-xs text-muted"><b>Driver</b>: sees only their own route on their phone. <b>Dispatcher</b>: orders, dispatch board, trucks and reports.</p>
+        </div>
+      </div>
+      <AppAccessTable
+        people={people.map((e) => ({ id: e.id, name: fullName(e), level: e.access_level, role: e.roles[0]?.name ?? null, crm: e.crm_role, deliveries: e.deliveries_role }))}
+      />
     </PanelShell>
   );
 }

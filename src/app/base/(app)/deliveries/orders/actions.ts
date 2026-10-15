@@ -174,3 +174,22 @@ export async function deleteOrder(fd: FormData) {
   refresh();
   redirect('/base/deliveries/orders');
 }
+
+/** Post-delivery: the office records its follow-up (thank-you call, fixing an issue). */
+export async function setFollowup(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
+  const viewer = await requireDeliveries({ dispatcher: true });
+  const parsed = z
+    .object({ id: z.string().uuid(), followup_status: z.enum(['pending', 'done', 'issue']), followup_note: z.string().trim().max(2000) })
+    .safeParse({ id: fd.get('id'), followup_status: fd.get('followup_status'), followup_note: fd.get('followup_note') ?? '' });
+  if (!parsed.success) return fail('Please check the follow-up.');
+  const { id, followup_status, followup_note } = parsed.data;
+  const { data: o } = await db().from('dl_orders').select('id, number').eq('id', id).maybeSingle();
+  if (!o) return fail('Order not found.');
+  await db()
+    .from('dl_orders')
+    .update({ followup_status, followup_note: followup_note || null, followup_at: new Date().toISOString(), followup_by: viewer.employeeId })
+    .eq('id', id);
+  await logEvent(viewer, o, 'note', `Follow-up: ${followup_status === 'done' ? 'done' : followup_status === 'issue' ? 'issue to resolve' : 'to do'}${followup_note ? ` — ${followup_note}` : ''}`);
+  refresh();
+  return done('Follow-up saved.');
+}

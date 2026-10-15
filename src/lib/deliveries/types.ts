@@ -3,6 +3,9 @@
 export type OrderStatus = 'unscheduled' | 'scheduled' | 'en_route' | 'arrived' | 'delivered' | 'failed' | 'cancelled';
 export type ServiceType = 'delivery' | 'delivery_install' | 'white_glove' | 'pickup' | 'return' | 'service_call';
 export type RouteStatus = 'planned' | 'dispatched' | 'in_progress' | 'completed';
+export type FollowupStatus = 'pending' | 'done' | 'issue';
+export const followupLabel: Record<FollowupStatus, string> = { pending: 'To follow up', done: 'Followed up', issue: 'Issue to resolve' };
+export const followupTone: Record<FollowupStatus, string> = { pending: 'b-badge-amber', done: 'b-badge-green', issue: 'b-badge-red' };
 
 export type OrderItem = { id?: string; description: string; sku: string | null; quantity: number; assembly: boolean; delivered?: boolean; notes: string | null };
 
@@ -40,6 +43,13 @@ export type Order = {
   failed_reason: string | null;
   recipient_name: string | null;
   driver_notes: string | null;
+  rating: number | null;
+  feedback: string | null;
+  feedback_at: string | null;
+  followup_status: FollowupStatus;
+  followup_note: string | null;
+  followup_at: string | null;
+  followup_by: string | null;
   created_at: string;
 };
 

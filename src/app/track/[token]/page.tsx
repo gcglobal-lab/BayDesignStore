@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { CheckCircle2, Clock, MapPin, PackageX, Phone, Truck } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
+import FeedbackForm from '../FeedbackForm';
 import AutoRefresh from '@/components/base/AutoRefresh';
 import { db } from '@/lib/base/db';
 import { isDbConfigured } from '@/lib/base/env';
@@ -30,7 +31,7 @@ export default async function TrackPage({ params }: PageProps<'/track/[token]'>)
   if (!/^[0-9a-f]{32}$/.test(token) || !isDbConfigured()) notFound();
   const { data: o } = await db()
     .from('dl_orders')
-    .select('id, number, status, service_type, customer_name, city, scheduled_date, window_start, window_end, eta, route_id, stop_order, completed_at, recipient_name')
+    .select('id, number, status, service_type, customer_name, city, scheduled_date, window_start, window_end, eta, route_id, stop_order, completed_at, recipient_name, rating')
     .eq('tracking_token', token)
     .maybeSingle();
   if (!o) notFound();
@@ -81,6 +82,8 @@ export default async function TrackPage({ params }: PageProps<'/track/[token]'>)
               ))}
             </ol>
           )}
+          {status === 'delivered' && !o.rating && <FeedbackForm token={token} />}
+          {status === 'delivered' && o.rating && <p className="mt-6 rounded-2xl bg-[#F3F4FB] px-4 py-3 text-sm">Thank you for rating us {'★'.repeat(o.rating)}.</p>}
           {settings.tracking_message && status !== 'delivered' && <p className="mt-6 rounded-2xl bg-[#F3F4FB] px-4 py-3 text-sm">{settings.tracking_message}</p>}
           {o.city && <p className="mt-4 flex items-center gap-2 text-xs text-[#646A87]"><MapPin size={13} /> Delivering to {o.city}</p>}
         </section>

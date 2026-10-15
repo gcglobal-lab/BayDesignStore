@@ -6,6 +6,7 @@ import { Dialog } from '@/components/base/Dialog';
 import { SubmitButton } from '@/components/base/forms';
 import { Card } from '@/components/base/ui';
 import { CopyLink, OrderNoteForm } from '@/components/deliveries/Forms';
+import FollowupForm from '@/components/deliveries/FollowupForm';
 import OrderForm from '@/components/deliveries/OrderForm';
 import RouteMap from '@/components/deliveries/RouteMap';
 import { requireDeliveries } from '@/lib/base/auth';
@@ -13,7 +14,7 @@ import { db, must } from '@/lib/base/db';
 import { getSettings } from '@/lib/base/settings';
 import { fmtDate, fmtTime } from '@/lib/base/time';
 import { getCrews, getDepot, getDlSettings, orderFormOptions, siteOrigin } from '@/lib/deliveries/data';
-import { fmtWindow, fullAddress, mapsLink, serviceLabel, statusLabel, statusTone, type Order, type OrderItem, type OrderStatus } from '@/lib/deliveries/types';
+import { followupLabel, followupTone, fmtWindow, fullAddress, mapsLink, serviceLabel, statusLabel, statusTone, type Order, type OrderItem, type OrderStatus } from '@/lib/deliveries/types';
 import { money } from '@/lib/crm/types';
 import { deleteOrder, relocateOrder, setOrderStatus } from '../actions';
 
@@ -134,7 +135,7 @@ export default async function OrderPage({ params }: PageProps<'/base/deliveries/
                 <li key={e.id} className="relative text-sm">
                   <span className="absolute -left-[1.6rem] top-1.5 h-2.5 w-2.5 rounded-full bg-brass ring-4 ring-surface" />
                   <p>
-                    <b className="font-semibold">{e.status === 'note' ? 'Note' : e.status === 'created' ? 'Order created' : e.status === 'updated' ? 'Updated' : (statusLabel[e.status as OrderStatus] ?? e.status)}</b>
+                    <b className="font-semibold">{e.status === 'note' ? 'Note' : e.status === 'feedback' ? 'Customer rating' : e.status === 'created' ? 'Order created' : e.status === 'updated' ? 'Updated' : (statusLabel[e.status as OrderStatus] ?? e.status)}</b>
                     {e.note && <span className="text-ink/80"> — {e.note}</span>}
                   </p>
                   <p className="text-xs text-muted">
@@ -166,6 +167,21 @@ export default async function OrderPage({ params }: PageProps<'/base/deliveries/
               {order.email && <a href={`mailto:${order.email}?subject=${encodeURIComponent('Your Bay Design Store delivery')}&body=${encodeURIComponent(mailBody)}`} className="b-btn-brass b-btn-sm"><Mail size={13} /> Email it</a>}
             </div>
           </Card>
+          {(status === 'delivered' || status === 'failed') && (
+            <Card title="Post-delivery">
+              {order.rating ? (
+                <div className="mb-3">
+                  <p className="text-lg text-amber-500">{'★'.repeat(order.rating)}<span className="text-stone">{'★'.repeat(5 - order.rating)}</span></p>
+                  {order.feedback && <p className="mt-1 text-sm">“{order.feedback}”</p>}
+                  {order.feedback_at && <p className="text-xs text-muted">Customer rating · {fmtDate(new Date(order.feedback_at), zone, 'MMM d')}</p>}
+                </div>
+              ) : (
+                <p className="mb-3 text-sm text-muted">{status === 'delivered' ? 'The customer can rate the delivery on their tracking page.' : 'Call the customer to set a new date.'}</p>
+              )}
+              <p className="mb-2 flex items-center gap-2 text-sm">Follow-up: <span className={followupTone[order.followup_status]}>{followupLabel[order.followup_status]}</span></p>
+              <FollowupForm id={order.id} status={order.followup_status} note={order.followup_note} />
+            </Card>
+          )}
           <Card title="Driver instructions">
             <p className="whitespace-pre-wrap text-sm">{order.instructions || <span className="text-muted">None.</span>}</p>
             {order.route?.driver_id && <p className="mt-3 text-xs text-muted">Driver: {crews.names.get(order.route.driver_id)}</p>}

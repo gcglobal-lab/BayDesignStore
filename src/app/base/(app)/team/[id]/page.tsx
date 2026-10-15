@@ -124,7 +124,7 @@ export default async function EmployeePage({ params }: PageProps<'/base/team/[id
               ) : (
                 <>
                   <p className="mb-3 text-sm text-muted">Time is on for everyone. Choose whether {employee.first_name} can also open Workflow (CRM) and Deliveries.</p>
-                  <AppAccessForm id={employee.id} crm={employee.crm_role} deliveries={employee.deliveries_role} />
+                  <AppAccessForm id={employee.id} crm={employee.crm_role} deliveries={employee.deliveries_role} stacked />
                 </>
               )}
             </Card>
