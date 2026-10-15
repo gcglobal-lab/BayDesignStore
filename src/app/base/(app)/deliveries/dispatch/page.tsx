@@ -14,6 +14,7 @@ import { addDaysYmd, fmtDate, fmtTime, isYmd, todayYmd, zonedDateTime } from '@/
 import { getCrews, getDepot, getDlSettings } from '@/lib/deliveries/data';
 import { fmtClock, fmtWindow, isDone, routeStatusLabel, routeStatusTone, serviceLabel, statusLabel, statusTone, type Order, type Route, type Truck } from '@/lib/deliveries/types';
 import { assignToRoute, deleteRoute, dispatchRoute, moveStop, optimizeRoute, removeFromRoute } from './actions';
+import Select from '@/components/ui/Select';
 
 export const metadata: Metadata = { title: 'Dispatch board' };
 
@@ -59,9 +60,9 @@ export default async function DispatchPage({ searchParams }: PageProps<'/base/de
     routes.length ? (
       <form action={assignToRoute} className="flex items-center gap-1.5">
         <Hidden name="order_id" value={o.id} />
-        <select name="route_id" className="b-input !w-auto !py-1 text-xs" aria-label="Route" defaultValue={routes[0].id}>
+        <Select name="route_id" className="b-input !w-auto !py-1 text-xs" aria-label="Route" defaultValue={routes[0].id}>
           {routes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-        </select>
+        </Select>
         <SubmitButton className="b-btn-ghost b-btn-sm"><Plus size={12} /> Add</SubmitButton>
       </form>
     ) : null;

@@ -6,6 +6,7 @@ import { Camera, CheckCircle2, Eraser, MapPinned, Navigation, PackageCheck, Pack
 import { completeStop, failStop, stopProgress } from '@/app/base/(app)/deliveries/my-route/actions';
 import { ActionForm, SubmitButton } from '@/components/base/forms';
 import type { OrderStatus } from '@/lib/deliveries/types';
+import Select from '@/components/ui/Select';
 
 /** Best-effort GPS fix for the delivery record (never blocks the driver for long). */
 function getFix(): Promise<{ lat: number; lng: number } | null> {
@@ -218,10 +219,10 @@ export default function DriverStop({ id, status, items, reasons }: { id: string;
           <input type="hidden" name="id" value={id} />
           {photos.map((p, i) => <input key={i} type="hidden" name="photo" value={p} />)}
           {geo}
-          <select name="reason" className="b-input" required defaultValue="">
+          <Select name="reason" className="b-input" required defaultValue="">
             <option value="" disabled>What went wrong?</option>
             {reasons.map((r) => <option key={r}>{r}</option>)}
-          </select>
+          </Select>
           <PhotoInput photos={photos} setPhotos={setPhotos} />
           <textarea name="driver_notes" className="b-input min-h-[60px]" placeholder="Details for the office" maxLength={2000} />
           <div className="flex gap-2">

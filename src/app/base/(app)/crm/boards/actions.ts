@@ -11,6 +11,7 @@ import { listEmployees } from '@/lib/base/queries';
 import { fullName, workTypeOf } from '@/lib/base/types';
 import { BOARD_TEMPLATES, GROUP_COLORS, type BoardColumn, type BoardItem, type BoardUpdate, type ColumnType } from '@/lib/crm/boardTypes';
 import { boardAccess } from '@/lib/crm/boards';
+import { workspaceAccess } from '@/lib/crm/workspaces';
 
 const uuid = z.string().uuid();
 const hex = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
@@ -36,7 +37,13 @@ const touch = (boardId: string) => db().from('crm_boards').update({ updated_at: 
 // ------------------------------------------------------------------ boards --
 
 export async function createBoard(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
-  const viewer = await requireCrm({ manager: true });
+  const viewer = await requireCrm();
+  const wsId = String(fd.get('workspace_id') ?? '');
+  const { data: ws } = uuid.safeParse(wsId).success ? await db().from('crm_workspaces').select('id, visibility, created_by').eq('id', wsId).maybeSingle() : { data: null };
+  if (!ws || !(await workspaceAccess(viewer, ws)).manage) return fail('Only a workspace owner or Workflow manager can add boards here.');
+  const folderParse = uuid.safeParse(fd.get('folder_id'));
+  const { data: folderRow } = folderParse.success ? await db().from('crm_folders').select('id, workspace_id').eq('id', folderParse.data).maybeSingle() : { data: null };
+  const folderId = folderRow && folderRow.workspace_id === ws.id ? folderRow.id : null;
   const parsed = z
     .object({
       name: z.string().trim().min(1, 'Name the board.').max(120),
@@ -53,7 +60,7 @@ export async function createBoard(_prev: ActionResult, fd: FormData): Promise<Ac
   const { count } = await db().from('crm_boards').select('id', { count: 'exact', head: true });
   const { data: board, error } = await db()
     .from('crm_boards')
-    .insert({ name: v.name, description: v.description || null, folder: v.folder || null, visibility: v.visibility, item_label: tpl.item_label, group_label: tpl.group_label, position: count ?? 0, created_by: viewer.employeeId })
+    .insert({ name: v.name, description: v.description || null, workspace_id: ws.id, folder_id: folderId, visibility: v.visibility, item_label: tpl.item_label, group_label: tpl.group_label, position: count ?? 0, created_by: viewer.employeeId })
     .select('id')
     .single();
   if (error || !board) return fail('Couldn’t create the board.');
@@ -88,8 +95,8 @@ export async function createBoard(_prev: ActionResult, fd: FormData): Promise<Ac
   await db().from('crm_board_groups').insert(groups.map((g, i) => ({ board_id: board.id, name: g.name, employee_id: g.employee_id, color: GROUP_COLORS[i % GROUP_COLORS.length], position: i })));
   if (v.visibility === 'members' && viewer.employeeId) await db().from('crm_board_members').insert({ board_id: board.id, employee_id: viewer.employeeId, role: 'editor' });
   await audit(viewer, 'crm.board', 'crm_boards', board.id, { text: `created the board “${v.name}”` });
-  revalidatePath('/base/crm/boards');
-  redirect(`/base/crm/boards/${board.id}`);
+  revalidatePath('/base/crm/workspace', 'layout');
+  redirect(`/base/crm/workspace/${ws.id}/board/${board.id}`);
 }
 
 export async function updateBoard(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
@@ -107,11 +114,14 @@ export async function updateBoard(_prev: ActionResult, fd: FormData): Promise<Ac
       group_label: z.string().trim().min(1).max(40).catch('Group'),
     })
     .safeParse(Object.fromEntries(['name', 'description', 'folder', 'color', 'visibility', 'item_label', 'group_label'].map((k) => [k, fd.get(k) ?? ''])));
+  // (folders are managed from the workspace panel now; the old text folder is left as it was)
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Please check the board.');
   const v = parsed.data;
-  await db().from('crm_boards').update({ ...v, description: v.description || null, folder: v.folder || null }).eq('id', id);
+  const { folder: _folder, ...rest } = v;
+  void _folder;
+  await db().from('crm_boards').update({ ...rest, description: v.description || null }).eq('id', id);
   await audit(g.viewer, 'crm.board', 'crm_boards', id, { text: `updated the board “${v.name}”` });
-  revalidatePath('/base/crm/boards', 'layout');
+  revalidatePath('/base/crm/workspace', 'layout');
   return done('Board saved.');
 }
 
@@ -122,23 +132,23 @@ export async function archiveBoard(fd: FormData) {
   const archived = fd.get('archived') === 'true';
   const { data } = await db().from('crm_boards').update({ archived }).eq('id', id).select('name').maybeSingle();
   await audit(g.viewer, 'crm.board', 'crm_boards', id, { text: `${archived ? 'archived' : 'restored'} the board “${data?.name ?? ''}”` });
-  revalidatePath('/base/crm/boards', 'layout');
-  if (archived) redirect('/base/crm/boards');
+  revalidatePath('/base/crm/workspace', 'layout');
+  if (archived) redirect('/base/crm/workspace');
 }
 
 export async function deleteBoard(fd: FormData) {
   const viewer = await requireCrm({ manager: true });
   const id = uuid.safeParse(fd.get('id'));
   if (!id.success) return;
-  const { data } = await db().from('crm_boards').delete().eq('id', id.data).select('name').maybeSingle();
+  const { data } = await db().from('crm_boards').delete().eq('id', id.data).select('name, workspace_id').maybeSingle();
   await audit(viewer, 'crm.board', 'crm_boards', id.data, { text: `deleted the board “${data?.name ?? ''}”` });
-  revalidatePath('/base/crm/boards', 'layout');
-  redirect('/base/crm/boards');
+  revalidatePath('/base/crm/workspace', 'layout');
+  redirect(data ? `/base/crm/workspace/${data.workspace_id}` : '/base/crm/workspace');
 }
 
 /** Copy a board's setup (columns, groups) and, if asked, its items and sub-items. */
 export async function duplicateBoard(fd: FormData) {
-  const viewer = await requireCrm({ manager: true });
+  const viewer = await requireCrm();
   const id = uuid.safeParse(fd.get('id'));
   if (!id.success) return;
   const withItems = fd.get('with_items') === 'on';
@@ -148,10 +158,10 @@ export async function duplicateBoard(fd: FormData) {
     db().from('crm_board_groups').select('*').eq('board_id', id.data),
     withItems ? db().from('crm_board_items').select('*').eq('board_id', id.data) : Promise.resolve({ data: [] as BoardItem[] }),
   ]);
-  if (!b) return;
+  if (!b || !(await boardAccess(viewer, b)).manage) return;
   const { data: copy } = await db()
     .from('crm_boards')
-    .insert({ name: `${b.name} (copy)`.slice(0, 120), description: b.description, folder: b.folder, color: b.color, visibility: b.visibility, item_label: b.item_label, group_label: b.group_label, position: b.position + 1, created_by: viewer.employeeId })
+    .insert({ name: `${b.name} (copy)`.slice(0, 120), description: b.description, workspace_id: b.workspace_id, folder_id: b.folder_id, color: b.color, visibility: b.visibility, item_label: b.item_label, group_label: b.group_label, position: b.position + 1, created_by: viewer.employeeId })
     .select('id')
     .single();
   if (!copy) return;
@@ -181,8 +191,8 @@ export async function duplicateBoard(fd: FormData) {
     if (data) itemMap.set(it.id, data.id);
   }
   await audit(viewer, 'crm.board', 'crm_boards', copy.id, { text: `duplicated the board “${b.name}”` });
-  revalidatePath('/base/crm/boards', 'layout');
-  redirect(`/base/crm/boards/${copy.id}`);
+  revalidatePath('/base/crm/workspace', 'layout');
+  redirect(`/base/crm/workspace/${b.workspace_id}/board/${copy.id}`);
 }
 
 /** Add / change / remove a board member (role null = remove). */
@@ -192,7 +202,7 @@ export async function setBoardMember(boardId: string, employeeId: string, role: 
   if (!uuid.safeParse(employeeId).success) return fail('Choose a person.');
   if (role) await db().from('crm_board_members').upsert({ board_id: boardId, employee_id: employeeId, role });
   else await db().from('crm_board_members').delete().eq('board_id', boardId).eq('employee_id', employeeId);
-  revalidatePath(`/base/crm/boards/${boardId}`);
+  revalidatePath('/base/crm/workspace', 'layout');
   return done(role ? 'Member saved.' : 'Removed.');
 }
 
@@ -246,7 +256,7 @@ export async function deleteGroup(id: string): Promise<ActionResult> {
 
 // ----------------------------------------------------------------- columns --
 
-const TYPES: ColumnType[] = ['text', 'long_text', 'number', 'currency', 'date', 'status', 'person', 'email', 'phone', 'link', 'checkbox', 'formula'];
+const TYPES: ColumnType[] = ['text', 'long_text', 'number', 'currency', 'date', 'status', 'person', 'email', 'phone', 'link', 'checkbox', 'formula', 'dropdown', 'people', 'files', 'timeline'];
 const settingsSchema = z
   .object({
     labels: z.array(z.object({ id: z.string().max(20), label: z.string().trim().max(40), color: hex })).max(30).optional(),
@@ -262,7 +272,8 @@ export async function addColumn(boardId: string, scope: 'item' | 'subitem', name
   const n = name.trim().slice(0, 60);
   if (!n || !TYPES.includes(type) || (scope !== 'item' && scope !== 'subitem')) return fail('Choose a name and a type.');
   const s = settingsSchema.parse(settings ?? {});
-  if (type === 'status' && !s.labels?.length) s.labels = [{ id: 's0', label: 'Not started', color: '#94A3B8' }, { id: 's1', label: 'Working on it', color: '#F59E0B' }, { id: 's2', label: 'Done', color: '#10B981' }];
+  if (type === 'status' && !s.labels?.length) s.labels = [{ id: 's0', label: 'Working on it', color: '#FDAB3D' }, { id: 's1', label: 'Stuck', color: '#DF2F4A' }, { id: 's2', label: 'Done', color: '#00C875' }];
+  if (type === 'dropdown' && !s.labels?.length) s.labels = [{ id: 'd0', label: 'Option 1', color: '#579BFC' }, { id: 'd1', label: 'Option 2', color: '#A25DDC' }];
   const { count } = await db().from('crm_board_columns').select('id', { count: 'exact', head: true }).eq('board_id', boardId).eq('scope', scope);
   const { data, error } = await db()
     .from('crm_board_columns')
@@ -374,8 +385,25 @@ export async function setCell(itemId: string, columnId: string, value: unknown):
       if (v !== null && !uuid.safeParse(v).success) return fail('Choose a person.');
       break;
     case 'status':
+    case 'dropdown':
       if (v !== null && !(col.settings?.labels ?? []).some((l: { id: string }) => l.id === v)) return fail('Choose a label.');
       break;
+    case 'people': {
+      const ids = Array.isArray(v) ? v : v === null ? [] : [v];
+      if (!ids.every((x) => uuid.safeParse(x).success) || ids.length > 30) return fail('Choose people from the team.');
+      v = ids.length ? [...new Set(ids as string[])] : null;
+      break;
+    }
+    case 'timeline': {
+      if (v === null) break;
+      const t = v as { from?: unknown; to?: unknown };
+      const ok = typeof t === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(String(t.from)) && /^\d{4}-\d{2}-\d{2}$/.test(String(t.to));
+      if (!ok) return fail('Pick a start and end date.');
+      v = String(t.from) <= String(t.to) ? { from: t.from, to: t.to } : { from: t.to, to: t.from };
+      break;
+    }
+    case 'files':
+      return fail('Use the upload button for files.');
     default:
       if (v !== null) v = String(v).slice(0, col.type === 'long_text' ? 5000 : 500);
   }
@@ -437,5 +465,24 @@ export async function addItemUpdate(itemId: string, body: string): Promise<Actio
   const text = body.trim().slice(0, 5000);
   if (!text) return fail('Write something first.');
   await db().from('crm_board_updates').insert({ item_id: itemId, kind: 'comment', body: text, author_id: g.viewer.employeeId, author_name: g.viewer.name });
+  return done();
+}
+
+/** Several selected rows at once: move them to a group, or delete them. */
+export async function bulkItems(boardId: string, ids: string[], op: 'move' | 'delete', groupId?: string): Promise<ActionResult> {
+  const g = await guard(boardId, 'edit');
+  if ('error' in g) return g.error;
+  const list = ids.filter((x) => uuid.safeParse(x).success).slice(0, 500);
+  if (!list.length) return fail('Select some rows first.');
+  if (op === 'delete') {
+    await db().from('crm_board_items').delete().eq('board_id', boardId).in('id', list);
+    await audit(g.viewer, 'crm.board', 'crm_board_items', null, { text: `deleted ${list.length} row${list.length === 1 ? '' : 's'} from a board` });
+    return done();
+  }
+  if (!groupId || !uuid.safeParse(groupId).success) return fail('Choose a group.');
+  const { data: grp } = await db().from('crm_board_groups').select('board_id').eq('id', groupId).maybeSingle();
+  if (grp?.board_id !== boardId) return fail('Choose a group on this board.');
+  await db().from('crm_board_items').update({ group_id: groupId }).eq('board_id', boardId).in('id', list);
+  await db().from('crm_board_items').update({ group_id: groupId }).eq('board_id', boardId).in('parent_id', list);
   return done();
 }

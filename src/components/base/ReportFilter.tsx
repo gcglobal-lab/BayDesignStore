@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { Eye, FileSpreadsheet, FileText, Sheet } from 'lucide-react';
 import { DateRangePicker, type RangePreset } from './calendar/Calendar';
+import Select from '@/components/ui/Select';
 
 /** Range + person for a report, then preview on screen or download as PDF / Excel / CSV. */
 export default function ReportFilter({
@@ -57,10 +58,10 @@ export default function ReportFilter({
       {usesPerson && (
         <label className="block min-w-[200px]">
           <span className="b-label">Team member</span>
-          <select name="employee" className="b-input" defaultValue={employee} onChange={() => form.current?.requestSubmit()}>
+          <Select people name="employee" className="b-input" defaultValue={employee} onChange={() => form.current?.requestSubmit()}>
             <option value="">Everyone</option>
             {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
+          </Select>
         </label>
       )}
       <div className="flex flex-wrap gap-2">

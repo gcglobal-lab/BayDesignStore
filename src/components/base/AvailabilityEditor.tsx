@@ -5,6 +5,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { ActionForm, Field, SubmitButton } from './forms';
 import { submitAvailability } from '@/app/base/(app)/availability/actions';
 import { DatePicker } from './calendar/Calendar';
+import Select from '@/components/ui/Select';
 
 type Kind = 'available' | 'preferred' | 'unavailable';
 export type EditorSlot = { weekday: number; kind: Kind; all_day: boolean; start_time: string | null; end_time: string | null };
@@ -66,11 +67,11 @@ export default function AvailabilityEditor({ initial, defaultEffective }: { init
                     <div className="ml-[7rem] mt-2 space-y-2">
                       {daySlots.map(({ s, i }) => (
                         <div key={i} className="flex flex-wrap items-center gap-2">
-                          <select value={s.kind} onChange={(e) => update(i, { kind: e.target.value as Kind })} className="b-input !w-auto !py-1.5 text-xs" aria-label="Type">
+                          <Select value={s.kind} onChange={(e) => update(i, { kind: e.target.value as Kind })} className="b-input !w-auto !py-1.5 text-xs" aria-label="Type">
                             <option value="preferred">Preferred</option>
                             <option value="available">Available</option>
                             <option value="unavailable">Unavailable</option>
-                          </select>
+                          </Select>
                           <label className="flex items-center gap-1.5 text-xs">
                             <input type="checkbox" className="b-check" checked={s.all_day} onChange={(e) => update(i, { all_day: e.target.checked })} /> All day
                           </label>

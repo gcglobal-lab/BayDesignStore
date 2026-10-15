@@ -5,6 +5,7 @@ import { ActionForm, Field, SubmitButton } from './forms';
 import { useDialog } from './Dialog';
 import { addTimeOff, requestTimeOff } from '@/app/base/(app)/time-off/actions';
 import { DatePicker } from './calendar/Calendar';
+import Select from '@/components/ui/Select';
 
 type LeaveType = 'vacation' | 'pto' | 'sick' | 'unpaid';
 
@@ -49,10 +50,10 @@ export default function TimeOffForm({
     <ActionForm action={employees ? addTimeOff : requestTimeOff} onSuccess={() => window.setTimeout(close, 900)}>
       {employees && (
         <Field label="Team member" htmlFor="to-employee">
-          <select id="to-employee" name="employee_id" className="b-input" required value={person} onChange={(e) => setPerson(e.target.value)}>
+          <Select people id="to-employee" name="employee_id" className="b-input" required value={person} onChange={(e) => setPerson(e.target.value)}>
             <option value="" disabled>Choose…</option>
             {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
+          </Select>
         </Field>
       )}
 
@@ -87,13 +88,13 @@ export default function TimeOffForm({
       </fieldset>
 
       <Field label="Reason" htmlFor="to-reason">
-        <select id="to-reason" name="reason" className="b-input" defaultValue={defaultType === 'sick' ? 'sick' : 'vacation'} key={defaultType}>
+        <Select id="to-reason" name="reason" className="b-input" defaultValue={defaultType === 'sick' ? 'sick' : 'vacation'} key={defaultType}>
           <option value="vacation">Vacation / holiday</option>
           <option value="personal">Personal</option>
           <option value="sick">Sick / medical</option>
           <option value="family">Family</option>
           <option value="other">Other</option>
-        </select>
+        </Select>
       </Field>
       <label className="flex items-center gap-2.5 text-sm">
         <input type="checkbox" name="all_day" className="b-check" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />

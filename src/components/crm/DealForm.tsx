@@ -5,6 +5,7 @@ import { UserPlus } from 'lucide-react';
 import { createDeal, updateDeal } from '@/app/base/(app)/crm/deals/actions';
 import { ActionForm, Field, SubmitButton } from '@/components/base/forms';
 import type { Deal, Person, Pipeline } from '@/lib/crm/types';
+import Select from '@/components/ui/Select';
 
 export type Option = { id: string; name: string; company_id?: string | null };
 
@@ -50,7 +51,7 @@ export default function DealForm({
           <input id="d-close" name="expected_close" type="date" className="b-input" defaultValue={deal?.expected_close ?? ''} />
         </Field>
         <Field label="Pipeline" htmlFor="d-pipeline">
-          <select
+          <Select
             id="d-pipeline"
             name="pipeline_id"
             className="b-input"
@@ -61,12 +62,12 @@ export default function DealForm({
             }}
           >
             {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="Stage" htmlFor="d-stage">
-          <select id="d-stage" name="stage_id" className="b-input" value={stageId} onChange={(e) => setStageId(e.target.value)}>
+          <Select id="d-stage" name="stage_id" className="b-input" value={stageId} onChange={(e) => setStageId(e.target.value)}>
             {stages.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.probability}%</option>)}
-          </select>
+          </Select>
         </Field>
       </div>
 
@@ -84,7 +85,7 @@ export default function DealForm({
             <input name="new_contact_phone" className="b-input" placeholder="Phone" maxLength={40} />
           </div>
         ) : (
-          <select
+          <Select
             name="contact_id"
             className="b-input"
             defaultValue={deal?.contact_id ?? defaults?.contact_id ?? ''}
@@ -95,35 +96,35 @@ export default function DealForm({
           >
             <option value="">— None —</option>
             {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          </Select>
         )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Company (optional)" htmlFor="d-company">
-          <select id="d-company" name="company_id" className="b-input" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+          <Select id="d-company" name="company_id" className="b-input" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
             <option value="">— None —</option>
             {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="Owner" htmlFor="d-owner">
-          <select id="d-owner" name="owner_id" className="b-input" defaultValue={deal ? (deal.owner_id ?? '') : (me ?? '')}>
+          <Select people id="d-owner" name="owner_id" className="b-input" defaultValue={deal ? (deal.owner_id ?? '') : (me ?? '')}>
             <option value="">— Unassigned —</option>
             {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="Source" htmlFor="d-source">
-          <select id="d-source" name="source" className="b-input" defaultValue={deal?.source ?? defaults?.source ?? ''}>
+          <Select id="d-source" name="source" className="b-input" defaultValue={deal?.source ?? defaults?.source ?? ''}>
             <option value="">—</option>
             {[...new Set([...sources, ...(deal?.source ? [deal.source] : []), ...(defaults?.source ? [defaults.source] : [])])].map((s) => <option key={s}>{s}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="Priority" htmlFor="d-priority">
-          <select id="d-priority" name="priority" className="b-input" defaultValue={deal?.priority ?? 'normal'}>
+          <Select id="d-priority" name="priority" className="b-input" defaultValue={deal?.priority ?? 'normal'}>
             <option value="low">Low</option>
             <option value="normal">Normal</option>
             <option value="high">High</option>
-          </select>
+          </Select>
         </Field>
       </div>
       <Field label="Tags" htmlFor="d-tags" hint={tags.length ? `Comma-separated. Suggestions: ${tags.join(', ')}` : 'Comma-separated'}>

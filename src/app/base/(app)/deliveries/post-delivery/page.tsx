@@ -9,6 +9,7 @@ import { fmtDate, fmtTime } from '@/lib/base/time';
 import { loadPostDelivery } from '@/lib/deliveries/postDelivery';
 import { getCrews } from '@/lib/deliveries/data';
 import { followupLabel, followupTone, serviceLabel, statusLabel, statusTone, type FollowupStatus } from '@/lib/deliveries/types';
+import Select from '@/components/ui/Select';
 
 export const metadata: Metadata = { title: 'Post-delivery' };
 
@@ -33,15 +34,15 @@ export default async function PostDeliveryPage({ searchParams }: PageProps<'/bas
         <input type="date" name="from" defaultValue={from} className="b-input !w-auto !py-2" aria-label="From" />
         <span className="text-muted">to</span>
         <input type="date" name="to" defaultValue={to} className="b-input !w-auto !py-2" aria-label="To" />
-        <select name="outcome" defaultValue={outcome} className="b-input !w-auto !py-2" aria-label="Outcome">
+        <Select name="outcome" defaultValue={outcome} className="b-input !w-auto !py-2" aria-label="Outcome">
           <option value="all">Delivered & not delivered</option>
           <option value="delivered">Delivered</option>
           <option value="failed">Not delivered</option>
-        </select>
-        <select name="follow" defaultValue={follow ?? ''} className="b-input !w-auto !py-2" aria-label="Follow-up">
+        </Select>
+        <Select name="follow" defaultValue={follow ?? ''} className="b-input !w-auto !py-2" aria-label="Follow-up">
           <option value="">Any follow-up</option>
           {(Object.keys(followupLabel) as FollowupStatus[]).map((k) => <option key={k} value={k}>{followupLabel[k]}</option>)}
-        </select>
+        </Select>
         <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" name="rating" value="low" defaultChecked={low} className="b-check" /> 3★ or less</label>
         <button className="b-btn-ghost" type="submit">Filter</button>
       </form>

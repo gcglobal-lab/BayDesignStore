@@ -6,6 +6,7 @@ import { Check, RotateCcw, ThumbsDown, Trophy } from 'lucide-react';
 import { moveDeal, setDealStatus } from '@/app/base/(app)/crm/deals/actions';
 import { ActionForm, SubmitButton } from '@/components/base/forms';
 import type { Stage } from '@/lib/crm/types';
+import Select from '@/components/ui/Select';
 
 /** The stage bar on a deal: click a stage to move the deal there. */
 export function StageBar({ dealId, stages, current, disabled }: { dealId: string; stages: Stage[]; current: string; disabled: boolean }) {
@@ -69,10 +70,10 @@ export function DealStatusButtons({ id, status, lostReasons, disabled }: { id: s
         <ActionForm action={setDealStatus} className="flex items-center gap-2">
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="status" value="lost" />
-          <select name="lost_reason" className="b-input !w-auto !py-1.5" required defaultValue="">
+          <Select name="lost_reason" className="b-input !w-auto !py-1.5" required defaultValue="">
             <option value="" disabled>Reason…</option>
             {lostReasons.map((r) => <option key={r}>{r}</option>)}
-          </select>
+          </Select>
           <SubmitButton className="b-btn-danger">Mark lost</SubmitButton>
           <button type="button" className="b-btn-quiet" onClick={() => setLosing(false)}>Cancel</button>
         </ActionForm>

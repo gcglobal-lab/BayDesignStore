@@ -4,7 +4,8 @@ import { useEffect, useState, useTransition } from 'react';
 import { ArrowLeft, Copy, FileSpreadsheet, FileText, History, Loader2, MessageSquare, Plus, Trash2, X } from 'lucide-react';
 import { addItemUpdate, deleteItem, duplicateItem, itemUpdates } from '@/app/base/(app)/crm/boards/actions';
 import { cellText, formulaIsMoney, formulaValue, isNumeric, money2, num, type Board, type BoardColumn, type BoardGroup, type BoardItem, type BoardUpdate } from '@/lib/crm/boardTypes';
-import Cell from './Cell';
+import Cell, { type CellCtx } from './Cell';
+import Select from '@/components/ui/Select';
 
 function Drawer({ onClose, children, label }: { onClose: () => void; children: React.ReactNode; label: string }) {
   useEffect(() => {
@@ -23,50 +24,44 @@ function Drawer({ onClose, children, label }: { onClose: () => void; children: R
 const when = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 export function ItemPanel({
+  initialTab = 'details',
   board,
   item,
   parent,
   columns,
   groups,
   subitems,
-  people,
-  names,
+  ctxFor,
   canEdit,
-  canManage,
   onClose,
   onOpenItem,
-  onSaveCell,
   onPatch,
   onAddSub,
   onRemoved,
   onAdded,
-  onEditLabels,
   exportHref,
 }: {
+  initialTab?: 'details' | 'updates';
   board: Board;
   item: BoardItem;
   parent: BoardItem | null;
   columns: BoardColumn[];
   groups: BoardGroup[];
   subitems: BoardItem[];
-  people: { id: string; name: string }[];
-  names: Record<string, string>;
+  ctxFor: (it: BoardItem, col: BoardColumn) => CellCtx;
   canEdit: boolean;
-  canManage: boolean;
   onClose: () => void;
   onOpenItem: (id: string) => void;
-  onSaveCell: (item: BoardItem, col: BoardColumn, value: unknown) => void;
   onPatch: (patch: Partial<BoardItem>) => void;
   onAddSub: (name: string) => void;
   onRemoved: (ids: string[]) => void;
   onAdded: (items: BoardItem[]) => void;
-  onEditLabels: (col: BoardColumn) => void;
   exportHref: (format: 'xlsx' | 'pdf', extra?: string) => string;
 }) {
   const isSub = Boolean(item.parent_id);
   const cols = columns.filter((c) => c.scope === (isSub ? 'subitem' : 'item')).sort((a, b) => a.position - b.position);
   const subCols = columns.filter((c) => c.scope === 'subitem').sort((a, b) => a.position - b.position);
-  const [tab, setTab] = useState<'details' | 'updates'>('details');
+  const [tab, setTab] = useState<'details' | 'updates'>(initialTab);
   const [name, setName] = useState(item.name);
   const [desc, setDesc] = useState(item.description ?? '');
   const [updates, setUpdates] = useState<BoardUpdate[] | null>(null);
@@ -84,15 +79,7 @@ export function ItemPanel({
     if (tab === 'updates' && updates === null) itemUpdates(item.id).then(setUpdates);
   }, [tab, updates, item.id]);
 
-  const ctx = (it: BoardItem, col: BoardColumn) => ({
-    columns,
-    subitems: it.id === item.id ? subitems : [],
-    people,
-    names,
-    readOnly: !canEdit,
-    onSave: (v: unknown) => onSaveCell(it, col, v),
-    onEditLabels: canManage && col.type === 'status' ? () => onEditLabels(col) : undefined,
-  });
+  const ctx = ctxFor;
 
   return (
     <Drawer onClose={onClose} label={item.name}>
@@ -114,9 +101,9 @@ export function ItemPanel({
             />
             <div className="mt-1 flex flex-wrap items-center gap-2 px-1 text-xs text-muted">
               {!isSub && canEdit ? (
-                <select value={item.group_id} onChange={(e) => onPatch({ group_id: e.target.value })} className="rounded-md border border-stone/60 bg-surface px-1.5 py-0.5 text-xs" aria-label={board.group_label}>
+                <Select value={item.group_id} onChange={(e) => onPatch({ group_id: e.target.value })} className="rounded-md border border-stone/60 bg-surface px-1.5 py-0.5 text-xs" aria-label={board.group_label}>
                   {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-                </select>
+                </Select>
               ) : (
                 <span style={{ color: group?.color }}>{group?.name}</span>
               )}

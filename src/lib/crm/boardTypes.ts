@@ -1,6 +1,6 @@
 /** Workflow ▸ Boards: shapes, column types and value helpers. Safe to import from client components. */
 
-export type ColumnType = 'text' | 'long_text' | 'number' | 'currency' | 'date' | 'status' | 'person' | 'email' | 'phone' | 'link' | 'checkbox' | 'formula';
+export type ColumnType = 'text' | 'long_text' | 'number' | 'currency' | 'date' | 'status' | 'person' | 'email' | 'phone' | 'link' | 'checkbox' | 'formula' | 'dropdown' | 'people' | 'files' | 'timeline';
 export type StatusLabel = { id: string; label: string; color: string };
 export type FormulaOp = 'subtract' | 'add' | 'multiply' | 'divide' | 'subitems_sum';
 export type ColumnSettings = { labels?: StatusLabel[]; op?: FormulaOp; a?: string; b?: string; currency?: boolean };
@@ -22,6 +22,8 @@ export type BoardItem = {
 };
 export type Board = {
   id: string;
+  workspace_id: string;
+  folder_id: string | null;
   name: string;
   description: string | null;
   folder: string | null;
@@ -50,11 +52,30 @@ export const columnTypeLabel: Record<ColumnType, string> = {
   link: 'Link',
   checkbox: 'Checkbox',
   formula: 'Formula (calculated)',
+  dropdown: 'Dropdown',
+  people: 'People',
+  files: 'Files',
+  timeline: 'Timeline (date range)',
 };
+
+/** The column picker, grouped like monday.com. */
+export const COLUMN_PICKER: { title: string; types: ColumnType[] }[] = [
+  { title: 'Essentials', types: ['status', 'dropdown', 'text', 'date', 'people', 'currency', 'number'] },
+  { title: 'Super useful', types: ['files', 'timeline', 'checkbox', 'formula', 'long_text', 'person', 'phone', 'email', 'link'] },
+];
+export const columnTypeShort: Record<ColumnType, string> = { status: 'Status', dropdown: 'Dropdown', text: 'Text', date: 'Date', people: 'People', currency: 'Money', number: 'Numbers', files: 'Files', timeline: 'Timeline', checkbox: 'Checkbox', formula: 'Formula', long_text: 'Long text', person: 'Person', phone: 'Phone', email: 'Email', link: 'Link' };
+export const columnTypeColor: Record<ColumnType, string> = { status: '#00C875', dropdown: '#00C875', text: '#FDAB3D', date: '#A25DDC', people: '#66CCFF', currency: '#FDAB3D', number: '#FDAB3D', files: '#FF7575', timeline: '#A25DDC', checkbox: '#FDAB3D', formula: '#2EB6B6', long_text: '#FDAB3D', person: '#66CCFF', phone: '#FF642E', email: '#579BFC', link: '#579BFC' };
 export const formulaLabel: Record<FormulaOp, string> = { subtract: 'A − B', add: 'A + B', multiply: 'A × B', divide: 'A ÷ B', subitems_sum: 'Sum of a sub-item column' };
 
-export const STATUS_COLORS = ['#94A3B8', '#0EA5E9', '#6366F1', '#8B5CF6', '#EC4899', '#F59E0B', '#F97316', '#10B981', '#059669', '#EF4444'];
-export const GROUP_COLORS = ['#6366F1', '#EC4899', '#10B981', '#F59E0B', '#0EA5E9', '#8B5CF6', '#EF4444', '#14B8A6', '#F97316', '#64748B'];
+// monday.com's palette
+export const STATUS_COLORS = ['#00C875', '#FDAB3D', '#DF2F4A', '#579BFC', '#A25DDC', '#C4C4C4', '#0086C0', '#9CD326', '#FF642E', '#FF158A', '#037F4C', '#784BD1'];
+export const GROUP_COLORS = ['#579BFC', '#FDAB3D', '#A25DDC', '#00C875', '#E2445C', '#037F4C', '#0086C0', '#9CD326', '#FF642E', '#FF158A', '#784BD1', '#66CCFF'];
+export type Timeline = { from: string; to: string };
+export const asIds = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : typeof v === 'string' && v ? [v] : []);
+export const asTimeline = (v: unknown): Timeline | null => (v && typeof v === 'object' && typeof (v as Timeline).from === 'string' && typeof (v as Timeline).to === 'string' ? (v as Timeline) : null);
+const shortDate = (ymd: string) => new Date(`${ymd}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+export const fmtShortDate = shortDate;
+export const fmtTimeline = (t: Timeline) => (t.from === t.to ? shortDate(t.from) : `${shortDate(t.from)} - ${shortDate(t.to)}`);
 
 export const isNumeric = (t: ColumnType) => t === 'number' || t === 'currency' || t === 'formula';
 export const num = (v: unknown) => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' && !Number.isNaN(Number(v)) ? Number(v) : null);
@@ -113,7 +134,18 @@ export function cellText(col: BoardColumn, item: BoardItem, ctx: { subitems: Boa
     case 'number':
       return num(v) === null ? '' : String(num(v));
     case 'status':
+    case 'dropdown':
       return col.settings.labels?.find((l) => l.id === v)?.label ?? '';
+    case 'people':
+      return asIds(v).map((id) => ctx.names[id] ?? '').filter(Boolean).join(', ');
+    case 'timeline': {
+      const t = asTimeline(v);
+      return t ? fmtTimeline(t) : '';
+    }
+    case 'files':
+      return '';
+    case 'date':
+      return typeof v === 'string' && v ? shortDate(v) : '';
     case 'person':
       return typeof v === 'string' ? (ctx.names[v] ?? '') : '';
     case 'checkbox':
@@ -129,6 +161,23 @@ export type BoardTemplate = { key: string; name: string; description: string; it
 
 /** Ready-made boards. Formula settings refer to other columns by their `key`. */
 export const BOARD_TEMPLATES: BoardTemplate[] = [
+  {
+    key: 'deposits',
+    name: 'Designer deposits',
+    description: 'A board per designer (e.g. “Victoria Bird”): one group per customer, a row per deposit month with date, who’s assigned, amount, payment method, proof files, notes and status.',
+    item_label: 'deposit month',
+    group_label: 'Customer',
+    groups: ['New customer'],
+    columns: [
+      { name: 'Deposit Date', type: 'date', width: 130 },
+      { name: 'Assigned', type: 'people', width: 120 },
+      { name: 'Deposit Amount', type: 'currency', width: 150 },
+      { name: 'Payment Method', type: 'dropdown', width: 150, settings: { labels: [sl('CC', '#579BFC', 0), sl('Check', '#A25DDC', 1), sl('Cash', '#00C875', 2), sl('Wire / ACH', '#0086C0', 3), sl('Zelle', '#784BD1', 4), sl('Financing', '#FDAB3D', 5)] } },
+      { name: 'Proof Files', type: 'files', width: 140 },
+      { name: 'Notes', type: 'text', width: 230 },
+      { name: 'Deposit Status', type: 'status', width: 150, settings: { labels: [sl('Received', '#00C875', 0), sl('Pending', '#FDAB3D', 1), sl('Partial', '#579BFC', 2), sl('Declined', '#DF2F4A', 3), sl('Refunded', '#A25DDC', 4)] } },
+    ],
+  },
   {
     key: 'designers',
     name: 'Designers & clients',

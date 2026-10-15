@@ -7,6 +7,7 @@ import { Avatar } from './ui';
 import { DatePicker } from './calendar/Calendar';
 import { deleteShift, saveShift } from '@/app/base/(app)/schedule/actions';
 import { fmtDuration } from '@/lib/base/time';
+import Select from '@/components/ui/Select';
 
 export type GridShift = {
   id: string;
@@ -179,12 +180,12 @@ export default function ScheduleGrid({
                 ) : (
                   <div className="flex items-center gap-2 text-sm text-muted">
                     <span>View by</span>
-                    <select value={viewBy} onChange={(e) => setViewBy(e.target.value as ViewBy)} className="b-input !w-auto !rounded-lg !py-1.5 !pr-8 font-medium text-ink">
+                    <Select value={viewBy} onChange={(e) => setViewBy(e.target.value as ViewBy)} className="b-input !w-auto !rounded-lg !py-1.5 !pr-8 font-medium text-ink">
                       <option value="first">First name</option>
                       <option value="last">Last name</option>
                       <option value="role">Role</option>
                       <option value="hours">Scheduled hours</option>
-                    </select>
+                    </Select>
                     <button type="button" className="rounded-lg p-1.5 hover:bg-linen hover:text-ink" onClick={() => setSearching(true)} aria-label="Search team members"><Search size={17} /></button>
                   </div>
                 )}
@@ -277,10 +278,10 @@ export default function ScheduleGrid({
                 <ActionForm key={formKey} action={saveShift} onSuccess={() => window.setTimeout(() => setEditing(null), 600)}>
                   {current && <input type="hidden" name="id" value={current.id} />}
                   <Field label="Team member" htmlFor="sh-emp">
-                    <select id="sh-emp" name="employee_id" className="b-input" defaultValue={current ? current.employeeId ?? '' : editing.kind === 'new' ? editing.employeeId ?? '' : ''}>
+                    <Select people id="sh-emp" name="employee_id" className="b-input" defaultValue={current ? current.employeeId ?? '' : editing.kind === 'new' ? editing.employeeId ?? '' : ''}>
                       <option value="">Open shift (anyone can request it)</option>
                       {rows.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                    </select>
+                    </Select>
                   </Field>
                   <div className="grid gap-4 sm:grid-cols-3">
                     <Field label="Date" htmlFor="sh-date"><DatePicker id="sh-date" name="date" required defaultValue={current?.date ?? (editing.kind === 'new' ? editing.date : '')} zone={zone} weekStart={weekStart} /></Field>
@@ -289,18 +290,18 @@ export default function ScheduleGrid({
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="Role" htmlFor="sh-role">
-                      <select id="sh-role" name="role_id" className="b-input" defaultValue={current?.roleId ?? ''}>
+                      <Select id="sh-role" name="role_id" className="b-input" defaultValue={current?.roleId ?? ''}>
                         <option value="">No role</option>
                         {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                      </select>
+                      </Select>
                     </Field>
                     <Field label="Unpaid break (minutes)" htmlFor="sh-break"><input id="sh-break" type="number" name="break_minutes" min={0} max={240} step={5} className="b-input" defaultValue={current?.breakMinutes ?? 0} /></Field>
                   </div>
                   {locations.length > 1 && (
                     <Field label="Location" htmlFor="sh-loc">
-                      <select id="sh-loc" name="location_id" className="b-input" defaultValue={current?.locationId ?? (editing.kind === 'new' ? rows.find((r) => r.id === editing.employeeId)?.locationId : null) ?? defaultLocationId ?? ''}>
+                      <Select id="sh-loc" name="location_id" className="b-input" defaultValue={current?.locationId ?? (editing.kind === 'new' ? rows.find((r) => r.id === editing.employeeId)?.locationId : null) ?? defaultLocationId ?? ''}>
                         {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-                      </select>
+                      </Select>
                     </Field>
                   )}
                   {locations.length === 1 && <input type="hidden" name="location_id" value={locations[0].id} />}

@@ -11,6 +11,7 @@ import { getSettings } from '@/lib/base/settings';
 import { fmtDate, fmtTime } from '@/lib/base/time';
 import { canEditRecord, getCrmPeople, getCrmSetup, labelsFor, pickerOptions, searchTerm } from '@/lib/crm/data';
 import { daysSince, money, type Deal } from '@/lib/crm/types';
+import Select from '@/components/ui/Select';
 
 export const metadata: Metadata = { title: 'Deals' };
 
@@ -114,19 +115,19 @@ export default async function DealsPage({ searchParams }: PageProps<'/base/crm/d
         <form className="flex flex-1 flex-wrap items-center gap-2" action="/base/crm/deals">
           <input type="hidden" name="pipeline" value={pipeline.id} />
           <input type="hidden" name="view" value={view} />
-          <select name="owner" defaultValue={owner} className="b-input !w-auto !py-2">
+          <Select people name="owner" defaultValue={owner} className="b-input !w-auto !py-2">
             <option value="all">Everyone’s deals</option>
             {viewer.employeeId && <option value="me">My deals</option>}
             <option value="none">Unassigned</option>
             {people.owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
+          </Select>
           {view === 'list' && (
-            <select name="status" defaultValue={status} className="b-input !w-auto !py-2">
+            <Select name="status" defaultValue={status} className="b-input !w-auto !py-2">
               <option value="open">Open</option>
               <option value="won">Won</option>
               <option value="lost">Lost</option>
               <option value="all">All</option>
-            </select>
+            </Select>
           )}
           <label className="relative min-w-[12rem] flex-1">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />

@@ -13,6 +13,7 @@ import { fmtDate, fmtTime } from '@/lib/base/time';
 import { getCrmPeople, getCrmSetup, searchTerm } from '@/lib/crm/data';
 import { leadStatusLabel, leadStatusTone, money, type Lead, type LeadStatus } from '@/lib/crm/types';
 import { setLeadStatus } from './actions';
+import Select from '@/components/ui/Select';
 
 export const metadata: Metadata = { title: 'Leads' };
 
@@ -74,10 +75,10 @@ export default async function LeadsPage({ searchParams }: PageProps<'/base/crm/l
         </div>
         <form className="flex flex-1 flex-wrap items-center gap-2" action="/base/crm/leads">
           <input type="hidden" name="tab" value={tab.key} />
-          <select name="owner" defaultValue={mine ? 'me' : ''} className="b-input !w-auto !py-2">
+          <Select people name="owner" defaultValue={mine ? 'me' : ''} className="b-input !w-auto !py-2">
             <option value="">Everyone’s leads</option>
             <option value="me">My leads</option>
-          </select>
+          </Select>
           <label className="relative min-w-[12rem] flex-1">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input name="q" defaultValue={q} placeholder="Search name, email, phone…" className="b-input !py-2 pl-9" />

@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { Loader2, MapPin } from 'lucide-react';
 import { assignStore } from '@/app/base/(app)/team/actions';
+import Select from '@/components/ui/Select';
 
 /** Uptown / Downtown for one person — saves as soon as it's changed, and stays until changed again. */
 export default function StoreSelect({ employeeId, value, locations, disabled = false, compact = false }: { employeeId: string; value: string | null; locations: { id: string; name: string }[]; disabled?: boolean; compact?: boolean }) {
@@ -14,7 +15,7 @@ export default function StoreSelect({ employeeId, value, locations, disabled = f
     <form ref={form} className="flex items-center gap-1.5" onSubmit={(e) => e.preventDefault()}>
       <span className={`relative inline-flex items-center ${compact ? '' : 'w-full'}`}>
         <MapPin size={14} className={`pointer-events-none absolute left-2.5 ${current ? 'text-violet-500' : 'text-muted'}`} />
-        <select
+        <Select
           aria-label="Store"
           disabled={disabled || pending}
           value={current}
@@ -35,7 +36,7 @@ export default function StoreSelect({ employeeId, value, locations, disabled = f
         >
           <option value="">No store</option>
           {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-        </select>
+        </Select>
         <span className="pointer-events-none absolute right-2.5 text-[0.6rem] text-muted">▼</span>
       </span>
       {pending && <Loader2 size={14} className="animate-spin text-violet-500" />}

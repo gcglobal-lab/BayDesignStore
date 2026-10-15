@@ -9,7 +9,7 @@ import { db } from '@/lib/base/db';
 import { isDbConfigured } from '@/lib/base/env';
 import { CacheKeys, memo } from '@/lib/base/memo';
 import { getSettings } from '@/lib/base/settings';
-import { dayRangeIso, todayYmd } from '@/lib/base/time';
+import { todayYmd } from '@/lib/base/time';
 import { readTheme } from '@/lib/portal/theme';
 
 /** Unread website inquiries, for the sidebar badge (managers and admins only). */
@@ -22,16 +22,16 @@ async function newInquiryCount(manager: boolean): Promise<number> {
   }).catch(() => 0);
 }
 
-/** Workflow badges: new leads, and this person's open tasks due today or earlier. */
+/** Badges: new Workflow leads, and this person's open tasks due today or overdue. */
 async function crmCounts(viewer: Viewer): Promise<{ newLeads: number; tasksDue: number }> {
-  if (viewer.crm === 'none' || !isDbConfigured()) return { newLeads: 0, tasksDue: 0 };
+  if (!isDbConfigured()) return { newLeads: 0, tasksDue: 0 };
   return memo(`${CacheKeys.crmBadges}${viewer.id}`, 15_000, async () => {
     const { timezone } = await getSettings();
-    const endOfDay = dayRangeIso(todayYmd(timezone), timezone)[1];
+    const today = todayYmd(timezone);
     const [leads, tasks] = await Promise.all([
-      db().from('crm_leads').select('id', { count: 'exact', head: true }).eq('status', 'new'),
+      viewer.crm !== 'none' ? db().from('crm_leads').select('id', { count: 'exact', head: true }).eq('status', 'new') : Promise.resolve({ count: 0 }),
       viewer.employeeId
-        ? db().from('crm_activities').select('id', { count: 'exact', head: true }).eq('assignee_id', viewer.employeeId).eq('done', false).neq('type', 'note').neq('type', 'log').lt('due_at', endOfDay)
+        ? db().from('tasks').select('id', { count: 'exact', head: true }).contains('assignee_ids', [viewer.employeeId]).neq('status', 'done').lte('due_date', today)
         : Promise.resolve({ count: 0 }),
     ]);
     return { newLeads: leads.count ?? 0, tasksDue: tasks.count ?? 0 };

@@ -6,6 +6,7 @@ import { deletePipeline, deleteStage, saveGeneral, saveLists, savePipeline, save
 import { setTheme } from '@/app/base/theme-actions';
 import { ActionForm, Field, SubmitButton } from '@/components/base/forms';
 import type { CrmSettings, Person, Stage } from '@/lib/crm/types';
+import Select from '@/components/ui/Select';
 
 /** Light / dark / match the device — applies to Workflow and Deliveries, on this device. */
 export function AppearancePicker({ current }: { current: 'light' | 'dark' | 'system' }) {
@@ -81,9 +82,9 @@ export function DeleteStageForm({ stage, others }: { stage: Stage; others: Stage
     <ActionForm action={deleteStage} className="flex flex-wrap items-center gap-2 text-xs">
       <input type="hidden" name="id" value={stage.id} />
       <span className="text-muted">Move its deals to</span>
-      <select name="move_to" className="b-input !w-auto !py-1 text-xs">
+      <Select name="move_to" className="b-input !w-auto !py-1 text-xs">
         {others.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-      </select>
+      </Select>
       <SubmitButton className="b-btn-quiet b-btn-sm text-red-600" confirm={`Delete the stage “${stage.name}”?`}>Delete stage</SubmitButton>
     </ActionForm>
   );
@@ -106,10 +107,10 @@ export function GeneralForm({ settings, owners }: { settings: CrmSettings; owner
   return (
     <ActionForm action={saveGeneral} className="space-y-4">
       <Field label="New website leads go to" htmlFor="s-owner" hint="Who owns leads from the website form and chat. Automations can also assign them.">
-        <select id="s-owner" name="default_owner_id" className="b-input" defaultValue={settings.default_owner_id ?? ''}>
+        <Select people id="s-owner" name="default_owner_id" className="b-input" defaultValue={settings.default_owner_id ?? ''}>
           <option value="">Nobody — anyone can take them</option>
           {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-        </select>
+        </Select>
       </Field>
       <Field label="Default quote terms" htmlFor="s-terms"><textarea id="s-terms" name="quote_terms" className="b-input min-h-[100px]" maxLength={5000} defaultValue={settings.quote_terms} /></Field>
       <div className="flex justify-end"><SubmitButton className="b-btn-brass">Save</SubmitButton></div>

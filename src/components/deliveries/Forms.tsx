@@ -9,6 +9,7 @@ import { saveTruck } from '@/app/base/(app)/deliveries/trucks/actions';
 import { ActionForm, Field, SubmitButton } from '@/components/base/forms';
 import type { Person } from '@/lib/crm/types';
 import type { DlSettings, Route, Truck } from '@/lib/deliveries/types';
+import Select from '@/components/ui/Select';
 
 export function RouteForm({ date, trucks, drivers, route, defaultStart, suggestedName }: { date: string; trucks: Truck[]; drivers: Person[]; route?: Route; defaultStart: string; suggestedName?: string }) {
   return (
@@ -19,22 +20,22 @@ export function RouteForm({ date, trucks, drivers, route, defaultStart, suggeste
         <Field label="Route name" htmlFor="r-name"><input id="r-name" name="name" className="b-input" required maxLength={80} defaultValue={route?.name ?? suggestedName} placeholder="e.g. Truck 1 — Naples / Marco" /></Field>
         <Field label="Leaves the warehouse at" htmlFor="r-start"><input id="r-start" name="start_time" type="time" className="b-input" defaultValue={route?.start_time.slice(0, 5) ?? defaultStart} /></Field>
         <Field label="Truck" htmlFor="r-truck">
-          <select id="r-truck" name="truck_id" className="b-input" defaultValue={route?.truck_id ?? trucks[0]?.id ?? ''}>
+          <Select id="r-truck" name="truck_id" className="b-input" defaultValue={route?.truck_id ?? trucks[0]?.id ?? ''}>
             <option value="">— None —</option>
             {trucks.filter((t) => t.active || t.id === route?.truck_id).map((t) => <option key={t.id} value={t.id}>{t.name} · {t.capacity_stops} stops</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="Driver" htmlFor="r-driver">
-          <select id="r-driver" name="driver_id" className="b-input" defaultValue={route?.driver_id ?? ''}>
+          <Select people id="r-driver" name="driver_id" className="b-input" defaultValue={route?.driver_id ?? ''}>
             <option value="">— Choose —</option>
             {drivers.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="Helper (optional)" htmlFor="r-helper">
-          <select id="r-helper" name="helper_id" className="b-input" defaultValue={route?.helper_id ?? ''}>
+          <Select people id="r-helper" name="helper_id" className="b-input" defaultValue={route?.helper_id ?? ''}>
             <option value="">— None —</option>
             {drivers.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
+          </Select>
         </Field>
       </div>
       <Field label="Notes for the crew" htmlFor="r-notes"><textarea id="r-notes" name="notes" className="b-input min-h-[60px]" maxLength={1000} defaultValue={route?.notes ?? ''} /></Field>

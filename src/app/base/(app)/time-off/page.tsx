@@ -15,6 +15,7 @@ import { getSettings } from '@/lib/base/settings';
 import { fmtDateRange, todayYmd } from '@/lib/base/time';
 import { fmtDays, fullName, timeOffReasonLabel, timeOffTypeLabel, type TimeOffRequest, type TimeOffType } from '@/lib/base/types';
 import { cancelTimeOff, reviewTimeOff } from './actions';
+import Select from '@/components/ui/Select';
 
 export const metadata: Metadata = { title: 'Time Off' };
 
@@ -155,9 +156,9 @@ export default async function TimeOffPage({ searchParams }: PageProps<'/base/tim
                 <h2 className="text-xl font-semibold tracking-tight">Hours approved:</h2>
                 <input type="hidden" name="type" value={category} />
                 {showTerminated && <input type="hidden" name="terminated" value="1" />}
-                <select name="year" defaultValue={year} className="b-input !w-auto !rounded-xl !py-2 font-semibold" aria-label="Year">
+                <Select name="year" defaultValue={year} className="b-input !w-auto !rounded-xl !py-2 font-semibold" aria-label="Year">
                   {[thisYear + 1, thisYear, thisYear - 1, thisYear - 2].map((y) => <option key={y} value={y}>{y}</option>)}
-                </select>
+                </Select>
                 <button type="submit" className="b-btn-ghost b-btn-sm">Go</button>
               </form>
               <div className="flex flex-wrap gap-1.5">

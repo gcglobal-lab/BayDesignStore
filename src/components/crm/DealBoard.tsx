@@ -7,6 +7,7 @@ import { AlertTriangle, CalendarClock, Flame, GripVertical, ThumbsDown, Trophy }
 import { moveDeal, setDealStatus } from '@/app/base/(app)/crm/deals/actions';
 import { initials } from '@/components/base/ui';
 import { moneyShort, type Stage } from '@/lib/crm/types';
+import Select from '@/components/ui/Select';
 
 export type BoardCard = {
   id: string;
@@ -167,14 +168,14 @@ export default function DealBoard({ stages, cards: initial, lostReasons }: { sta
                         </div>
                       )}
                       {c.canMove && (
-                        <select
+                        <Select
                           aria-label="Move to stage"
                           className="mt-2 w-full rounded-lg border border-stone/60 bg-surface px-2 py-1 text-[0.7rem] text-muted lg:hidden"
                           value={c.stage_id}
                           onChange={(e) => move(c.id, e.target.value, null)}
                         >
                           {stages.map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}
-                        </select>
+                        </Select>
                       )}
                     </article>
                   ))}

@@ -5,6 +5,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { createOrder, updateOrder } from '@/app/base/(app)/deliveries/orders/actions';
 import { ActionForm, Field, SubmitButton } from '@/components/base/forms';
 import { serviceLabel, type Order, type OrderItem, type ServiceType } from '@/lib/deliveries/types';
+import Select from '@/components/ui/Select';
 
 export type ContactOption = {
   id: string;
@@ -67,16 +68,16 @@ export default function OrderForm({
 
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Customer from Workflow (optional)" htmlFor="o-contact" hint="Fills in the name, phone and address.">
-            <select id="o-contact" name="contact_id" className="b-input" defaultValue={initialContact?.id ?? ''} onChange={(e) => fill(e.target.value)}>
+            <Select id="o-contact" name="contact_id" className="b-input" defaultValue={initialContact?.id ?? ''} onChange={(e) => fill(e.target.value)}>
               <option value="">— Not linked —</option>
               {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.city ? ` · ${c.city}` : ''}</option>)}
-            </select>
+            </Select>
           </Field>
           <Field label="Deal (optional)" htmlFor="o-deal">
-            <select id="o-deal" name="deal_id" className="b-input" defaultValue={order?.deal_id ?? defaults?.deal_id ?? ''}>
+            <Select id="o-deal" name="deal_id" className="b-input" defaultValue={order?.deal_id ?? defaults?.deal_id ?? ''}>
               <option value="">— None —</option>
               {deals.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+            </Select>
           </Field>
         </div>
 
@@ -94,9 +95,9 @@ export default function OrderForm({
 
         <div className="grid gap-4 md:grid-cols-4">
           <Field label="Service" htmlFor="o-type">
-            <select id="o-type" name="service_type" className="b-input" defaultValue={order?.service_type ?? 'delivery'}>
+            <Select id="o-type" name="service_type" className="b-input" defaultValue={order?.service_type ?? 'delivery'}>
               {(Object.keys(serviceLabel) as ServiceType[]).map((k) => <option key={k} value={k}>{serviceLabel[k]}</option>)}
-            </select>
+            </Select>
           </Field>
           <Field label="Date" htmlFor="o-date" hint="Leave empty to schedule later.">
             <input id="o-date" name="scheduled_date" type="date" className="b-input" defaultValue={order?.scheduled_date ?? defaults?.scheduled_date ?? ''} />
@@ -124,11 +125,11 @@ export default function OrderForm({
             <input id="o-dur" name="duration_min" type="number" min={5} max={480} className="b-input" defaultValue={order?.duration_min ?? 30} />
           </Field>
           <Field label="Priority" htmlFor="o-pri">
-            <select id="o-pri" name="priority" className="b-input" defaultValue={order?.priority ?? 'normal'}>
+            <Select id="o-pri" name="priority" className="b-input" defaultValue={order?.priority ?? 'normal'}>
               <option value="low">Low</option>
               <option value="normal">Normal</option>
               <option value="high">High</option>
-            </select>
+            </Select>
           </Field>
           <Field label="Balance to collect ($)" htmlFor="o-bal">
             <input id="o-bal" name="balance_due" type="number" min={0} step="0.01" className="b-input" defaultValue={order?.balance_due ?? 0} />

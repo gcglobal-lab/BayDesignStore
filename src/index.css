@@ -67,6 +67,77 @@
   color-scheme: dark;
   color: rgb(var(--c-ink));
 }
+/*
+ * Workflow (the CRM) uses a Slack-like palette: aubergine menu bar, green primary buttons,
+ * blue links and accents, clean near-white canvas. Board status colours stay monday-bright.
+ */
+.base-theme [data-app='crm'] {
+  --c-ivory: 255 255 255;
+  --c-linen: 248 248 248;
+  --c-sand: 240 238 241;
+  --c-stone: 221 221 221;
+  --c-ink: 29 28 29;
+  --c-charcoal: 97 31 105;
+  --c-muted: 97 96 97;
+  --c-brass: 18 100 163;
+  --c-brass-light: 54 197 240;
+  --c-brass-dark: 18 100 163;
+  --c-surface: 255 255 255;
+  --slack-green: 0 122 90;
+  --slack-green-hover: 20 133 103;
+  --slack-aubergine: 74 21 75;
+}
+.base-theme [data-app='crm'][data-theme='dark'] {
+  --c-ivory: 34 37 41;
+  --c-linen: 26 29 33;
+  --c-sand: 44 47 52;
+  --c-stone: 56 59 64;
+  --c-ink: 209 210 211;
+  --c-charcoal: 232 232 232;
+  --c-muted: 171 171 173;
+  --c-brass: 29 155 209;
+  --c-brass-light: 54 197 240;
+  --c-brass-dark: 29 155 209;
+  --c-surface: 34 37 41;
+  --slack-green: 43 172 118;
+  --slack-green-hover: 52 190 132;
+  --slack-aubergine: 232 232 232;
+}
+.base-theme [data-app='crm'] .b-btn-brass {
+  background-image: none;
+  background-color: rgb(var(--slack-green));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+}
+.base-theme [data-app='crm'] .b-btn-brass:hover {
+  background-color: rgb(var(--slack-green-hover));
+  filter: none;
+}
+.base-theme [data-app='crm'] .b-btn-primary {
+  background-color: rgb(var(--slack-aubergine));
+}
+.base-theme [data-app='crm'][data-theme='dark'] .b-btn-primary {
+  color: rgb(26 29 33);
+}
+.base-theme [data-app='crm'] .b-btn,
+.base-theme [data-app='crm'] .b-btn-ghost,
+.base-theme [data-app='crm'] .b-btn-quiet {
+  border-radius: 0.5rem;
+}
+.base-theme [data-app='crm'] .b-card {
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.06);
+  border-radius: 0.75rem;
+}
+.base-theme [data-app='crm'] .b-input {
+  border-radius: 0.5rem;
+}
+.base-theme [data-app='crm'] .b-segment {
+  border-radius: 0.6rem;
+}
+.base-theme [data-app='crm'] .b-segment > a,
+.base-theme [data-app='crm'] .b-segment > button {
+  border-radius: 0.45rem;
+}
+
 /* Printable documents (quotes, route sheets) stay light inside dark mode. */
 .base-theme [data-theme='dark'] [data-theme='light'] {
   --c-ivory: 250 251 255;
@@ -269,7 +340,29 @@ body::after {
     @apply block w-full rounded-xl border border-stone bg-surface px-3.5 py-2.5 text-sm text-ink transition-colors placeholder:text-muted/60 focus:border-brass focus:outline-none focus:ring-2 focus:ring-brass/20 disabled:bg-linen;
   }
   .b-check {
-    @apply h-4 w-4 rounded border-stone text-brass accent-brass focus:ring-brass/30;
+    @apply relative h-[18px] w-[18px] flex-none cursor-pointer appearance-none rounded-[5px] border-[1.5px] border-stone bg-surface align-middle transition-colors hover:border-brass focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/40 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .b-check:checked {
+    @apply border-brass bg-brass;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
+    background-size: 13px;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  /* The custom Select's button, and any native select left: same field look with a chevron. */
+  .b-select-trigger {
+    @apply cursor-pointer select-none hover:border-ink/30;
+  }
+  select.b-input {
+    @apply cursor-pointer appearance-none pr-9;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23646a87' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+    background-position: right 0.7rem center;
+    background-size: 1rem;
+    background-repeat: no-repeat;
+  }
+  input[type='date'].b-input,
+  input[type='time'].b-input {
+    @apply cursor-pointer;
   }
 
   .b-table {

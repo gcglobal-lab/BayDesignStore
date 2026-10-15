@@ -12,6 +12,7 @@ import { getSettings } from '@/lib/base/settings';
 import { addDaysYmd, dayRangeIso, fmtDate, fmtShortTime, isYmd, minutesBetween, toYmd, todayYmd, weekDays, weekStartYmd } from '@/lib/base/time';
 import { fullName, type Shift, type TimeOffRequest } from '@/lib/base/types';
 import { copyPreviousWeek, publishWeek } from './actions';
+import Select from '@/components/ui/Select';
 
 export const metadata: Metadata = { title: 'Schedule' };
 
@@ -111,10 +112,10 @@ export default async function SchedulePage({ searchParams }: PageProps<'/base/sc
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <form className="flex items-center">
             <input type="hidden" name="week" value={week} />
-            <select name="role" defaultValue={roleFilter} className="b-input !w-auto !rounded-xl !bg-linen !py-2.5 font-semibold" aria-label="Filter by role">
+            <Select name="role" defaultValue={roleFilter} className="b-input !w-auto !rounded-xl !bg-linen !py-2.5 font-semibold" aria-label="Filter by role">
               <option value="">Filters: all roles</option>
               {roles.map((r) => <option key={r.id} value={r.id}>Role: {r.name}</option>)}
-            </select>
+            </Select>
             <button type="submit" className="b-btn-ghost b-btn-sm ml-1.5">Apply</button>
           </form>
           {manager && (

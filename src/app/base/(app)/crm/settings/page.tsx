@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import Link from 'next/link';
 import { ArrowDown, ArrowUp, ListChecks, Mail, Palette, Settings2, Star, Workflow } from 'lucide-react';
 import { SubmitButton } from '@/components/base/forms';
 import { Card } from '@/components/base/ui';
@@ -10,6 +9,7 @@ import { db, must } from '@/lib/base/db';
 import { deleteTemplate, moveStage, setDefaultPipeline } from './actions';
 import { getCrmPeople, getCrmSetup } from '@/lib/crm/data';
 import { readTheme } from '@/lib/portal/theme';
+import SettingsLayout, { type SettingsSection } from '@/components/ui/SettingsLayout';
 
 export const metadata: Metadata = { title: 'Workflow settings' };
 
@@ -19,12 +19,12 @@ export default async function CrmSettingsPage({ searchParams }: PageProps<'/base
   const viewer = await requireCrm();
   const manager = viewer.crm === 'manager';
   const sp = await searchParams;
-  const nav: { key: Section; label: string; icon: typeof Palette; manager?: boolean }[] = [
-    { key: 'appearance', label: 'Appearance', icon: Palette },
-    { key: 'pipelines', label: 'Pipelines & stages', icon: Workflow, manager: true },
-    { key: 'lists', label: 'Sources, reasons & tags', icon: ListChecks, manager: true },
-    { key: 'general', label: 'Lead routing & quotes', icon: Settings2, manager: true },
-    { key: 'templates', label: 'Email templates', icon: Mail, manager: true },
+  const nav: (SettingsSection & { key: Section; manager?: boolean })[] = [
+    { key: 'appearance', label: 'Appearance', description: 'Light, dark or match your device', icon: <Palette size={18} />, tone: '#4A154B' },
+    { key: 'pipelines', label: 'Pipelines & stages', description: 'Your sales steps and win chances', icon: <Workflow size={18} />, tone: '#1264A3', manager: true },
+    { key: 'lists', label: 'Sources, reasons & tags', description: 'The choices people pick from', icon: <ListChecks size={18} />, tone: '#007A5A', manager: true },
+    { key: 'general', label: 'Lead routing & quotes', description: 'Who gets new leads, quote terms', icon: <Settings2 size={18} />, tone: '#ECB22E', manager: true },
+    { key: 'templates', label: 'Email templates', description: 'Ready-made messages with placeholders', icon: <Mail size={18} />, tone: '#E01E5A', manager: true },
   ];
   const allowed = nav.filter((n) => !n.manager || manager);
   const section: Section = allowed.find((n) => n.key === sp.section)?.key ?? 'appearance';
@@ -101,27 +101,15 @@ export default async function CrmSettingsPage({ searchParams }: PageProps<'/base
   }
 
   return (
-    <div className="mx-auto max-w-[1200px]">
-      <h1 className="mb-6 text-[2rem] font-semibold tracking-tight">Workflow settings</h1>
-      <div className="grid gap-6 lg:grid-cols-[230px_minmax(0,1fr)]">
-        <nav aria-label="Settings sections" className="lg:sticky lg:top-6 lg:self-start">
-          <ul className="flex gap-1 overflow-x-auto pb-2 lg:block lg:space-y-0.5 lg:pb-0">
-            {allowed.map((n) => (
-              <li key={n.key}>
-                <Link
-                  href={`/base/crm/settings?section=${n.key}`}
-                  aria-current={n.key === section ? 'page' : undefined}
-                  className={`flex items-center gap-2.5 whitespace-nowrap rounded-xl px-3 py-2 text-sm transition-colors ${n.key === section ? 'bg-surface font-medium text-brass-dark shadow-sm ring-1 ring-stone/60' : 'text-ink/80 hover:bg-surface/70'}`}
-                >
-                  <n.icon size={15} className={n.key === section ? 'text-brass' : 'text-muted'} /> {n.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-          {!manager && <p className="mt-4 px-3 text-xs text-muted">Pipelines, lists and templates are managed by Workflow managers.</p>}
-        </nav>
-        <div className="min-w-0">{panel}</div>
-      </div>
-    </div>
+    <SettingsLayout
+      title="Workflow settings"
+      subtitle="How Workflow looks and works for your team."
+      base="/base/crm/settings"
+      sections={allowed}
+      active={section}
+      footer={!manager ? 'Pipelines, lists and templates are managed by Workflow managers.' : undefined}
+    >
+      {panel}
+    </SettingsLayout>
   );
 }

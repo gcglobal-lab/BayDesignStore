@@ -15,6 +15,7 @@ import { listEmployees, listLocations } from '@/lib/base/queries';
 import { getSettings } from '@/lib/base/settings';
 import { fmtDate, fmtTime } from '@/lib/base/time';
 import { fullName } from '@/lib/base/types';
+import Select from '@/components/ui/Select';
 
 export const metadata: Metadata = { title: 'Settings' };
 
@@ -239,17 +240,17 @@ async function ActivityPanel({ sp, zone }: { sp: Record<string, string | string[
         <input type="hidden" name="section" value="activity" />
         <label className="block">
           <span className="b-label">Person</span>
-          <select name="who" defaultValue={who} className="b-input !w-56">
+          <Select people name="who" defaultValue={who} className="b-input !w-56">
             <option value="">Everyone</option>
             {employees.map((e) => <option key={e.id} value={e.id}>{fullName(e)}</option>)}
-          </select>
+          </Select>
         </label>
         <label className="block">
           <span className="b-label">Type</span>
-          <select name="kind" defaultValue={kind} className="b-input !w-56">
+          <Select name="kind" defaultValue={kind} className="b-input !w-56">
             <option value="">All activity</option>
             {Object.entries(CATEGORIES).map(([k, c]) => <option key={k} value={k}>{c.label}</option>)}
-          </select>
+          </Select>
         </label>
         <button type="submit" className="b-btn-primary">Filter</button>
         <span className="ml-auto text-xs text-muted">{total.toLocaleString()} entr{total === 1 ? 'y' : 'ies'}</span>

@@ -5,6 +5,7 @@ import { CalendarClock, Mail, MessageSquareText, Phone, SquareCheckBig, Users } 
 import { createActivity } from '@/app/base/(app)/crm/activities/actions';
 import { ActionForm, SubmitButton } from '@/components/base/forms';
 import { fillTemplate, type Person } from '@/lib/crm/types';
+import Select from '@/components/ui/Select';
 
 type Tab = 'note' | 'task' | 'call' | 'meeting' | 'email';
 const TABS: { key: Tab; label: string; icon: typeof Phone }[] = [
@@ -91,12 +92,12 @@ export default function ActivityComposer({
         {Object.entries(links).map(([k, v]) => (v ? <input key={k} type="hidden" name={k} value={v} /> : null))}
 
         {isEmail && templates.length > 0 && (
-          <select className="b-input" defaultValue="" onChange={(e) => applyTemplate(e.target.value)} aria-label="Email template">
+          <Select className="b-input" defaultValue="" onChange={(e) => applyTemplate(e.target.value)} aria-label="Email template">
             <option value="">Start from a template…</option>
             {templates.map((t) => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
-          </select>
+          </Select>
         )}
         {tab !== 'note' && (
           <input
@@ -126,9 +127,9 @@ export default function ActivityComposer({
           </label>
         )}
         {tab === 'call' && logged && (
-          <select name="outcome" className="b-input" defaultValue="Talked">
+          <Select name="outcome" className="b-input" defaultValue="Talked">
             {['Talked', 'Left voicemail', 'No answer', 'Wrong number', 'Scheduled a visit'].map((o) => <option key={o}>{o}</option>)}
-          </select>
+          </Select>
         )}
         {scheduled && (
           <div className="grid gap-2 sm:grid-cols-4">
@@ -142,17 +143,17 @@ export default function ActivityComposer({
             </label>
             <label>
               <span className="b-label">Assign to</span>
-              <select name="assignee_id" className="b-input" defaultValue={me.id ?? ''}>
+              <Select people name="assignee_id" className="b-input" defaultValue={me.id ?? ''}>
                 {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-              </select>
+              </Select>
             </label>
             <label>
               <span className="b-label">Priority</span>
-              <select name="priority" className="b-input" defaultValue="normal">
+              <Select name="priority" className="b-input" defaultValue="normal">
                 <option value="low">Low</option>
                 <option value="normal">Normal</option>
                 <option value="high">High</option>
-              </select>
+              </Select>
             </label>
           </div>
         )}

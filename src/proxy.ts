@@ -32,15 +32,23 @@ export async function proxy(request: NextRequest) {
   }
 
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  // Attached files are uploaded straight to Supabase Storage and shown from short-lived links.
+  const storageOrigin = (() => {
+    try {
+      return new URL(process.env.SUPABASE_URL ?? '').origin;
+    } catch {
+      return '';
+    }
+  })();
   const csp = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
     // Map tiles for the punch-location maps (CARTO streets, Esri satellite).
-    "img-src 'self' data: blob: https://*.basemaps.cartocdn.com https://basemaps.cartocdn.com https://tile.openstreetmap.org https://server.arcgisonline.com",
+    `img-src 'self' data: blob: https://*.basemaps.cartocdn.com https://basemaps.cartocdn.com https://tile.openstreetmap.org https://server.arcgisonline.com ${storageOrigin}`.trim(),
     "font-src 'self'",
     "frame-src https://www.openstreetmap.org",
-    "connect-src 'self'",
+    `connect-src 'self' ${storageOrigin}`.trim(),
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

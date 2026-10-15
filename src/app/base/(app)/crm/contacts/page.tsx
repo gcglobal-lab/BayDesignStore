@@ -10,6 +10,7 @@ import { getSettings } from '@/lib/base/settings';
 import { fmtDate } from '@/lib/base/time';
 import { getCrmPeople, getCrmSetup, labelsFor, pickerOptions, searchTerm } from '@/lib/crm/data';
 import { contactName, lifecycleLabel, lifecycleTone, type Contact, type Lifecycle } from '@/lib/crm/types';
+import Select from '@/components/ui/Select';
 
 export const metadata: Metadata = { title: 'Contacts' };
 const PAGE = 50;
@@ -60,15 +61,15 @@ export default async function ContactsPage({ searchParams }: PageProps<'/base/cr
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input name="q" defaultValue={q} placeholder="Search name, email, phone, city…" className="b-input !py-2 pl-9" />
         </label>
-        <select name="stage" defaultValue={stage ?? ''} className="b-input !w-auto !py-2">
+        <Select name="stage" defaultValue={stage ?? ''} className="b-input !w-auto !py-2">
           <option value="">All stages</option>
           {(Object.keys(lifecycleLabel) as Lifecycle[]).map((k) => <option key={k} value={k}>{lifecycleLabel[k]}</option>)}
-        </select>
-        <select name="owner" defaultValue={owner} className="b-input !w-auto !py-2">
+        </Select>
+        <Select people name="owner" defaultValue={owner} className="b-input !w-auto !py-2">
           <option value="">Any owner</option>
           {viewer.employeeId && <option value="me">Mine</option>}
           {people.owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-        </select>
+        </Select>
         <input name="tag" defaultValue={tag} placeholder="Tag" className="b-input !w-28 !py-2" />
         <button type="submit" className="b-btn-ghost">Filter</button>
       </form>

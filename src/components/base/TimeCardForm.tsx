@@ -4,6 +4,7 @@ import { ActionForm, Field, SubmitButton } from './forms';
 import { useDialog } from './Dialog';
 import { deleteTimeCard, saveTimeCard } from '@/app/base/(app)/timesheets/actions';
 import { DatePicker } from './calendar/Calendar';
+import Select from '@/components/ui/Select';
 
 export type TimeCardValues = { id: string; employee_id: string; date: string; clock_in: string; clock_out: string; meal_minutes: number; notes: string };
 
@@ -13,10 +14,10 @@ export default function TimeCardForm({ employees, date, values }: { employees: {
     <ActionForm action={saveTimeCard} onSuccess={() => window.setTimeout(close, 600)}>
       {values && <input type="hidden" name="id" value={values.id} />}
       <Field label="Team member" htmlFor="tc-emp">
-        <select id="tc-emp" name="employee_id" className="b-input" required defaultValue={values?.employee_id ?? ''} disabled={Boolean(values)}>
+        <Select people id="tc-emp" name="employee_id" className="b-input" required defaultValue={values?.employee_id ?? ''} disabled={Boolean(values)}>
           <option value="" disabled>Choose…</option>
           {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-        </select>
+        </Select>
         {values && <input type="hidden" name="employee_id" value={values.employee_id} />}
       </Field>
       <div className="grid gap-4 sm:grid-cols-3">

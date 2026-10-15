@@ -7,6 +7,7 @@ import type { Location } from '@/lib/base/types';
 import { ActionForm, Field, SubmitButton } from './forms';
 import { DatePicker } from './calendar/Calendar';
 import { saveLocation, saveSettings } from '@/app/base/(app)/settings/actions';
+import Select from '@/components/ui/Select';
 
 const TIMEZONES = ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Phoenix', 'America/Los_Angeles', 'America/Anchorage', 'Pacific/Honolulu'];
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -64,9 +65,9 @@ export function BasicInfoPanel({ settings }: { settings: CompanySettings }) {
       <Row label="Account owner" htmlFor="s-owner"><input id="s-owner" name="account_owner_name" maxLength={120} className="b-input" defaultValue={settings.account_owner_name ?? ''} /></Row>
       <Row label="Phone number" htmlFor="s-phone"><input id="s-phone" name="phone" maxLength={40} className="b-input" defaultValue={settings.phone ?? ''} /></Row>
       <Row label="Time zone" htmlFor="s-tz">
-        <select id="s-tz" name="timezone" className="b-input" defaultValue={settings.timezone}>
+        <Select id="s-tz" name="timezone" className="b-input" defaultValue={settings.timezone}>
           {[...new Set([settings.timezone, ...TIMEZONES])].map((t) => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
-        </select>
+        </Select>
       </Row>
     </SettingsPanel>
   );
@@ -82,9 +83,9 @@ export function SchedulePanel({ settings }: { settings: CompanySettings }) {
         <div className="flex items-center gap-2"><input id="s-late" name="late_grace_minutes" type="number" min={0} max={120} className="b-input !w-28" defaultValue={settings.late_grace_minutes} /><span className="text-sm text-muted">minutes</span></div>
       </Row>
       <Row label="Week starts on" htmlFor="s-ws">
-        <select id="s-ws" name="week_start" className="b-input" defaultValue={settings.week_start}>
+        <Select id="s-ws" name="week_start" className="b-input" defaultValue={settings.week_start}>
           {DAY_NAMES.map((d, i) => <option key={d} value={i}>{d}</option>)}
-        </select>
+        </Select>
       </Row>
     </SettingsPanel>
   );
@@ -121,10 +122,10 @@ export function PayrollPanel({ settings }: { settings: CompanySettings }) {
   return (
     <SettingsPanel title="Payroll settings" description="Pay periods used by timesheets and the payroll report." fields={['pay_period_days', 'pay_period_anchor']}>
       <Row label="Pay period" htmlFor="s-pp">
-        <select id="s-pp" name="pay_period_days" className="b-input" defaultValue={settings.pay_period_days}>
+        <Select id="s-pp" name="pay_period_days" className="b-input" defaultValue={settings.pay_period_days}>
           <option value={7}>Weekly</option>
           <option value={14}>Every two weeks</option>
-        </select>
+        </Select>
       </Row>
       <Row label="A pay period starts on" hint="Any past first day of a pay period." htmlFor="s-anchor">
         <DatePicker id="s-anchor" name="pay_period_anchor" required defaultValue={settings.pay_period_anchor} weekStart={settings.week_start} zone={settings.timezone} />
@@ -183,9 +184,9 @@ export function LocationForm({ location }: { location?: Location }) {
         </div>
         <Field label="Country" htmlFor={`l-country-${location?.id}`}><input id={`l-country-${location?.id}`} name="country" maxLength={100} className="b-input" defaultValue={location?.country ?? 'United States'} /></Field>
         <Field label="Timezone" htmlFor={`l-tz-${location?.id}`}>
-          <select id={`l-tz-${location?.id}`} name="timezone" className="b-input" defaultValue={location?.timezone ?? 'America/New_York'}>
+          <Select id={`l-tz-${location?.id}`} name="timezone" className="b-input" defaultValue={location?.timezone ?? 'America/New_York'}>
             {[...new Set([location?.timezone ?? 'America/New_York', ...TIMEZONES])].map((t) => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="Business type" htmlFor={`l-bt-${location?.id}`}><input id={`l-bt-${location?.id}`} name="business_type" maxLength={80} className="b-input" defaultValue={location?.business_type ?? 'Retail'} /></Field>
         <Field label="Business category" htmlFor={`l-bc-${location?.id}`}><input id={`l-bc-${location?.id}`} name="business_category" maxLength={80} className="b-input" defaultValue={location?.business_category ?? 'Furniture/Home Goods'} /></Field>

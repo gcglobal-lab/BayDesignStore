@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { AlarmClock, ArrowRight, CalendarClock, Inbox, KanbanSquare, Percent, Target, TrendingUp, Trophy } from 'lucide-react';
+import { AlarmClock, ArrowRight, BarChart3, Building2, CalendarClock, Contact, FileText, Inbox, KanbanSquare, LayoutGrid, ListTodo, Package, Percent, Settings, Target, TrendingUp, Trophy, Zap } from 'lucide-react';
 import AutoRefresh from '@/components/base/AutoRefresh';
 import { Card, EmptyState } from '@/components/base/ui';
 import { ActivityIcon, DoneToggle } from '@/components/crm/Timeline';
@@ -105,6 +105,33 @@ export default async function CrmDashboard({ searchParams }: PageProps<'/base/cr
           <Link href="/base/crm/deals" className="b-btn-brass"><KanbanSquare size={15} /> Pipeline</Link>
         </div>
       </div>
+
+      <nav aria-label="Sales tools" className="mb-6 rounded-xl border border-stone/70 bg-surface p-2">
+        <ul className="grid grid-cols-3 gap-1 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-12">
+          {[
+            { href: '/base/crm/workspace', label: 'Workspace', icon: LayoutGrid, tone: '#4A154B' },
+            { href: '/base/crm/tasks', label: 'Team Tasks', icon: ListTodo, tone: '#007A5A' },
+            { href: '/base/crm/leads', label: 'Leads', icon: Inbox, tone: '#E01E5A', badge: newLeadsCount.count ?? 0 },
+            { href: '/base/crm/deals', label: 'Deals', icon: KanbanSquare, tone: '#1264A3' },
+            { href: '/base/crm/contacts', label: 'Contacts', icon: Contact, tone: '#36C5F0' },
+            { href: '/base/crm/companies', label: 'Companies', icon: Building2, tone: '#2EB67D' },
+            { href: '/base/crm/activities', label: 'Activities', icon: CalendarClock, tone: '#ECB22E' },
+            { href: '/base/crm/quotes', label: 'Quotes', icon: FileText, tone: '#A25DDC' },
+            { href: '/base/crm/products', label: 'Products', icon: Package, tone: '#FF642E' },
+            { href: '/base/crm/reports', label: 'Reports', icon: BarChart3, tone: '#0086C0' },
+            ...(viewer.crm === 'manager' ? [{ href: '/base/crm/automations', label: 'Automations', icon: Zap, tone: '#FDAB3D' }] : []),
+            { href: '/base/crm/settings', label: 'Settings', icon: Settings, tone: '#616061' },
+          ].map((t) => (
+            <li key={t.href}>
+              <Link href={t.href} className="group relative flex flex-col items-center gap-1.5 rounded-lg px-1 py-3 text-center text-xs font-medium text-ink/80 transition-colors hover:bg-linen hover:text-ink">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg text-white shadow-sm transition-transform group-hover:-translate-y-0.5" style={{ background: t.tone }}><t.icon size={17} /></span>
+                {t.label}
+                {'badge' in t && t.badge ? <span className="absolute right-2 top-1.5 rounded-full bg-[#E01E5A] px-1.5 text-[0.62rem] font-bold leading-4 text-white">{t.badge}</span> : null}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-6">
         <Kpi icon={Target} label="Open pipeline" value={moneyShort(pipelineValue)} hint={`${open.length} deals`} href="/base/crm/deals" tone="bg-indigo-500/15 text-brass-dark" />

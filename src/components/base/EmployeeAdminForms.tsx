@@ -6,6 +6,7 @@ import { ActionForm, Field, SubmitButton } from './forms';
 import { CopyButton, PasswordField, SecretReveal } from './EmployeeForm';
 import { DatePicker } from './calendar/Calendar';
 import { deleteEmployeePassword, generateMissingPasswords, setEmployeePassword, setWage } from '@/app/base/(app)/team/actions';
+import Select from '@/components/ui/Select';
 
 /** Admin only: see, change or remove someone's password. */
 export function PasswordPanel({ id, current, hasPassword }: { id: string; current: string | null; hasPassword: boolean }) {
@@ -75,10 +76,10 @@ export function WageForm({ id, today }: { id: string; today: string }) {
           </div>
         </Field>
         <Field label="Type" htmlFor="w-type">
-          <select id="w-type" name="wage_type" className="b-input" defaultValue="hourly">
+          <Select id="w-type" name="wage_type" className="b-input" defaultValue="hourly">
             <option value="hourly">Per hour</option>
             <option value="salary">Per year</option>
-          </select>
+          </Select>
         </Field>
         <Field label="Effective" htmlFor="w-eff"><DatePicker id="w-eff" name="effective_from" required defaultValue={today} /></Field>
       </div>

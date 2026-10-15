@@ -8,6 +8,7 @@ import { db, must } from '@/lib/base/db';
 import { listDepartments, listEmployees, listRoles } from '@/lib/base/queries';
 import { fullName, workTypes, type Role, type WorkType } from '@/lib/base/types';
 import { deleteDepartment, deleteRole, setDepartmentManager, updateRole } from './actions';
+import Select from '@/components/ui/Select';
 
 export const metadata: Metadata = { title: 'Departments & Roles' };
 
@@ -23,17 +24,17 @@ function RoleChip({ role, departments }: { role: Role; departments: { id: string
             <input type="hidden" name="id" value={role.id} />
             <label className="block text-xs font-medium">
               Time clock screen
-              <select name="work_type" defaultValue={role.work_type} className="b-input mt-1 !py-1.5 text-xs">
+              <Select name="work_type" defaultValue={role.work_type} className="b-input mt-1 !py-1.5 text-xs">
                 {(Object.keys(workTypes) as WorkType[]).map((w) => <option key={w} value={w}>{workTypes[w].label}</option>)}
-              </select>
+              </Select>
             </label>
             <label className="flex items-center justify-between text-xs font-medium">Colour <input type="color" name="color" defaultValue={role.color} className="h-7 w-12 cursor-pointer rounded border border-stone" /></label>
             <label className="block text-xs font-medium">
               Department
-              <select name="department_id" defaultValue={role.department_id ?? ''} className="b-input mt-1 !py-1.5 text-xs">
+              <Select name="department_id" defaultValue={role.department_id ?? ''} className="b-input mt-1 !py-1.5 text-xs">
                 <option value="">Department not set</option>
                 {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
+              </Select>
             </label>
             <SubmitButton className="b-btn-primary b-btn-sm w-full">Save</SubmitButton>
           </form>
@@ -110,10 +111,10 @@ export default async function RolesPage() {
                       <form action={setDepartmentManager} className="flex gap-1.5">
                         <input type="hidden" name="department_id" value={g.id} />
                         <input type="hidden" name="op" value="add" />
-                        <select name="employee_id" className="b-input !py-1.5 text-xs" required defaultValue="" aria-label="Add a manager">
+                        <Select people name="employee_id" className="b-input !py-1.5 text-xs" required defaultValue="" aria-label="Add a manager">
                           <option value="" disabled>Add a manager…</option>
                           {managers.filter((m) => !assigned.some((a) => a.employee_id === m.id)).map((m) => <option key={m.id} value={m.id}>{fullName(m)}</option>)}
-                        </select>
+                        </Select>
                         <SubmitButton className="b-btn-ghost b-btn-sm">Add</SubmitButton>
                       </form>
                     </div>

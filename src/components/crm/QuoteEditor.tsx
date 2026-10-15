@@ -6,6 +6,7 @@ import { saveQuote } from '@/app/base/(app)/crm/quotes/actions';
 import { saveProduct } from '@/app/base/(app)/crm/products/actions';
 import { ActionForm, Field, SubmitButton } from '@/components/base/forms';
 import { money, quoteTotals, type Product, type Quote, type QuoteItem } from '@/lib/crm/types';
+import Select from '@/components/ui/Select';
 
 type Option = { id: string; name: string };
 const blank = (): QuoteItem => ({ product_id: null, description: '', quantity: 1, unit_price: 0, discount_pct: 0 });
@@ -48,22 +49,22 @@ export default function QuoteEditor({
             <input id="q-title" name="title" className="b-input" required maxLength={160} defaultValue={quote?.title ?? defaults?.title ?? ''} placeholder="e.g. Living room — sofa, chairs and rug" />
           </Field>
           <Field label="Deal" htmlFor="q-deal">
-            <select id="q-deal" name="deal_id" className="b-input" defaultValue={quote?.deal_id ?? defaults?.deal_id ?? ''}>
+            <Select id="q-deal" name="deal_id" className="b-input" defaultValue={quote?.deal_id ?? defaults?.deal_id ?? ''}>
               <option value="">— None —</option>
               {deals.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+            </Select>
           </Field>
           <Field label="Contact" htmlFor="q-contact">
-            <select id="q-contact" name="contact_id" className="b-input" defaultValue={quote?.contact_id ?? defaults?.contact_id ?? ''}>
+            <Select id="q-contact" name="contact_id" className="b-input" defaultValue={quote?.contact_id ?? defaults?.contact_id ?? ''}>
               <option value="">— From the deal —</option>
               {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            </Select>
           </Field>
           <Field label="Company" htmlFor="q-company">
-            <select id="q-company" name="company_id" className="b-input" defaultValue={quote?.company_id ?? ''}>
+            <Select id="q-company" name="company_id" className="b-input" defaultValue={quote?.company_id ?? ''}>
               <option value="">— From the deal —</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            </Select>
           </Field>
           <Field label="Valid until" htmlFor="q-valid">
             <input id="q-valid" name="valid_until" type="date" className="b-input" defaultValue={quote?.valid_until ?? ''} />
@@ -79,7 +80,7 @@ export default function QuoteEditor({
               {items.map((it, i) => (
                 <tr key={i}>
                   <td className="space-y-1.5">
-                    <select
+                    <Select
                       aria-label="Pick from catalogue"
                       className="b-input !py-1.5 text-xs"
                       value={it.product_id ?? ''}
@@ -90,7 +91,7 @@ export default function QuoteEditor({
                     >
                       <option value="">Custom item…</option>
                       {products.filter((p) => p.active || p.id === it.product_id).map((p) => <option key={p.id} value={p.id}>{p.name} · {money(p.unit_price)}</option>)}
-                    </select>
+                    </Select>
                     <input aria-label="Description" className="b-input !py-1.5" value={it.description} maxLength={300} onChange={(e) => patch(i, { description: e.target.value })} placeholder="Description" />
                   </td>
                   <td><input aria-label="Quantity" type="number" min={0.01} step="any" className="b-input !w-20 !py-1.5" value={it.quantity} onChange={(e) => patch(i, { quantity: Number(e.target.value) })} /></td>

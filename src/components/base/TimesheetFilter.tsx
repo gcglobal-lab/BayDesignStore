@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download, FileSpreadsheet, FileText, Filter } from 'lucide-react';
 import { DateRangePicker, type RangePreset } from './calendar/Calendar';
 import { MONTHS, MONTHS_SHORT, firstOfMonth, lastOfMonth } from './calendar/dates';
+import Select from '@/components/ui/Select';
 
 /**
  * Pick any date range — quick presets, a whole month (Jan … Dec), part of a month, or any
@@ -56,7 +57,7 @@ export default function TimesheetFilter({
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)] lg:items-end">
         <label className="block">
           <span className="b-label">Quick range</span>
-          <select
+          <Select
             className="b-input"
             value={preset}
             onChange={(e) => {
@@ -66,7 +67,7 @@ export default function TimesheetFilter({
           >
             {presets.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
             <option value="custom" disabled={preset !== 'custom'}>Custom dates</option>
-          </select>
+          </Select>
         </label>
         <div>
           <span className="b-label">From → To</span>
@@ -75,10 +76,10 @@ export default function TimesheetFilter({
         {employees ? (
           <label className="block">
             <span className="b-label">Team member</span>
-            <select name="employee" className="b-input" defaultValue={initialEmployee} onChange={() => form.current?.requestSubmit()}>
+            <Select people name="employee" className="b-input" defaultValue={initialEmployee} onChange={() => form.current?.requestSubmit()}>
               <option value="">Everyone</option>
               {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
+            </Select>
           </label>
         ) : (
           <div className="hidden lg:block" />

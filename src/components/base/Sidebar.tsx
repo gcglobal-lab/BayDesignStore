@@ -5,19 +5,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3,
-  Building2,
   CalendarDays,
   CalendarRange,
   CalendarX2,
   ChevronDown,
   ClipboardCheck,
   Clock3,
-  Contact,
-  FileText,
   Globe,
   Home,
-  Inbox,
-  KanbanSquare,
   LayoutDashboard,
   LayoutGrid,
   ListTodo,
@@ -25,7 +20,6 @@ import {
   Map,
   Menu,
   Navigation,
-  Package,
   PackageCheck,
   Settings,
   ShieldCheck,
@@ -35,7 +29,6 @@ import {
   Users,
   Workflow,
   X,
-  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
@@ -43,7 +36,7 @@ import { Avatar } from './ui';
 import { signOut } from '@/app/base/login/actions';
 import { APPS, appOf, appsFor, PORTAL_NAME, type AppKey, type CrmRole, type DeliveriesRole } from '@/lib/portal/apps';
 
-type Item = { href: string; label: string; icon: LucideIcon; badge?: number; exact?: boolean };
+type Item = { href: string; label: string; icon: LucideIcon; badge?: number; exact?: boolean; match?: (pathname: string) => boolean };
 /** A dropdown (with children) or a single link. */
 type Entry = { label: string; icon: LucideIcon; items: Item[]; href?: undefined } | (Item & { items?: undefined });
 
@@ -58,7 +51,7 @@ export type SidebarViewer = {
   tasksDue?: number;
 };
 
-function timeNav({ level, onRoster, newInquiries = 0 }: SidebarViewer): Entry[] {
+function timeNav({ level, onRoster, newInquiries = 0, tasksDue = 0 }: SidebarViewer): Entry[] {
   const manager = level !== 'employee';
   const entries: Entry[] = [];
   const home: Item[] = [
@@ -90,6 +83,7 @@ function timeNav({ level, onRoster, newInquiries = 0 }: SidebarViewer): Entry[] 
     ],
   });
   entries.push({ href: '/base/timesheets', label: manager ? 'Timesheets' : 'My Timesheet', icon: Clock3 });
+  entries.push({ href: '/base/crm/tasks', label: 'My Tasks', icon: ListTodo, badge: tasksDue });
   if (manager) {
     entries.push({ href: '/base/reports', label: 'Reports', icon: BarChart3 });
     entries.push({ href: '/base/inquiries', label: 'Website', icon: Globe, badge: newInquiries });
@@ -98,26 +92,14 @@ function timeNav({ level, onRoster, newInquiries = 0 }: SidebarViewer): Entry[] 
   return entries;
 }
 
+/** Workflow: just three places — the dashboard (with the sales tools), the workspace, and tasks. */
 function crmNav({ crm, newLeads = 0, tasksDue = 0 }: SidebarViewer): Entry[] {
+  const tasks: Item = { href: '/base/crm/tasks', label: 'Team Tasks', icon: ListTodo, badge: tasksDue };
+  if (crm === 'none') return [tasks];
   return [
-    { href: '/base/crm', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-    { href: '/base/crm/boards', label: 'Boards', icon: LayoutGrid },
-    { href: '/base/crm/leads', label: 'Leads', icon: Inbox, badge: newLeads },
-    { href: '/base/crm/deals', label: 'Deals', icon: KanbanSquare },
-    { href: '/base/crm/contacts', label: 'Contacts', icon: Contact },
-    { href: '/base/crm/companies', label: 'Companies', icon: Building2 },
-    { href: '/base/crm/activities', label: 'Activities', icon: ListTodo, badge: tasksDue },
-    {
-      label: 'Sales',
-      icon: FileText,
-      items: [
-        { href: '/base/crm/quotes', label: 'Quotes', icon: FileText },
-        { href: '/base/crm/products', label: 'Products', icon: Package },
-      ],
-    },
-    { href: '/base/crm/reports', label: 'Reports', icon: BarChart3 },
-    ...(crm === 'manager' ? [{ href: '/base/crm/automations', label: 'Automations', icon: Zap }] : []),
-    { href: '/base/crm/settings', label: 'Settings', icon: Settings },
+    { href: '/base/crm', label: 'Dashboard', icon: LayoutDashboard, badge: newLeads, match: (p) => p === '/base/crm' || (p.startsWith('/base/crm/') && !/^\/base\/crm\/(workspace|tasks|boards)/.test(p)) },
+    { href: '/base/crm/workspace', label: 'Workspace', icon: LayoutGrid, match: (p) => p.startsWith('/base/crm/workspace') || p.startsWith('/base/crm/boards') },
+    tasks,
   ];
 }
 
@@ -139,18 +121,19 @@ function deliveriesNav({ deliveries, onRoster }: SidebarViewer): Entry[] {
 const navFor = (viewer: SidebarViewer, app: AppKey) => (app === 'crm' ? crmNav(viewer) : app === 'deliveries' ? deliveriesNav(viewer) : timeNav(viewer));
 
 function isActive(pathname: string, item: Item) {
+  if (item.match) return item.match(pathname);
   if (item.exact) return pathname === item.href;
   if (item.href === '/base/team') return pathname === '/base/team' || /^\/base\/team\/(?!roles)/.test(pathname);
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-function Link_({ item, active, nested }: { item: Item; active: boolean; nested?: boolean }) {
+function Link_({ item, active, nested, app }: { item: Item; active: boolean; nested?: boolean; app: AppKey }) {
   return (
     <Link
       href={item.href}
       aria-current={active ? 'page' : undefined}
       className={`group flex items-center gap-3 rounded-xl px-3 ${nested ? 'py-2 text-[0.84rem]' : 'py-2.5 text-[0.9rem]'} transition-all duration-200 ${
-        active ? 'bg-gradient-to-r from-[#6366F1] via-[#7C3AED] to-[#DB2777] font-medium text-white shadow-[0_8px_22px_-10px_rgba(124,58,237,0.9)]' : 'text-white/75 hover:bg-white/[0.07] hover:text-white'
+        active ? (app === 'crm' ? 'bg-[#1164A3] font-medium text-white' : 'bg-gradient-to-r from-[#6366F1] via-[#7C3AED] to-[#DB2777] font-medium text-white shadow-[0_8px_22px_-10px_rgba(124,58,237,0.9)]') : 'text-white/75 hover:bg-white/[0.07] hover:text-white'
       }`}
     >
       {!nested && <item.icon size={18} strokeWidth={1.75} className={active ? 'text-white' : 'text-white/50 group-hover:text-violet-400'} />}
@@ -164,7 +147,7 @@ function Link_({ item, active, nested }: { item: Item; active: boolean; nested?:
   );
 }
 
-function Group({ entry, pathname }: { entry: Extract<Entry, { items: Item[] }>; pathname: string }) {
+function Group({ entry, pathname, app }: { entry: Extract<Entry, { items: Item[] }>; pathname: string; app: AppKey }) {
   const containsActive = entry.items.some((i) => isActive(pathname, i));
   const [open, setOpen] = useState(containsActive);
   useEffect(() => {
@@ -186,7 +169,7 @@ function Group({ entry, pathname }: { entry: Extract<Entry, { items: Item[] }>; 
         <ul className="ml-[1.35rem] space-y-0.5 overflow-hidden border-l border-white/10 pl-3">
           {entry.items.map((item) => (
             <li key={item.href} className="first:mt-1 last:mb-1">
-              <Link_ item={item} active={isActive(pathname, item)} nested />
+              <Link_ item={item} active={isActive(pathname, item)} nested app={app} />
             </li>
           ))}
         </ul>
@@ -214,7 +197,7 @@ function AppSwitcher({ viewer, app }: { viewer: SidebarViewer; app: AppKey }) {
               role="tab"
               aria-selected={on}
               className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[0.68rem] font-semibold tracking-wide transition-all ${
-                on ? 'bg-gradient-to-br from-[#6366F1] to-[#7C3AED] text-white shadow-[0_6px_16px_-8px_rgba(124,58,237,0.9)]' : 'text-white/60 hover:bg-white/[0.07] hover:text-white'
+                on ? (key === 'crm' ? 'bg-[#1164A3] text-white' : 'bg-gradient-to-br from-[#6366F1] to-[#7C3AED] text-white shadow-[0_6px_16px_-8px_rgba(124,58,237,0.9)]') : 'text-white/60 hover:bg-white/[0.07] hover:text-white'
               }`}
             >
               <Icon size={16} strokeWidth={2} />
@@ -233,10 +216,10 @@ function Nav({ viewer, pathname, app }: { viewer: SidebarViewer; pathname: strin
       <ul className="space-y-1">
         {navFor(viewer, app).map((entry) =>
           entry.items ? (
-            <Group key={entry.label} entry={entry} pathname={pathname} />
+            <Group key={entry.label} entry={entry} pathname={pathname} app={app} />
           ) : (
             <li key={entry.href}>
-              <Link_ item={entry} active={isActive(pathname, entry)} />
+              <Link_ item={entry} active={isActive(pathname, entry)} app={app} />
             </li>
           ),
         )}
@@ -286,7 +269,12 @@ function ViewerCard({ viewer }: { viewer: SidebarViewer }) {
   );
 }
 
-const panel = 'bg-gradient-to-b from-[#17173A] via-[#1E1B4B] to-[#312E81]';
+const PANELS: Record<AppKey, string> = {
+  time: 'bg-gradient-to-b from-[#17173A] via-[#1E1B4B] to-[#312E81]',
+  // Workflow: Slack-style aubergine
+  crm: 'bg-gradient-to-b from-[#3F0E40] via-[#4A154B] to-[#350D36]',
+  deliveries: 'bg-gradient-to-b from-[#17173A] via-[#1E1B4B] to-[#312E81]',
+};
 
 export default function Sidebar({ viewer }: { viewer: SidebarViewer }) {
   const pathname = usePathname() ?? '/base';
@@ -308,7 +296,7 @@ export default function Sidebar({ viewer }: { viewer: SidebarViewer }) {
   return (
     <>
       {/* Desktop */}
-      <aside className={`fixed inset-y-0 left-0 z-30 hidden w-64 flex-col print:!hidden lg:flex ${panel}`}>
+      <aside className={`fixed inset-y-0 left-0 z-30 hidden w-64 flex-col print:!hidden lg:flex ${PANELS[app]}`}>
         <Brand app={app} />
         <AppSwitcher viewer={viewer} app={app} />
         <Nav viewer={viewer} pathname={pathname} app={app} />
@@ -316,7 +304,7 @@ export default function Sidebar({ viewer }: { viewer: SidebarViewer }) {
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-white/10 bg-[#17173A] px-3 py-2 print:hidden lg:hidden">
+      <header className={`sticky top-0 z-30 flex items-center justify-between border-b border-white/10 px-3 py-2 print:hidden lg:hidden ${app === 'crm' ? 'bg-[#3F0E40]' : 'bg-[#17173A]'}`}>
         <Link href={APPS[app].home} className="flex items-center gap-2.5 px-1">
           <LogoMark className="h-8 w-8" />
           <span className="font-brand text-sm uppercase tracking-[0.06em] text-white">
@@ -331,7 +319,7 @@ export default function Sidebar({ viewer }: { viewer: SidebarViewer }) {
       {open && (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true">
           <button type="button" className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={() => setOpen(false)} aria-label="Close menu" />
-          <aside className={`absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col shadow-2xl ${panel}`}>
+          <aside className={`absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col shadow-2xl ${PANELS[app]}`}>
             <div className="flex items-center justify-between pr-3">
               <Brand app={app} />
               <button type="button" onClick={() => setOpen(false)} className="rounded-xl p-2 text-white/70" aria-label="Close menu">

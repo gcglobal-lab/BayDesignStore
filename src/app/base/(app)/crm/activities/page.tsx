@@ -13,6 +13,7 @@ import { getSettings } from '@/lib/base/settings';
 import { addDaysYmd, dayRangeIso, fmtDate, fmtTime, todayYmd, toYmd, weekDays, weekStartYmd, zonedMidnight } from '@/lib/base/time';
 import { getCrmPeople } from '@/lib/crm/data';
 import { activityTypeLabel, priorityTone, type Activity } from '@/lib/crm/types';
+import Select from '@/components/ui/Select';
 
 export const metadata: Metadata = { title: 'Activities' };
 
@@ -126,11 +127,11 @@ export default async function ActivitiesPage({ searchParams }: PageProps<'/base/
           <input type="hidden" name="view" value={view} />
           <input type="hidden" name="tab" value={tab} />
           {month && <input type="hidden" name="month" value={month} />}
-          <select name="who" defaultValue={who} className="b-input !w-auto !py-2">
+          <Select people name="who" defaultValue={who} className="b-input !w-auto !py-2">
             {viewer.employeeId && <option value="me">Mine</option>}
             <option value="all">Everyone</option>
             {people.owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
+          </Select>
           <button className="b-btn-ghost" type="submit">Show</button>
         </form>
       </div>

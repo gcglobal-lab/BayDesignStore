@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { convertLead, createLead, updateLead } from '@/app/base/(app)/crm/leads/actions';
 import { ActionForm, Field, SubmitButton } from '@/components/base/forms';
 import type { Lead, Person, Pipeline } from '@/lib/crm/types';
+import Select from '@/components/ui/Select';
 
 export function LeadForm({ owners, sources, me, lead }: { owners: Person[]; sources: string[]; me: string | null; lead?: Lead }) {
   return (
@@ -15,18 +16,18 @@ export function LeadForm({ owners, sources, me, lead }: { owners: Person[]; sour
         <Field label="Email" htmlFor="l-email"><input id="l-email" name="email" type="email" className="b-input" maxLength={254} defaultValue={lead?.email ?? ''} /></Field>
         <Field label="Phone" htmlFor="l-phone"><input id="l-phone" name="phone" type="tel" className="b-input" maxLength={40} defaultValue={lead?.phone ?? ''} /></Field>
         <Field label="Source" htmlFor="l-source">
-          <select id="l-source" name="source" className="b-input" defaultValue={lead?.source ?? 'Walk-in'}>
+          <Select id="l-source" name="source" className="b-input" defaultValue={lead?.source ?? 'Walk-in'}>
             {[...new Set([...sources, ...(lead?.source ? [lead.source] : [])])].map((s) => <option key={s}>{s}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="Estimated value (USD)" htmlFor="l-value"><input id="l-value" name="estimated_value" type="number" min={0} className="b-input" defaultValue={lead?.estimated_value ?? ''} /></Field>
       </div>
       <Field label="Title" htmlFor="l-title" hint="Optional — e.g. “Dining set for new condo”."><input id="l-title" name="title" className="b-input" maxLength={160} defaultValue={lead?.title ?? ''} /></Field>
       <Field label="Owner" htmlFor="l-owner">
-        <select id="l-owner" name="owner_id" className="b-input" defaultValue={lead ? (lead.owner_id ?? '') : (me ?? '')}>
+        <Select people id="l-owner" name="owner_id" className="b-input" defaultValue={lead ? (lead.owner_id ?? '') : (me ?? '')}>
           <option value="">— Unassigned —</option>
           {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-        </select>
+        </Select>
       </Field>
       <Field label="What are they looking for?" htmlFor="l-msg"><textarea id="l-msg" name="message" className="b-input min-h-[90px]" maxLength={5000} defaultValue={lead?.message ?? ''} /></Field>
       <div className="flex justify-end"><SubmitButton className="b-btn-brass">{lead ? 'Save lead' : 'Add lead'}</SubmitButton></div>
@@ -44,14 +45,14 @@ export function ConvertLeadForm({ lead, pipelines }: { lead: Lead; pipelines: Pi
       <Field label="Value (USD)" htmlFor="c-value"><input id="c-value" name="value" type="number" min={0} className="b-input" defaultValue={lead.estimated_value ?? ''} /></Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Pipeline" htmlFor="c-pipe">
-          <select id="c-pipe" name="pipeline_id" className="b-input" value={pipelineId} onChange={(e) => setPipelineId(e.target.value)}>
+          <Select id="c-pipe" name="pipeline_id" className="b-input" value={pipelineId} onChange={(e) => setPipelineId(e.target.value)}>
             {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          </Select>
         </Field>
         <Field label="Stage" htmlFor="c-stage">
-          <select id="c-stage" name="stage_id" className="b-input" key={pipelineId} defaultValue={stages[1]?.id ?? stages[0]?.id}>
+          <Select id="c-stage" name="stage_id" className="b-input" key={pipelineId} defaultValue={stages[1]?.id ?? stages[0]?.id}>
             {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          </Select>
         </Field>
       </div>
       {lead.company_name && (
