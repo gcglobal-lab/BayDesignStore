@@ -102,9 +102,9 @@ export default async function SettingsPage({ searchParams }: PageProps<'/base/se
                         <Link
                           href={`/base/settings?section=${i.key}`}
                           aria-current={on ? 'page' : undefined}
-                          className={`flex items-center gap-2.5 whitespace-nowrap rounded-xl px-3 py-2 text-sm transition-colors ${on ? 'bg-white font-medium text-brass-dark shadow-sm ring-1 ring-stone/60' : 'text-ink/80 hover:bg-white/70'}`}
+                          className={`flex items-center gap-2.5 whitespace-nowrap rounded-xl px-2.5 py-2 text-sm transition-colors ${on ? 'bg-white font-semibold text-ink shadow-sm ring-1 ring-stone/60' : 'text-ink/80 hover:bg-white/70'}`}
                         >
-                          <i.icon size={15} className={on ? 'text-brass' : 'text-muted'} />
+                          <span className={`flex h-7 w-7 flex-none items-center justify-center rounded-lg ${on ? 'bg-gradient-to-br from-brass to-brass-dark text-white shadow-sm' : 'bg-sand/70 text-muted'}`}><i.icon size={14} /></span>
                           {i.label}
                         </Link>
                       </li>

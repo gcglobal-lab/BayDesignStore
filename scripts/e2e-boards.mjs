@@ -51,15 +51,17 @@ let empId = null;
 
 try {
   console.log(`\nBoards end-to-end test → ${BASE}\n`);
-  const created = await call('createBoard', [null, form({ name: TAG, template: 'designers', folder: 'E2E', visibility: 'everyone' })], admin);
-  boardId = created.redirect.match(/boards\/([0-9a-f-]{36})/)?.[1] ?? null;
+  const { data: ws } = await db.from('crm_workspaces').select('id').eq('archived', false).order('position').limit(1).single();
+  const WS = ws.id;
+  const created = await call('createBoard', [null, form({ name: TAG, template: 'designers', workspace_id: WS, visibility: 'everyone' })], admin);
+  boardId = created.redirect.match(/board\/([0-9a-f-]{36})/)?.[1] ?? null;
   check('create a board from the Designers & clients template', !!boardId, created.redirect);
   const [{ data: cols }, { data: groups }] = await Promise.all([db.from('crm_board_columns').select('*').eq('board_id', boardId), db.from('crm_board_groups').select('*').eq('board_id', boardId)]);
   const col = (name, scope = 'item') => cols.find((c) => c.name === name && c.scope === scope);
   check('it has the columns and sub-item columns', !!col('Order amount') && !!col('Remaining') && !!col('Qty', 'subitem') && !!col('Line total', 'subitem'));
   check('“Remaining” is Order amount − Paid', col('Remaining').settings.op === 'subtract' && col('Remaining').settings.a === col('Order amount').id && col('Remaining').settings.b === col('Paid').id);
   check('there is at least one designer group', groups.length >= 1, groups.map((g) => g.name).join(', '));
-  check('board page opens', (await get(`/base/crm/boards/${boardId}`, admin)).status === 200);
+  check('board page opens', (await get(`/base/crm/workspace/${WS}/board/${boardId}`, admin)).status === 200);
 
   const g = groups[0];
   const item = await call('addItem', [boardId, g.id, 'Smith residence — SO-1042', null], admin);
@@ -102,20 +104,20 @@ try {
   const { data: emp } = await db.from('employees').insert({ first_name: 'E2E', last_name: 'Viewer', login_id: `${TAG}.v`.slice(0, 60), status: 'active', access_level: 'employee', crm_role: 'user', password_hash: 'scrypt:dummy' }).select('id, session_version').single();
   empId = emp.id;
   const user = `__Host-bdb_session=${await sign(emp.id, 'employee', emp.session_version)}`;
-  check('a Workflow user can open a board open to everyone', (await get(`/base/crm/boards/${boardId}`, user)).status === 200);
+  check('a Workflow user can open a board open to everyone', (await get(`/base/crm/workspace/${WS}/board/${boardId}`, user)).status === 200);
   check('…and edit it', (await call('setCell', [itemId, col('Paid').id, 6000], user)).ok);
   check('…but not change its columns', !(await call('addColumn', [boardId, 'item', 'Nope', 'text', {}], user)).ok);
-  await call('createBoard', [null, form({ name: `${TAG}-x`, template: 'blank' })], user);
+  await call('createBoard', [null, form({ name: `${TAG}-x`, template: 'blank', workspace_id: WS })], user);
   check('users can’t create boards', !(await db.from('crm_boards').select('id').eq('name', `${TAG}-x`)).data?.length);
-  const priv = await call('createBoard', [null, form({ name: `${TAG}-private`, template: 'blank', visibility: 'members' })], admin);
-  boardId2 = priv.redirect.match(/boards\/([0-9a-f-]{36})/)?.[1] ?? null;
-  check('members-only board is hidden from non-members', (await get(`/base/crm/boards/${boardId2}`, user)).status === 307);
+  const priv = await call('createBoard', [null, form({ name: `${TAG}-private`, template: 'blank', visibility: 'members', workspace_id: WS })], admin);
+  boardId2 = priv.redirect.match(/board\/([0-9a-f-]{36})/)?.[1] ?? null;
+  check('members-only board is hidden from non-members', (await get(`/base/crm/workspace/${WS}/board/${boardId2}`, user)).status === 307);
   await call('setBoardMember', [boardId2, emp.id, 'viewer'], admin);
-  check('added as view-only → can open it', (await get(`/base/crm/boards/${boardId2}`, user)).status === 200);
+  check('added as view-only → can open it', (await get(`/base/crm/workspace/${WS}/board/${boardId2}`, user)).status === 200);
   const { data: g2 } = await db.from('crm_board_groups').select('id').eq('board_id', boardId2).limit(1).single();
   check('…but can’t add rows', !(await call('addItem', [boardId2, g2.id, 'x', null], user)).ok);
-  const list = await (await get('/base/crm/boards', user)).text();
-  check('boards list shows both boards to the member', list.includes(TAG) && list.includes(`${TAG}-private`));
+  const list = await (await get(`/base/crm/workspace/${WS}`, user)).text();
+  check('workspace panel shows both boards to the member', list.includes(TAG) && list.includes(`${TAG}-private`));
 } catch (err) {
   failures++;
   console.error('\n✗ Test crashed:', err);
