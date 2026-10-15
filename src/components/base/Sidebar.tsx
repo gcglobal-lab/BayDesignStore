@@ -271,8 +271,8 @@ function ViewerCard({ viewer }: { viewer: SidebarViewer }) {
 
 const PANELS: Record<AppKey, string> = {
   time: 'bg-gradient-to-b from-[#17173A] via-[#1E1B4B] to-[#312E81]',
-  // Workflow: Slack-style aubergine
-  crm: 'bg-gradient-to-b from-[#3F0E40] via-[#4A154B] to-[#350D36]',
+  // All three apps share the same menu bar colour.
+  crm: 'bg-gradient-to-b from-[#17173A] via-[#1E1B4B] to-[#312E81]',
   deliveries: 'bg-gradient-to-b from-[#17173A] via-[#1E1B4B] to-[#312E81]',
 };
 
@@ -304,7 +304,7 @@ export default function Sidebar({ viewer }: { viewer: SidebarViewer }) {
       </aside>
 
       {/* Mobile top bar */}
-      <header className={`sticky top-0 z-30 flex items-center justify-between border-b border-white/10 px-3 py-2 print:hidden lg:hidden ${app === 'crm' ? 'bg-[#3F0E40]' : 'bg-[#17173A]'}`}>
+      <header className={`sticky top-0 z-30 flex items-center justify-between border-b border-white/10 px-3 py-2 print:hidden lg:hidden bg-[#17173A]`}>
         <Link href={APPS[app].home} className="flex items-center gap-2.5 px-1">
           <LogoMark className="h-8 w-8" />
           <span className="font-brand text-sm uppercase tracking-[0.06em] text-white">
