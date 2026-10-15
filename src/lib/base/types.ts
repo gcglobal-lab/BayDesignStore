@@ -1,4 +1,5 @@
 import type { AccessLevel } from './token';
+import type { CrmRole, DeliveriesRole } from '@/lib/portal/apps';
 
 export type EmployeeStatus = 'active' | 'pending' | 'terminated';
 export type RequestStatus = 'pending' | 'approved' | 'denied' | 'cancelled';
@@ -38,6 +39,8 @@ export type Employee = {
   phone: string | null;
   login_id: string;
   access_level: AccessLevel;
+  crm_role: CrmRole;
+  deliveries_role: DeliveriesRole;
   status: EmployeeStatus;
   location_id: string | null;
   title: string | null;

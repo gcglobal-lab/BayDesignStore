@@ -36,14 +36,14 @@ export async function assistantShowPassword(employeeId: string): Promise<ActionR
 export async function requestPasswordHelp(note: string): Promise<ActionResult> {
   const viewer = await requireViewer();
   const me = viewer.employeeId ? await getEmployee(viewer.employeeId) : null;
-  const message = `Password help requested from the Bay Design Base assistant.\nLogin ID: ${me?.login_id ?? '—'}${note.trim() ? `\n\n${note.trim().slice(0, 1000)}` : ''}`;
+  const message = `password help requested from the Employee Portal assistant.\nLogin ID: ${me?.login_id ?? '—'}${note.trim() ? `\n\n${note.trim().slice(0, 1000)}` : ''}`;
   const { error } = await db().from('inquiries').insert({
     name: viewer.name,
     email: me?.email ?? 'no email on file',
     phone: me?.phone ?? null,
     interest: 'Password help',
     message,
-    page: 'Bay Design Base assistant',
+    page: 'Employee Portal assistant',
     source: 'base_chat',
   });
   if (error) return fail('Couldn’t send the request. Please ask a manager in person.');

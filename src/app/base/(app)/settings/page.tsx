@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { Activity, BadgeDollarSign, CalendarClock, ChevronLeft, ChevronRight, Clock3, Eye, Info, KeyRound, MapPin, Palmtree, Plus, Tags, Timer } from 'lucide-react';
+import { Activity, BadgeDollarSign, LayoutGrid, CalendarClock, ChevronLeft, ChevronRight, Clock3, Eye, Info, KeyRound, MapPin, Palmtree, Plus, Tags, Timer } from 'lucide-react';
 import { Dialog } from '@/components/base/Dialog';
 import PunchMap from '@/components/base/map/PunchMap';
 import { BasicInfoPanel, LocationForm, OvertimePanel, PayrollPanel, SchedulePanel, TimeClockPanel, TimeOffPanel } from '@/components/base/SettingsForms';
 import { Avatar } from '@/components/base/ui';
+import AppAccessForm from '@/components/portal/AppAccessForm';
 import { describeActivity, FIELD_LABELS, fmtChangeValue, type ActivityDetails, type Change } from '@/lib/base/activity';
 import { requireAdmin } from '@/lib/base/auth';
 import { db, must } from '@/lib/base/db';
@@ -17,13 +18,13 @@ import { fullName } from '@/lib/base/types';
 
 export const metadata: Metadata = { title: 'Settings' };
 
-type SectionKey = 'basic' | 'locations' | 'schedule' | 'clock' | 'overtime' | 'payroll' | 'time-off' | 'team' | 'activity';
+type SectionKey = 'basic' | 'locations' | 'schedule' | 'clock' | 'overtime' | 'payroll' | 'time-off' | 'team' | 'apps' | 'activity';
 const NAV: { group: string; items: { key: SectionKey; label: string; icon: typeof Info }[] }[] = [
   { group: 'Location', items: [{ key: 'basic', label: 'Basic info', icon: Info }, { key: 'locations', label: 'Stores & geofences', icon: MapPin }] },
   { group: 'Scheduling', items: [{ key: 'schedule', label: 'Schedule enforcement', icon: CalendarClock }] },
   { group: 'Time tracking', items: [{ key: 'clock', label: 'Time clock options', icon: Clock3 }, { key: 'overtime', label: 'Overtime', icon: Timer }] },
   { group: 'Payroll', items: [{ key: 'payroll', label: 'Payroll settings', icon: BadgeDollarSign }] },
-  { group: 'Team management', items: [{ key: 'time-off', label: 'Time off', icon: Palmtree }, { key: 'team', label: 'Roles & passwords', icon: Tags }] },
+  { group: 'Team management', items: [{ key: 'time-off', label: 'Time off', icon: Palmtree }, { key: 'team', label: 'Roles & passwords', icon: Tags }, { key: 'apps', label: 'App access', icon: LayoutGrid }] },
   { group: 'Security', items: [{ key: 'activity', label: 'Recent activity', icon: Activity }] },
 ];
 
@@ -36,6 +37,8 @@ const CATEGORIES: Record<string, { label: string; prefixes: string[]; tone: stri
   leave: { label: 'Time off', prefixes: ['time_off.', 'leave.'], tone: 'bg-amber-50 text-amber-800 ring-amber-600/20' },
   settings: { label: 'Settings', prefixes: ['settings.', 'location.'], tone: 'bg-pink-50 text-pink-700 ring-pink-600/15' },
   auth: { label: 'Sign-ins', prefixes: ['auth.'], tone: 'bg-slate-100 text-slate-700 ring-slate-600/15' },
+  crm: { label: 'Workflow', prefixes: ['crm.'], tone: 'bg-violet-50 text-violet-700 ring-violet-600/15' },
+  delivery: { label: 'Deliveries', prefixes: ['delivery.'], tone: 'bg-sky-50 text-sky-700 ring-sky-600/15' },
   exports: { label: 'Downloads & website', prefixes: ['timesheets.', 'team.', 'inquiries.', 'newsletter.', 'report.', 'inquiry.', 'assistant.'], tone: 'bg-teal-50 text-teal-700 ring-teal-600/15' },
 };
 const categoryOf = (action: string) => Object.entries(CATEGORIES).find(([, c]) => c.prefixes.some((p) => action.startsWith(p)))?.[0] ?? 'exports';
@@ -72,6 +75,9 @@ export default async function SettingsPage({ searchParams }: PageProps<'/base/se
       break;
     case 'team':
       panel = <TeamPanel />;
+      break;
+    case 'apps':
+      panel = <AppAccessPanel />;
       break;
     case 'activity':
       panel = <ActivityPanel sp={sp} zone={settings.timezone} />;
@@ -126,6 +132,36 @@ function PanelShell({ title, description, actions, children }: { title: string; 
       </div>
       <div className="px-5 py-5 sm:px-7">{children}</div>
     </section>
+  );
+}
+
+/** Who can open Workflow (CRM) and Deliveries. Time is for everyone; admins have everything. */
+async function AppAccessPanel() {
+  const people = (await listEmployees()).filter((e) => e.status !== 'terminated');
+  const levelRank = { admin: 0, manager: 1, employee: 2 } as const;
+  people.sort((a, b) => levelRank[a.access_level] - levelRank[b.access_level] || fullName(a).localeCompare(fullName(b)));
+  return (
+    <PanelShell
+      title="App access"
+      description={<>Everyone can use <b>Time</b>. Choose who can open <b>Workflow</b> (the CRM) and <b>Deliveries</b>. Workflow users work their own leads and deals and see everyone’s; Workflow managers can also delete, change settings and automations. Drivers see only their own route; dispatchers run everything. Admins always have full access.</>}
+    >
+      <ul className="divide-y divide-stone/50">
+        {people.map((e) => (
+          <li key={e.id} className="flex flex-wrap items-center gap-3 py-3">
+            <Avatar name={fullName(e)} size="sm" />
+            <div className="min-w-[10rem] flex-1">
+              <Link href={`/base/team/${e.id}`} className="font-medium hover:text-brass-dark">{fullName(e)}</Link>
+              <p className="text-xs capitalize text-muted">{e.access_level}{e.roles[0] ? ` · ${e.roles[0].name}` : ''}</p>
+            </div>
+            {e.access_level === 'admin' ? (
+              <span className="b-badge-green">Full access to all apps</span>
+            ) : (
+              <AppAccessForm id={e.id} crm={e.crm_role} deliveries={e.deliveries_role} compact />
+            )}
+          </li>
+        ))}
+      </ul>
+    </PanelShell>
   );
 }
 
@@ -203,7 +239,7 @@ async function ActivityPanel({ sp, zone }: { sp: Record<string, string | string[
   const href = (params: Record<string, string>) => `/base/settings?${new URLSearchParams({ section: 'activity', ...(who ? { who } : {}), ...(kind ? { kind } : {}), ...params }).toString()}`;
 
   return (
-    <PanelShell title="Recent activity" description="Everything people did in Bay Design Base — who, what and when. Tap View on any row for the details.">
+    <PanelShell title="Recent activity" description="Everything people did in the Employee Portal — who, what and when. Tap View on any row for the details.">
       <form className="mb-5 flex flex-wrap items-end gap-3" method="get">
         <input type="hidden" name="section" value="activity" />
         <label className="block">

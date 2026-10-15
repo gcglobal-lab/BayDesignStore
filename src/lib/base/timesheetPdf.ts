@@ -74,7 +74,7 @@ export function buildTimesheetPdf({ from, to, entries, employees, settings, scop
   doc.text(t(`${settings.company_name}  |  ${range}  |  ${scope}`), margin, 52);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.text('BAY DESIGN BASE', pageWidth - margin, 32, { align: 'right' });
+  doc.text('EMPLOYEE PORTAL', pageWidth - margin, 32, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(224, 222, 255);
   doc.text(t(`Generated ${generated} (${zone})`), pageWidth - margin, 52, { align: 'right' });

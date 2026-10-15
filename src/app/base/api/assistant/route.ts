@@ -74,8 +74,8 @@ export async function POST(request: Request) {
   const people = isManager(viewer) ? (await listEmployees()).filter((e) => e.id !== viewer.employeeId) : [];
   const roster = admin ? `\nTEAM (login IDs, for password actions):\n${people.map((e) => `- ${fullName(e)} — ${e.login_id}${e.has_password ? '' : ' (no password yet)'}`).join('\n')}\n` : '';
 
-  const system = `You are the help assistant inside Bay Design Base, the team scheduling and time-clock app of Bay Design Store (Naples, FL).
-The person chatting is ${viewer.name}, signed in as ${viewer.level === 'admin' ? 'an ADMIN' : viewer.level === 'manager' ? 'a MANAGER' : 'an EMPLOYEE'}.
+  const system = `You are the help assistant inside the Employee Portal of Bay Design Store (Naples, FL): Time (scheduling and time clock), Workflow (CRM) and Deliveries (dispatch).
+The person chatting is ${viewer.name}, signed in as ${viewer.level === 'admin' ? 'an ADMIN' : viewer.level === 'manager' ? 'a MANAGER' : 'an EMPLOYEE'} (Workflow: ${viewer.crm}, Deliveries: ${viewer.deliveries}).
 Answer with short, numbered steps using the exact menu names from the guide. Be friendly and brief. If something isn't in the guide, say so and suggest asking a manager.
 
 Password actions — add ONE tag on its own line at the end of your reply when it applies:

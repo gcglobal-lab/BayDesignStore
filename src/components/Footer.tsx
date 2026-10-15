@@ -141,7 +141,7 @@ export default function Footer() {
               href="/base"
               className="btn-sheen group relative flex items-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-brass-light to-brass py-2 pl-5 pr-2 text-xs font-semibold uppercase tracking-[0.14em] text-ink shadow-[0_6px_20px_-8px_rgba(168,131,79,0.9)] transition-transform duration-300 hover:-translate-y-0.5"
             >
-              Bay Design Base
+              Employee Portal
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-brass-light transition-transform duration-500 group-hover:rotate-45">
                 <ArrowUpRight size={12} />
               </span>

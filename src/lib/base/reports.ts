@@ -30,7 +30,7 @@ export const REPORTS: Record<ReportKey, { title: string; description: string; us
   attendance: { title: 'Attendance & punctuality', description: 'Scheduled shifts against actual punches: on time, late, no-shows and early leaves.', usesRange: true, usesPerson: true },
   'time-off': { title: 'Time off', description: 'Leave requests in the range with type, hours and status.', usesRange: true, usesPerson: true },
   roster: { title: 'Team roster', description: 'Everyone on the team with contact details, roles, access and wage.', usesRange: false, usesPerson: false },
-  activity: { title: 'Activity log', description: 'Who did what in Bay Design Base, in plain sentences.', usesRange: true, usesPerson: true },
+  activity: { title: 'Activity log', description: 'Who did what in the Employee Portal, in plain sentences.', usesRange: true, usesPerson: true },
   inquiries: { title: 'Website inquiries', description: 'Messages from the website contact form and chat assistant.', usesRange: true, usesPerson: false },
 };
 

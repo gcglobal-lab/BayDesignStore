@@ -18,7 +18,7 @@ export default async function SetupPage() {
         <Database size={22} />
       </div>
       <h1 className="b-h1 mt-5">Connect the database</h1>
-      <p className="mt-3 text-sm leading-relaxed text-muted">You’re signed in as the administrator, but Bay Design Base doesn’t have a database yet. To finish setup:</p>
+      <p className="mt-3 text-sm leading-relaxed text-muted">You’re signed in as the administrator, but the Employee Portal doesn’t have a database yet. To finish setup:</p>
       <ol className="mt-5 list-decimal space-y-2.5 pl-5 text-sm leading-relaxed text-ink">
         <li>Create a Supabase project.</li>
         <li>

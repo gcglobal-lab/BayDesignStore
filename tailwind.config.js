@@ -18,6 +18,8 @@ export default {
         ink: c('ink'),
         charcoal: c('charcoal'),
         muted: c('muted'),
+        // Card / input background: white, or a deep slate in the portal's dark mode.
+        surface: c('surface'),
         brass: { DEFAULT: c('brass'), light: c('brass-light'), dark: c('brass-dark') },
         sea: { DEFAULT: c('sea'), light: c('sea-light') },
       },

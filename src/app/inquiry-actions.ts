@@ -7,11 +7,12 @@ import { db, isUniqueViolation } from '@/lib/base/db';
 import { isDbConfigured } from '@/lib/base/env';
 import { CacheKeys, invalidate } from '@/lib/base/memo';
 import { clientIp, userAgent } from '@/lib/base/request';
+import { leadFromInquiry } from '@/lib/crm/intake';
 import { escapeHtml, sendEmail } from '@/lib/email';
 
 /**
  * Public website forms. The contact form is saved to the database first (so a message is
- * never lost), then an email alert goes to the team; Bay Design Base ▸ Inquiries shows them all.
+ * never lost), then an email alert goes to the team; Employee Portal ▸ Website shows them all.
  */
 
 const INTERESTS = ['Instant Design', 'Full-Service Design', 'Furniture Purchase', 'Private Appointment', 'Video Consultation'] as const;
@@ -84,11 +85,12 @@ async function createInquiry(input: unknown, source: 'contact_form' | 'website_c
           ${rows.map(([k, val]) => `<tr><td style="padding:6px 0;color:#646a87;width:130px">${k}</td><td style="padding:6px 0">${escapeHtml(val)}</td></tr>`).join('')}
         </table>
         <div style="margin-top:16px;padding:16px;background:#f3f4fb;border-radius:10px;font-size:14px;line-height:1.6;white-space:pre-wrap">${escapeHtml(v.message)}</div>
-        <p style="margin-top:18px;font-size:13px;color:#646a87">Reply to this email to answer ${escapeHtml(v.name)} directly. All inquiries are also in Bay Design Base ▸ Inquiries.</p>
+        <p style="margin-top:18px;font-size:13px;color:#646a87">Reply to this email to answer ${escapeHtml(v.name)} directly. All inquiries are also in Employee Portal ▸ Website.</p>
       </div>
     </div>`;
-  const text = `New website inquiry\n\n${rows.map(([k, val]) => `${k}: ${val}`).join('\n')}\n\n${v.message}\n\nReply to this email to answer directly. All inquiries are in Bay Design Base > Inquiries.`;
+  const text = `New website inquiry\n\n${rows.map(([k, val]) => `${k}: ${val}`).join('\n')}\n\n${v.message}\n\nReply to this email to answer directly. All inquiries are in Employee Portal > Website.`;
   // The message is saved; the email alert goes out after the visitor gets their answer.
+  after(() => leadFromInquiry({ id: data.id, name: v.name, email: v.email, phone: v.phone ?? null, interest: v.interest ?? null, message: v.message, source }));
   after(async () => {
     const sent = await sendEmail({ subject: `New inquiry: ${v.name}${v.interest ? ` · ${v.interest}` : source === 'website_chat' ? ' · website chat' : ''}`, html, text, replyTo: v.email });
     await db().from('inquiries').update(sent.ok ? { email_sent: true } : { email_sent: false, email_error: sent.error.slice(0, 500) }).eq('id', data.id);

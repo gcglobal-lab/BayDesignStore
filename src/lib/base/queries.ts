@@ -5,7 +5,7 @@ import { CacheKeys, memo } from './memo';
 import type { Department, Employee, Location, Role, TimeEntry } from './types';
 
 const EMPLOYEE_COLUMNS =
-  'id, first_name, last_name, email, phone, login_id, access_level, status, location_id, title, is_contractor, birthday, hire_date, password_hash, last_login_at, terminated_at, ' +
+  'id, first_name, last_name, email, phone, login_id, access_level, crm_role, deliveries_role, status, location_id, title, is_contractor, birthday, hire_date, password_hash, last_login_at, terminated_at, ' +
   'employee_roles(is_primary, job_roles(id, name, color, department_id, work_type)), employee_wages!employee_wages_employee_id_fkey(wage_type, amount, effective_from)';
 
 type EmployeeRow = Omit<Employee, 'roles' | 'wage' | 'has_password'> & {

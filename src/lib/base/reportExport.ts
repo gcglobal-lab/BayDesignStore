@@ -79,7 +79,7 @@ export function reportPdf(report: Report, company: string, generatedAt: string):
 /** Excel workbook: real numbers (hours as decimal hours, money as currency), frozen header, filters. */
 export async function reportXlsx(report: Report, company: string, generatedAt: string): Promise<ArrayBuffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Bay Design Base';
+  wb.creator = 'Employee Portal';
   wb.created = new Date();
   const ws = wb.addWorksheet(report.title.slice(0, 31), { views: [{ state: 'frozen', ySplit: 4 }] });
 

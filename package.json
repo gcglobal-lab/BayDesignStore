@@ -15,6 +15,7 @@
     "db:migrate": "node scripts/db-migrate.mjs",
     "load-test": "node scripts/load-test.mjs",
     "test:e2e": "node scripts/e2e-test.mjs",
+    "test:e2e:v3": "node scripts/e2e-v3.mjs",
     "test:smoke": "node scripts/smoke-test.mjs"
   },
   "dependencies": {

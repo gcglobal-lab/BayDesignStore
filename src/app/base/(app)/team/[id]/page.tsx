@@ -5,6 +5,7 @@ import { ArrowLeft, LogOut, UserCheck, UserX } from 'lucide-react';
 import { PasswordPanel, WageForm } from '@/components/base/EmployeeAdminForms';
 import EmployeeForm from '@/components/base/EmployeeForm';
 import StoreSelect from '@/components/base/StoreSelect';
+import AppAccessForm from '@/components/portal/AppAccessForm';
 import { SubmitButton } from '@/components/base/forms';
 import { Avatar, Card } from '@/components/base/ui';
 import { requireManager } from '@/lib/base/auth';
@@ -113,6 +114,19 @@ export default async function EmployeePage({ params }: PageProps<'/base/team/[id
                   </form>
                 )}
               </div>
+            </Card>
+          )}
+
+          {admin && employee.status !== 'terminated' && (
+            <Card title="App access">
+              {employee.access_level === 'admin' ? (
+                <p className="text-sm text-muted">Admins always have full access to Time, Workflow and Deliveries.</p>
+              ) : (
+                <>
+                  <p className="mb-3 text-sm text-muted">Time is on for everyone. Choose whether {employee.first_name} can also open Workflow (CRM) and Deliveries.</p>
+                  <AppAccessForm id={employee.id} crm={employee.crm_role} deliveries={employee.deliveries_role} />
+                </>
+              )}
             </Card>
           )}
 

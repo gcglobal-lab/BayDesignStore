@@ -6,6 +6,7 @@ import { ADMIN_DISPLAY_NAME, getAdminCredentials, isDbConfigured } from './env';
 import { CacheKeys, memo } from './memo';
 import { readSession } from './session';
 import { ENV_ADMIN_SUBJECT, type AccessLevel } from './token';
+import type { CrmRole, DeliveriesRole } from '@/lib/portal/apps';
 
 export type Viewer = {
   /** 'env-admin' for the administrator defined in .env, otherwise the employee id. */
@@ -15,6 +16,9 @@ export type Viewer = {
   name: string;
   firstName: string;
   level: AccessLevel;
+  /** Workflow (CRM) and Deliveries access. Admins always get the top role in both. */
+  crm: CrmRole;
+  deliveries: DeliveriesRole;
 };
 
 export const isManager = (v: Viewer) => v.level === 'manager' || v.level === 'admin';
@@ -30,14 +34,14 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
 
   if (claims.sub === ENV_ADMIN_SUBJECT) {
     if (!getAdminCredentials() || claims.lvl !== 'admin') return null;
-    return { id: ENV_ADMIN_SUBJECT, employeeId: null, name: ADMIN_DISPLAY_NAME, firstName: ADMIN_DISPLAY_NAME, level: 'admin' };
+    return { id: ENV_ADMIN_SUBJECT, employeeId: null, name: ADMIN_DISPLAY_NAME, firstName: ADMIN_DISPLAY_NAME, level: 'admin', crm: 'manager', deliveries: 'dispatcher' };
   }
 
   if (!isDbConfigured() || !/^[0-9a-f-]{36}$/i.test(claims.sub)) return null;
   return memo(`${CacheKeys.viewer}${claims.sub}:${claims.sv}`, 10_000, async (): Promise<Viewer | null> => {
     const { data, error } = await db()
       .from('employees')
-      .select('id, first_name, last_name, access_level, status, session_version, password_hash')
+      .select('id, first_name, last_name, access_level, status, session_version, password_hash, crm_role, deliveries_role')
       .eq('id', claims.sub)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -48,6 +52,8 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
       name: `${data.first_name} ${data.last_name}`.trim(),
       firstName: data.first_name,
       level: data.access_level,
+      crm: data.access_level === 'admin' ? 'manager' : (data.crm_role ?? 'none'),
+      deliveries: data.access_level === 'admin' ? 'dispatcher' : (data.deliveries_role ?? 'none'),
     };
   }).catch(() => null);
 });
@@ -72,6 +78,25 @@ export async function requireAdmin(): Promise<Viewer> {
   if (viewer.level !== 'admin') redirect('/base');
   return viewer;
 }
+
+/** Anyone with Workflow access (`manager: true` = CRM managers and admins only). */
+export async function requireCrm({ manager = false } = {}): Promise<Viewer> {
+  const viewer = await requireViewer();
+  if (viewer.crm === 'none') redirect('/base');
+  if (manager && viewer.crm !== 'manager') redirect('/base/crm');
+  return viewer;
+}
+
+/** Anyone with Deliveries access (`dispatcher: true` = dispatchers and admins; drivers go to their route). */
+export async function requireDeliveries({ dispatcher = false } = {}): Promise<Viewer> {
+  const viewer = await requireViewer();
+  if (viewer.deliveries === 'none') redirect('/base');
+  if (dispatcher && viewer.deliveries !== 'dispatcher') redirect('/base/deliveries/my-route');
+  return viewer;
+}
+
+export const isCrmManager = (v: Viewer) => v.crm === 'manager';
+export const isDispatcher = (v: Viewer) => v.deliveries === 'dispatcher';
 
 /** A viewer who is on the roster (can clock in, request time off, etc.). */
 export async function requireEmployee(): Promise<Viewer & { employeeId: string }> {

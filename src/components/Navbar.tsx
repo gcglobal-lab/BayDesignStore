@@ -218,7 +218,7 @@ export default function Navbar() {
                 href="/base"
                 className="btn-sheen group relative flex items-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-brass-light to-brass px-5 py-1.5 font-semibold text-ink shadow-[0_6px_20px_-6px_rgba(201,168,116,0.8)] transition-all duration-300 [text-shadow:none] hover:-translate-y-0.5 hover:shadow-[0_10px_28px_-6px_rgba(201,168,116,0.95)]"
               >
-                Bay Design Base
+                Employee Portal
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-ink text-brass-light transition-transform duration-500 group-hover:rotate-45">
                   <ArrowUpRight size={11} />
                 </span>
@@ -371,7 +371,7 @@ export default function Navbar() {
                   <a href="/base" className="group flex items-baseline gap-4 py-1.5">
                     <span className="font-sans text-xs text-brass">0{navLinks.length + 1}</span>
                     <span className="display text-[2.6rem] text-ink transition-all duration-500 group-hover:translate-x-2 group-hover:italic">
-                      Bay Design Base
+                      Employee Portal
                     </span>
                   </a>
                 </motion.li>
@@ -385,7 +385,7 @@ export default function Navbar() {
                 <a href={`tel:${companyInfo.phone}`} className="text-ink">{companyInfo.phone}</a>
                 <a href={`mailto:${companyInfo.email}`}>{companyInfo.email}</a>
                 <span>{companyInfo.address}</span>
-                <a href="/base" className="mt-2 text-brass">Bay Design Base →</a>
+                <a href="/base" className="mt-2 text-brass">Employee Portal →</a>
               </motion.div>
             </div>
             <motion.div

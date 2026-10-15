@@ -41,6 +41,9 @@ const nextConfig: NextConfig = {
   // Timesheet PDFs are built on the server; load jsPDF from node_modules instead of bundling it.
   serverExternalPackages: ['jspdf', 'jspdf-autotable', 'exceljs'],
   reactStrictMode: true,
+  // CSV imports (Workflow) and proof-of-delivery photos (Deliveries) are sent to server actions;
+  // Vercel accepts request bodies up to 4.5 MB.
+  experimental: { serverActions: { bodySizeLimit: '4mb' } },
   async headers() {
     return [
       { source: '/:path*', headers: securityHeaders },

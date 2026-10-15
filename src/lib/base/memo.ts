@@ -44,6 +44,9 @@ export const CacheKeys = {
   employees: 'employees',
   viewer: 'viewer:',
   inquiries: 'inquiries',
+  crmBadges: 'crm-badges:',
+  crmSetup: 'crm-setup',
+  dlSettings: 'dl-settings',
 } as const;
 
 /** Everything the roster or company setup affects. */

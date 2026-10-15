@@ -70,7 +70,7 @@ export function Card({ title, actions, children, className = '', pad = true }: {
   return (
     <section className={`b-card ${className}`}>
       {(title || actions) && (
-        <header className="flex items-center justify-between gap-3 rounded-t-2xl border-b border-stone/50 bg-gradient-to-r from-linen via-ivory to-white px-5 py-4 sm:px-6">
+        <header className="flex items-center justify-between gap-3 rounded-t-2xl border-b border-stone/50 bg-gradient-to-r from-linen via-ivory to-surface px-5 py-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <span className="h-6 w-1 flex-none rounded-full bg-gradient-to-b from-brass-light to-brass-dark" aria-hidden="true" />
             {typeof title === 'string' ? <h2 className="b-h2">{title}</h2> : title}

@@ -56,4 +56,21 @@ Troubleshooting
 - "That login ID and password don't match": check the login ID (e.g. first.last) and ask the admin to confirm the password in Team ▸ Roster.
 - "Too many sign-in attempts": wait 15 minutes.
 - Signed out unexpectedly: the admin changed your password or access; sign in with the new password.
+
+EMPLOYEE PORTAL — THREE APPS (Bay Design Base is now called the Employee Portal)
+- The switch at the top of the menu bar moves between Time (everything above), Workflow (the CRM) and Deliveries. Time is for everyone; an admin turns on Workflow and Deliveries per person in Time ▸ Settings ▸ App access (or on a team member’s page). Admins can use everything.
+- Workflow roles: User (works their own leads/deals, sees everyone’s) and Manager (also deletes, edits pipelines, automations and templates). Deliveries roles: Driver (sees only My Route) and Dispatcher (runs everything).
+Workflow (CRM)
+- Dashboard: pipeline value, weighted forecast, wins, win rate, today’s and overdue activities, new leads.
+- Leads: website form and chat requests arrive here automatically. Open one → Convert to deal, Mark as contacted, Disqualify, or Take it.
+- Deals: board (drag cards between stages; drop on Won or Lost) or list. Open a deal to change its stage, add notes, schedule calls/meetings/to-dos, email from a template, create a quote, or (dispatchers) schedule a delivery.
+- Contacts & Companies: customer records with timelines. Contacts ▸ Import loads a CSV; Export downloads one.
+- Activities: overdue / today / upcoming lists and a month calendar; tick to complete, +1d / +1w to postpone.
+- Sales ▸ Quotes and Products: line items, discounts, tax, delivery fee; Print / PDF; Mark as sent / Accepted (updates the deal value).
+- Reports, Automations (managers: “when … then …” rules) and Settings (Appearance light/dark for everyone; pipelines, stages, lists, lead routing, quote terms, email templates for managers).
+Deliveries
+- Orders: New order (pick a Workflow customer to fill the address), schedule a date and time window, items, driver instructions, balance to collect. Each order has a customer tracking link (Copy link / Email it).
+- Dispatch Board: pick a day, Add route (truck + driver + helper), add orders to routes, Optimize, or Auto-plan day; then Dispatch so drivers see it. Print the route sheet.
+- My Route (drivers, on the phone): Start route, Directions, Call, On my way, Arrived, Delivered (name, signature, photos) or Problem (reason).
+- Calendar (capacity per day), Trucks & Crews, Reports (on-time %, failures, drivers) and Settings (warehouse address, start time, speed, failure reasons).
 `;

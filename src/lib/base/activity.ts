@@ -79,7 +79,12 @@ export function describeActivity(action: string, actor: string, details: Activit
   const changed = changes.length ? ` — changed ${changes.map((c) => (FIELD_LABELS[c.field] ?? c.field).toLowerCase()).join(', ')}` : '';
   const range = str(d.from) && str(d.to) ? ` (${d.from} to ${d.to})` : '';
 
+  // Workflow and Deliveries write their own sentence ("moved Smith sofa to Negotiation").
+  if (typeof d.text === 'string' && d.text) return `${actor} ${d.text}`;
+
   switch (action) {
+    case 'employee.app_access':
+      return `${actor} changed app access${about}${changes.length ? ` — ${changes.map((c) => `${c.field}: ${c.to}`).join(', ')}` : ''}`;
     case 'auth.sign_in':
       return `${actor} signed in`;
     case 'auth.sign_out':

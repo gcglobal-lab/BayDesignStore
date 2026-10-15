@@ -197,7 +197,7 @@ export default function EmployeeForm({
             </div>
           </div>
 
-          <Section step={1} title={editing ? 'Access' : 'Add as'} hint="What they can see and do in Bay Design Base.">
+          <Section step={1} title={editing ? 'Access' : 'Add as'} hint="What they can see and do in the Time app. Workflow and Deliveries access is set below.">
             <div className="grid gap-3 sm:grid-cols-2">
               {([
                 { v: 'employee', label: 'Employee', hint: 'Own shifts, time clock and time off', icon: UserRound },

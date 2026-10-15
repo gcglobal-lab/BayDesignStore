@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
-import { ArrowLeft, CalendarClock, MapPin, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Clock3, ShieldCheck, Truck, Workflow } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
 import LoginForm from './LoginForm';
 
 export const metadata: Metadata = {
-  title: { absolute: 'Sign in | Bay Design Base' },
+  title: { absolute: 'Sign in | Employee Portal' },
   robots: { index: false, follow: false },
 };
 
@@ -18,15 +18,16 @@ export default async function LoginPage({ searchParams }: PageProps<'/base/login
         <div className="relative flex items-center gap-3">
           <LogoMark className="h-11 w-11" />
           <div>
-            <p className="font-brand text-xl tracking-[0.06em]">BAY DESIGN BASE</p>
-            <p className="text-[0.6rem] uppercase tracking-[0.3em] text-white/70">Team · Schedule · Time clock</p>
+            <p className="font-brand text-xl tracking-[0.06em]">EMPLOYEE PORTAL</p>
+            <p className="text-[0.6rem] uppercase tracking-[0.3em] text-white/70">Time · Workflow · Deliveries</p>
           </div>
         </div>
         <div className="relative max-w-md">
           <p className="font-display text-5xl leading-[1.05]">Everything the team needs, in one quiet place.</p>
           <ul className="mt-10 space-y-4 text-sm text-white/85">
-            <li className="flex items-center gap-3"><CalendarClock size={18} className="text-white" /> Weekly schedules, time off and availability</li>
-            <li className="flex items-center gap-3"><MapPin size={18} className="text-white" /> GPS-verified punch in and punch out</li>
+            <li className="flex items-center gap-3"><Clock3 size={18} className="text-white" /> Time — schedules, time off and GPS punch in / out</li>
+            <li className="flex items-center gap-3"><Workflow size={18} className="text-white" /> Workflow — leads, deals, customers and quotes</li>
+            <li className="flex items-center gap-3"><Truck size={18} className="text-white" /> Deliveries — routes, drivers and proof of delivery</li>
             <li className="flex items-center gap-3"><ShieldCheck size={18} className="text-white" /> Private to the Bay Design Store team</li>
           </ul>
         </div>
@@ -43,9 +44,9 @@ export default async function LoginPage({ searchParams }: PageProps<'/base/login
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-12">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
             <LogoMark className="h-10 w-10" />
-            <p className="font-brand text-lg tracking-[0.06em]">BAY DESIGN BASE</p>
+            <p className="font-brand text-lg tracking-[0.06em]">EMPLOYEE PORTAL</p>
           </div>
-          <p className="b-eyebrow">Team sign in</p>
+          <p className="b-eyebrow">Employee sign in</p>
           <h1 className="mt-2 font-display text-4xl font-medium">Welcome back</h1>
           <p className="mt-2 text-sm text-muted">Use the login ID and password from your manager. There is no public sign-up.</p>
           {reason === 'expired' && (

@@ -87,8 +87,8 @@ export default function BaseChat({ firstName, level }: { firstName: string; leve
     <ChatWidget
       endpoint="/base/api/assistant"
       title="Base assistant"
-      subtitle="How-to help for Bay Design Base"
-      greeting={`Hi ${firstName}! Ask me how to do anything in Bay Design Base — punching in, schedules, time off, reports${level === 'admin' ? ', passwords' : ''} and more.`}
+      subtitle="How-to help for the Employee Portal"
+      greeting={`Hi ${firstName}! Ask me how to do anything in the Employee Portal — punching in, schedules, time off, reports${level === 'admin' ? ', passwords' : ''} and more.`}
       suggestions={suggestions}
       renderExtra={(reply: ChatReply) => (reply.action ? <ActionCard action={reply.action as Action} /> : null)}
       footer="AI assistant — it can make mistakes; it never changes anything without your confirmation"
