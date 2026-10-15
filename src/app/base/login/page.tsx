@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { ArrowLeft, CalendarClock, MapPin, ShieldCheck } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
 import LoginForm from './LoginForm';
@@ -36,9 +35,11 @@ export default async function LoginPage({ searchParams }: PageProps<'/base/login
 
       {/* Form */}
       <section className="flex flex-col px-6 py-8 sm:px-12">
-        <Link href="/" className="inline-flex items-center gap-2 self-start text-sm text-muted transition-colors hover:text-ink">
+        {/* Full page load, not <Link>: the website needs its own security policy, not Base's
+            stricter one, or every photo and video on it is blocked. */}
+        <a href="/" className="inline-flex items-center gap-2 self-start text-sm text-muted transition-colors hover:text-ink">
           <ArrowLeft size={15} /> baydesignstore.com
-        </Link>
+        </a>
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-12">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
             <LogoMark className="h-10 w-10" />

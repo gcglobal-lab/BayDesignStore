@@ -86,7 +86,6 @@ export default function BaseChat({ firstName, level }: { firstName: string; leve
   return (
     <ChatWidget
       endpoint="/base/api/assistant"
-      storageKey="bdb-assistant"
       title="Base assistant"
       subtitle="How-to help for Bay Design Base"
       greeting={`Hi ${firstName}! Ask me how to do anything in Bay Design Base — punching in, schedules, time off, reports${level === 'admin' ? ', passwords' : ''} and more.`}

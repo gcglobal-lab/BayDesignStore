@@ -66,42 +66,82 @@ function clean(text: string) {
 /** A model that keeps failing is skipped for a minute so it doesn't slow every reply. */
 const cooldown = new Map<string, number>();
 
-export async function chat(messages: ChatMessage[], { maxTokens = 900, temperature = 0.3, budgetMs = 40_000 } = {}): Promise<ChatResult> {
-  const started = Date.now();
-  const errors: string[] = [];
-  const chain = providers();
-  if (chain.length === 0) return { ok: false, error: 'No AI provider is configured (set OPENROUTER or NVIDIA_API_KEY).' };
+/** If a model hasn't answered after this long, the next one in the chain starts alongside it. */
+const HEDGE_MS = 6000;
 
-  for (const p of chain) {
-    const id = `${p.name}:${p.model}`;
-    if ((cooldown.get(id) ?? 0) > Date.now()) continue;
-    const left = budgetMs - (Date.now() - started);
-    if (left < 3000) break;
-    try {
-      const res = await fetch(p.url, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${p.key}`, 'Content-Type': 'application/json', Accept: 'application/json', ...p.headers },
-        body: JSON.stringify({ model: p.model, messages, max_tokens: maxTokens, temperature, stream: false, ...p.extra }),
-        signal: AbortSignal.timeout(Math.min(left, 22_000)),
-        cache: 'no-store',
-      });
-      if (!res.ok) {
-        errors.push(`${id} → HTTP ${res.status}`);
-        if (res.status === 429 || res.status >= 500 || res.status === 404 || res.status === 400) cooldown.set(id, Date.now() + 60_000);
-        continue;
-      }
-      const data = (await res.json()) as { choices?: { message?: { content?: string | null } }[]; model?: string };
-      const text = clean(data.choices?.[0]?.message?.content ?? '');
-      if (!text) {
-        errors.push(`${id} → empty reply`);
-        continue;
-      }
-      return { ok: true, text, model: data.model ?? p.model };
-    } catch (err) {
-      errors.push(`${id} → ${err instanceof Error ? err.name : 'error'}`);
-      cooldown.set(id, Date.now() + 30_000);
+const idOf = (p: Provider) => `${p.name}:${p.model}`;
+
+async function ask(p: Provider, messages: ChatMessage[], maxTokens: number, temperature: number, signal: AbortSignal): Promise<ChatResult> {
+  const id = idOf(p);
+  try {
+    const res = await fetch(p.url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${p.key}`, 'Content-Type': 'application/json', Accept: 'application/json', ...p.headers },
+      body: JSON.stringify({ model: p.model, messages, max_tokens: maxTokens, temperature, stream: false, ...p.extra }),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(22_000)]),
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      if (res.status === 429 || res.status >= 500 || res.status === 404 || res.status === 400) cooldown.set(id, Date.now() + 60_000);
+      return { ok: false, error: `${id} → HTTP ${res.status}` };
     }
+    const data = (await res.json()) as { choices?: { message?: { content?: string | null } }[]; model?: string };
+    const text = clean(data.choices?.[0]?.message?.content ?? '');
+    if (!text) return { ok: false, error: `${id} → empty reply` };
+    return { ok: true, text, model: data.model ?? p.model };
+  } catch (err) {
+    // Cancelled because another model already answered (or the budget ran out): not this model's fault.
+    if (!signal.aborted) cooldown.set(id, Date.now() + 30_000);
+    return { ok: false, error: `${id} → ${err instanceof Error ? err.name : 'error'}` };
   }
-  console.error('[ai] every model failed:', errors.join(' | '));
-  return { ok: false, error: errors.join(' | ') || 'No model answered.' };
+}
+
+/**
+ * Asks the first model; if it fails, the next starts at once, and if it is merely slow, the next
+ * starts after HEDGE_MS alongside it. The first good answer wins and the rest are cancelled.
+ */
+export async function chat(messages: ChatMessage[], { maxTokens = 900, temperature = 0.3, budgetMs = 40_000 } = {}): Promise<ChatResult> {
+  const all = providers();
+  if (all.length === 0) return { ok: false, error: 'No AI provider is configured (set OPENROUTER or NVIDIA_API_KEY).' };
+  const ready = all.filter((p) => (cooldown.get(idOf(p)) ?? 0) <= Date.now());
+  const chain = ready.length ? ready : all;
+
+  const cancel = new AbortController();
+  const signal = AbortSignal.any([cancel.signal, AbortSignal.timeout(budgetMs)]);
+  const errors: string[] = [];
+
+  const result = await new Promise<ChatResult>((resolve) => {
+    let next = 0;
+    let pending = 0;
+    let done = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (r: ChatResult) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(r);
+    };
+    const launch = () => {
+      clearTimeout(timer);
+      if (done) return;
+      if (next >= chain.length || signal.aborted) {
+        if (pending === 0) finish({ ok: false, error: errors.join(' | ') || 'No model answered.' });
+        return;
+      }
+      const p = chain[next++];
+      pending++;
+      ask(p, messages, maxTokens, temperature, signal).then((r) => {
+        pending--;
+        if (r.ok) return finish(r);
+        errors.push(r.error);
+        launch();
+      });
+      timer = setTimeout(launch, HEDGE_MS);
+    };
+    launch();
+  });
+
+  cancel.abort();
+  if (!result.ok) console.error('[ai] every model failed:', result.error);
+  return result;
 }

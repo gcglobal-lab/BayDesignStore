@@ -57,7 +57,6 @@ export default function StoreChat() {
   return (
     <ChatWidget
       endpoint="/api/chat"
-      storageKey="bds-chat"
       title="Bay Design Store"
       subtitle="Ask us anything · usually answers instantly"
       greeting="Hi! I’m the Bay Design Store assistant. Ask me about our showrooms, opening hours, design services or delivery — or I can pass a message to our design team."

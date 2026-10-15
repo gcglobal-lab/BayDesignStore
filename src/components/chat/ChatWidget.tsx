@@ -17,7 +17,6 @@ export default function ChatWidget({
   subtitle,
   greeting,
   suggestions,
-  storageKey,
   renderExtra,
   footer,
 }: {
@@ -26,7 +25,6 @@ export default function ChatWidget({
   subtitle: string;
   greeting: string;
   suggestions: string[];
-  storageKey: string;
   renderExtra?: (reply: ChatReply, history: ChatTurn[], send: (text: string) => void) => ReactNode;
   footer?: ReactNode;
 }) {
@@ -37,23 +35,10 @@ export default function ChatWidget({
   const list = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Keep the conversation while browsing between pages (this tab only).
+  // The conversation is kept in memory only: it carries across pages, and a reload starts fresh.
   useEffect(() => {
-    try {
-      const saved = JSON.parse(window.sessionStorage.getItem(storageKey) ?? '[]');
-      if (Array.isArray(saved)) setTurns(saved.slice(-30));
-    } catch {
-      // Storage or parsing can fail (private mode); nothing to do.
-    }
-  }, [storageKey]);
-  useEffect(() => {
-    try {
-      window.sessionStorage.setItem(storageKey, JSON.stringify(turns.slice(-30)));
-    } catch {
-      // Storage or parsing can fail (private mode); nothing to do.
-    }
     list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' });
-  }, [turns, storageKey]);
+  }, [turns]);
   useEffect(() => {
     if (open) window.setTimeout(() => inputRef.current?.focus(), 150);
   }, [open]);
