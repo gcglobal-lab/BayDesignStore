@@ -939,10 +939,17 @@ export default function BoardView({
                         </div>
                       );
                     })}
-                    {rows.length === 0 && (
-                      <p className="border-b border-stone/60 px-4 py-3 text-sm text-muted">
-                        No {board.item_label.toLowerCase()}s here yet{canEdit ? <> — use <span className="font-medium text-ink">New {board.item_label.toLowerCase()}</span> above.</> : '.'}
-                      </p>
+                    {canEdit && g ? (
+                      <div className="grid border-b border-stone/60" style={{ gridTemplateColumns: grid(itemCols) }}>
+                        <span className="border-r border-stone/60" />
+                        <div className="min-w-0 border-r border-stone/60">
+                          <GroupAddRow label={`Add new ${board.item_label.toLowerCase()}`} onAdd={(n) => createItem(g.id, n)} />
+                        </div>
+                        {itemCols.map((c) => <span key={c.id} className="border-r border-stone/60" />)}
+                        <span />
+                      </div>
+                    ) : (
+                      rows.length === 0 && <p className="border-b border-stone/60 px-4 py-3 text-sm text-muted">No {board.item_label.toLowerCase()}s here yet.</p>
                     )}
                     {/* footer */}
                     {rows.length > 0 && (
@@ -1074,6 +1081,51 @@ function NameInput({ value, onDone }: { value: string; onDone: (name: string) =>
       }}
       className="mx-1 min-w-0 flex-1 rounded border border-brass bg-surface px-2 py-1.5 text-sm outline-none"
       aria-label="Name"
+    />
+  );
+}
+
+/**
+ * The last line of every group: "+ Add new item". Clicking it turns it into a name box;
+ * Enter adds the row (with all its columns working) and the line goes back to "+ Add new item",
+ * ready for the next one. Esc or clicking away with nothing typed just closes it.
+ */
+function GroupAddRow({ label, onAdd }: { label: string; onAdd: (name: string) => Promise<unknown> }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState('');
+  // The line resets at once; the row appears as soon as it's saved (errors show as a toast).
+  const submit = () => {
+    const n = name.trim();
+    setName('');
+    setEditing(false);
+    if (n) void onAdd(n);
+  };
+  if (!editing)
+    return (
+      <button type="button" onClick={() => setEditing(true)} className="flex h-full w-full items-center gap-1.5 px-3 py-2 text-left text-sm text-muted hover:bg-linen hover:text-brass">
+        <Plus size={14} /> {label}
+      </button>
+    );
+  return (
+    <input
+      autoFocus
+      value={name}
+      onChange={(e) => setName(e.target.value)}
+      onBlur={submit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          submit();
+        }
+        if (e.key === 'Escape') {
+          setName('');
+          setEditing(false);
+        }
+      }}
+      placeholder={`${label.replace(/^Add new /, '')} name`}
+      maxLength={200}
+      className="mx-1 my-1 w-[calc(100%-0.5rem)] rounded border border-brass bg-surface px-2 py-1.5 text-sm outline-none"
+      aria-label={label}
     />
   );
 }
