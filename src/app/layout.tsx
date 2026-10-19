@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { cormorant, dmSans, marcellus } from './fonts';
 import { SITE_URL, buildMetadata, pageSeo } from '@/lib/seo';
 import '@/index.css';
@@ -34,7 +35,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en-US" data-scroll-behavior="smooth" className={`${cormorant.variable} ${dmSans.variable} ${marcellus.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <SpeedInsights />
+      </body>
     </html>
   );
 }
