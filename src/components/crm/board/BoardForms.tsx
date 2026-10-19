@@ -5,24 +5,15 @@ import { Trash2, UserPlus } from 'lucide-react';
 import { createBoard, setBoardMember, updateBoard } from '@/app/base/(app)/crm/boards/actions';
 import { ActionForm, Field, SubmitButton } from '@/components/base/forms';
 import { Avatar } from '@/components/base/ui';
-import { BOARD_TEMPLATES, GROUP_COLORS, type Board } from '@/lib/crm/boardTypes';
+import { GROUP_COLORS, type Board } from '@/lib/crm/boardTypes';
 import Select from '@/components/ui/Select';
 
 export function NewBoardForm({ workspaceId, folders, folderId }: { workspaceId: string; folders: { id: string; name: string }[]; folderId?: string | null }) {
-  const [template, setTemplate] = useState('deposits');
   return (
     <ActionForm action={createBoard} className="space-y-4">
       <input type="hidden" name="workspace_id" value={workspaceId} />
-      <div className="grid gap-2 sm:grid-cols-2">
-        {BOARD_TEMPLATES.map((t) => (
-          <label key={t.key} className={`cursor-pointer rounded-2xl border p-3 transition-colors ${template === t.key ? 'border-brass bg-brass/5 ring-2 ring-brass/30' : 'border-stone/60 hover:border-brass/50'}`}>
-            <input type="radio" name="template" value={t.key} checked={template === t.key} onChange={() => setTemplate(t.key)} className="sr-only" />
-            <p className="text-sm font-semibold">{t.name}</p>
-            <p className="mt-0.5 text-xs text-muted">{t.description}</p>
-          </label>
-        ))}
-      </div>
-      <Field label="Board name" htmlFor="nb-name"><input id="nb-name" name="name" className="b-input" required maxLength={120} placeholder={template === 'deposits' ? 'e.g. Victoria Bird' : template === 'designers' ? 'e.g. Designer sales orders 2026' : 'Board name'} /></Field>
+      <input type="hidden" name="template" value="blank" />
+      <Field label="Board name" htmlFor="nb-name"><input id="nb-name" name="name" className="b-input" required maxLength={120} autoFocus placeholder="e.g. Victoria Bird" /></Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Folder" htmlFor="nb-folder">
           <Select id="nb-folder" name="folder_id" className="b-input" defaultValue={folderId ?? ''}>
@@ -37,7 +28,6 @@ export function NewBoardForm({ workspaceId, folders, folderId }: { workspaceId: 
           </Select>
         </Field>
       </div>
-      {template === 'designers' && <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="designer_groups" className="b-check" defaultChecked /> Make a group for each designer on the team (from their role in Time)</label>}
       <Field label="Description (optional)" htmlFor="nb-desc"><textarea id="nb-desc" name="description" className="b-input min-h-[70px]" maxLength={5000} /></Field>
       <div className="flex justify-end"><SubmitButton className="b-btn-brass" pendingLabel="Creating…">Create board</SubmitButton></div>
     </ActionForm>

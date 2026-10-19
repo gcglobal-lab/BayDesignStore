@@ -413,7 +413,7 @@ export default function WorkspacePanel({
         </div>
       )}
 
-      <Modal open={modal?.kind === 'board'} onClose={() => setModal(null)} title="New board" description="Start from a template — add, rename and remove columns and groups any time." wide>
+      <Modal open={modal?.kind === 'board'} onClose={() => setModal(null)} title="New board" description="Name it, then add columns and groups on the board." wide>
         <NewBoardForm workspaceId={workspace.id} folders={folders.map((f) => ({ id: f.id, name: f.name }))} folderId={modal?.kind === 'board' ? modal.folderId ?? null : null} />
       </Modal>
       <Modal open={modal?.kind === 'workspace'} onClose={() => setModal(null)} title="New workspace">
