@@ -34,6 +34,22 @@ async function boardOf(table: 'crm_board_items' | 'crm_board_groups' | 'crm_boar
 }
 const touch = (boardId: string) => db().from('crm_boards').update({ updated_at: new Date().toISOString() }).eq('id', boardId);
 
+/** Every row below these rows on the board, at any depth (sub-items, their sub-items, …). */
+async function descendantIds(boardId: string, ids: string[]): Promise<string[]> {
+  const { data } = await db().from('crm_board_items').select('id, parent_id').eq('board_id', boardId).not('parent_id', 'is', null).limit(20000);
+  const kids = new Map<string, string[]>();
+  for (const r of (data ?? []) as { id: string; parent_id: string }[]) kids.set(r.parent_id, [...(kids.get(r.parent_id) ?? []), r.id]);
+  const out: string[] = [];
+  const queue = [...ids];
+  while (queue.length) {
+    for (const k of kids.get(queue.shift()!) ?? []) {
+      out.push(k);
+      queue.push(k);
+    }
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------ boards --
 
 export async function createBoard(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
@@ -343,10 +359,16 @@ export async function addItem(boardId: string, groupId: string, name: string, pa
   const n = name.trim().slice(0, 200);
   if (!n) return fail('Type a name first.');
   if (!uuid.safeParse(groupId).success || (parentId && !uuid.safeParse(parentId).success)) return fail('Not found.');
+  let group = groupId;
+  if (parentId) {
+    const { data: parent } = await db().from('crm_board_items').select('board_id, group_id').eq('id', parentId).maybeSingle();
+    if (!parent || parent.board_id !== boardId) return fail('Not found.');
+    group = parent.group_id;
+  }
   const { data: last } = await db().from('crm_board_items').select('position').eq('board_id', boardId).order('position', { ascending: false }).limit(1).maybeSingle();
   const { data, error } = await db()
     .from('crm_board_items')
-    .insert({ board_id: boardId, group_id: groupId, parent_id: parentId ?? null, name: n, position: (last?.position ?? 0) + 1, created_by: g.viewer.employeeId })
+    .insert({ board_id: boardId, group_id: group, parent_id: parentId ?? null, name: n, position: (last?.position ?? 0) + 1, created_by: g.viewer.employeeId })
     .select('*')
     .single();
   if (error || !data) return fail('Couldn’t add it.');
@@ -369,8 +391,9 @@ export async function updateItem(id: string, patch: { name?: string; description
   if (patch.description !== undefined) clean.description = patch.description.slice(0, 10000) || null;
   if (patch.group_id !== undefined && uuid.safeParse(patch.group_id).success) {
     clean.group_id = patch.group_id;
-    // sub-items follow their parent
-    await db().from('crm_board_items').update({ group_id: patch.group_id }).eq('parent_id', id);
+    // sub-items (at every level) follow their parent
+    const below = await descendantIds(boardId, [id]);
+    if (below.length) await db().from('crm_board_items').update({ group_id: patch.group_id }).in('id', below);
   }
   if (patch.position !== undefined && Number.isFinite(patch.position)) clean.position = patch.position;
   if (patch.contact_id !== undefined) clean.contact_id = patch.contact_id && uuid.safeParse(patch.contact_id).success ? patch.contact_id : null;
@@ -455,17 +478,32 @@ export async function duplicateItem(id: string): Promise<ActionResult> {
   const g = await guard(boardId, 'edit');
   if ('error' in g) return g.error;
   const { data: it } = await db().from('crm_board_items').select('*').eq('id', id).single();
-  const { data: subs } = await db().from('crm_board_items').select('*').eq('parent_id', id);
   const { data: copy } = await db()
     .from('crm_board_items')
     .insert({ board_id: it.board_id, group_id: it.group_id, parent_id: it.parent_id, name: `${it.name} (copy)`.slice(0, 200), description: it.description, values: it.values, contact_id: it.contact_id, position: it.position + 0.5, created_by: g.viewer.employeeId })
     .select('*')
     .single();
   if (!copy) return fail('Couldn’t duplicate.');
-  const subCopies = (subs ?? []).length
-    ? ((await db().from('crm_board_items').insert((subs ?? []).map((s) => ({ board_id: s.board_id, group_id: s.group_id, parent_id: copy.id, name: s.name, description: s.description, values: s.values, position: s.position, created_by: g.viewer.employeeId }))).select('*')).data ?? [])
-    : [];
-  return done(undefined, { items: JSON.stringify([copy, ...subCopies]) });
+  // Copy every level below it, one level at a time, pointing each copy at its new parent.
+  const { data: all } = await db().from('crm_board_items').select('*').eq('board_id', it.board_id).not('parent_id', 'is', null).limit(20000);
+  const rows = (all ?? []) as BoardItem[];
+  const made: BoardItem[] = [];
+  let level: [string, string][] = [[id, copy.id]];
+  while (level.length && made.length < 2000) {
+    const next: [string, string][] = [];
+    const batch = level.flatMap(([oldParent, newParent]) => rows.filter((r) => r.parent_id === oldParent).map((r) => ({ r, newParent })));
+    if (!batch.length) break;
+    const { data: inserted } = await db()
+      .from('crm_board_items')
+      .insert(batch.map(({ r, newParent }) => ({ board_id: r.board_id, group_id: copy.group_id, parent_id: newParent, name: r.name, description: r.description, values: r.values, position: r.position, created_by: g.viewer.employeeId })))
+      .select('*');
+    (inserted ?? []).forEach((n: BoardItem, i: number) => {
+      made.push(n);
+      next.push([batch[i].r.id, n.id]);
+    });
+    level = next;
+  }
+  return done(undefined, { items: JSON.stringify([copy, ...made]) });
 }
 
 // ----------------------------------------------------------------- updates --
@@ -504,7 +542,7 @@ export async function bulkItems(boardId: string, ids: string[], op: 'move' | 'de
   if (!groupId || !uuid.safeParse(groupId).success) return fail('Choose a group.');
   const { data: grp } = await db().from('crm_board_groups').select('board_id').eq('id', groupId).maybeSingle();
   if (grp?.board_id !== boardId) return fail('Choose a group on this board.');
-  await db().from('crm_board_items').update({ group_id: groupId }).eq('board_id', boardId).in('id', list);
-  await db().from('crm_board_items').update({ group_id: groupId }).eq('board_id', boardId).in('parent_id', list);
+  const below = await descendantIds(boardId, list);
+  await db().from('crm_board_items').update({ group_id: groupId }).eq('board_id', boardId).in('id', [...list, ...below]);
   return done();
 }

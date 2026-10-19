@@ -364,6 +364,21 @@ export default function BoardView({
   const itemCols = allItemCols.filter((c) => !hidden.has(c.id));
   const subCols = useMemo(() => columns.filter((c) => c.scope === 'subitem').sort((a, b) => a.position - b.position), [columns]);
   const subsOf = useCallback((id: string) => items.filter((i) => i.parent_id === id).sort((a, b) => a.position - b.position), [items]);
+  /** These rows plus everything below them, at any depth. */
+  const withDescendants = (ids: string[], list: BoardItem[] = items) => {
+    const out = new Set(ids);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const i of list) {
+        if (i.parent_id && out.has(i.parent_id) && !out.has(i.id)) {
+          out.add(i.id);
+          grew = true;
+        }
+      }
+    }
+    return out;
+  };
   const filesOf = useCallback((itemId: string, colId: string) => files.filter((f) => f.item_id === itemId && f.column_id === colId), [files]);
   const groupOf = (id: string) => groups.find((g) => g.id === id);
   const peopleCols = allItemCols.filter((c) => c.type === 'people' || c.type === 'person');
@@ -398,7 +413,10 @@ export default function BoardView({
   };
   const patchItem = (id: string, patch: Partial<BoardItem>) => {
     const before = items.find((i) => i.id === id);
-    setItems((list) => list.map((i) => (i.id === id ? { ...i, ...patch } : i.parent_id === id && patch.group_id ? { ...i, group_id: patch.group_id } : i)));
+    setItems((list) => {
+      const below = patch.group_id ? withDescendants([id], list) : new Set<string>();
+      return list.map((i) => (i.id === id ? { ...i, ...patch } : below.has(i.id) ? { ...i, group_id: patch.group_id! } : i));
+    });
     run(updateItem(id, patch as Parameters<typeof updateItem>[1]), () => before && setItems((list) => list.map((i) => (i.id === id ? before : i))));
   };
   const createItem = async (groupId: string, name: string, parentId?: string) => {
@@ -485,7 +503,10 @@ export default function BoardView({
     const ids = [...selected];
     if (op === 'delete' && !(await confirmDialog({ title: `Delete ${ids.length} row${ids.length === 1 ? '' : 's'}?`, message: 'Their sub-items and updates are removed too.', danger: true }))) return;
     const before = items;
-    setItems((list) => (op === 'delete' ? list.filter((i) => !ids.includes(i.id) && !ids.includes(i.parent_id ?? '')) : list.map((i) => (ids.includes(i.id) || ids.includes(i.parent_id ?? '') ? { ...i, group_id: groupId! } : i))));
+    setItems((list) => {
+      const all = withDescendants(ids, list);
+      return op === 'delete' ? list.filter((i) => !all.has(i.id)) : list.map((i) => (all.has(i.id) ? { ...i, group_id: groupId! } : i));
+    });
     setSelected(new Set());
     await run(bulkItems(board.id, ids, op, groupId), () => setItems(before));
   };
@@ -510,7 +531,9 @@ export default function BoardView({
     if (!q.trim()) return true;
     const needle = q.trim().toLowerCase();
     const hay = (x: BoardItem, cols: BoardColumn[]) => [x.name, x.description ?? '', groupOf(x.group_id)?.name ?? '', ...cols.map((c) => cellText(c, x, { subitems: subsOf(x.id), columns, names }))].join(' ').toLowerCase();
-    return hay(it, allItemCols).includes(needle) || subsOf(it.id).some((s) => hay(s, subCols).includes(needle));
+    // A row matches when it, or any of its sub-items at any depth, matches.
+    const deep = (x: BoardItem): boolean => subsOf(x.id).some((s) => hay(s, [...allItemCols, ...subCols]).includes(needle) || deep(s));
+    return hay(it, allItemCols).includes(needle) || deep(it);
   };
   const sortRows = (list: BoardItem[]) => {
     if (!sort) return list.sort((a, b) => a.position - b.position);
@@ -603,6 +626,71 @@ export default function BoardView({
   const header = (c: BoardColumn) => (
     <ColumnHeader col={c} manage={canManage} onRename={(n) => patchColumn(c, { name: n })} onSetup={() => setSetup(c)} onMove={(d) => moveColumn(c, d)} onDelete={() => removeColumn(c)} onHide={() => toggleHidden(c.id)} onSort={(dir) => setSort({ col: c.id, dir })} />
   );
+  // ---------------------------------------------------------- sub-items --
+  /** Sub-items (at every level) use the table's own columns, then any sub-item-only columns. */
+  const nestCols = [...itemCols, ...subCols];
+  /** The arrow that opens a row's sub-items, or a dashed + to start them. */
+  const subToggle = (it: BoardItem, subs: BoardItem[], open: boolean) =>
+    subs.length > 0 || open || !canEdit ? (
+      <button type="button" onClick={() => toggle(setExpanded, it.id)} className={`ml-1 flex flex-none items-center rounded px-1 py-1 text-[0.68rem] text-muted hover:bg-sand ${subs.length || open ? '' : 'invisible'}`} aria-label="Sub-items" title="Sub-items">
+        {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        {subs.length > 0 && <span className="ml-0.5">{subs.length}</span>}
+      </button>
+    ) : (
+      <button type="button" onClick={() => toggle(setExpanded, it.id)} className="ml-1 flex h-6 w-6 flex-none items-center justify-center rounded border border-dashed border-stone text-muted hover:border-brass hover:bg-sand hover:text-brass" aria-label={`Add sub-item to ${it.name}`} title="Add sub-item">
+        <Plus size={12} />
+      </button>
+    );
+  /** A row's sub-items as a nested table; each sub-item can open its own sub-items, at any depth. */
+  const renderSubs = (parent: BoardItem, depth: number, color: string): ReactNode => {
+    const subs = subsOf(parent.id);
+    return (
+      <div className={`border-b border-stone/60 bg-linen/60 py-2 pr-2 ${depth === 1 ? 'pl-12' : 'pl-8'}`}>
+        <div className="overflow-hidden rounded-md border border-stone/70 bg-surface" style={{ borderLeft: `4px solid ${color}${depth === 1 ? '88' : '55'}` }}>
+          <div className="grid border-b border-stone/70 text-[0.75rem] text-muted" style={{ gridTemplateColumns: subGrid(nestCols) }}>
+            <span className="border-r border-stone/60 px-2 py-1.5 text-center">{depth === 1 ? 'Sub-item' : `Sub-item · level ${depth}`}</span>
+            {nestCols.map((c) => <div key={c.id} className="border-r border-stone/60 px-2 py-1.5 text-center">{header(c)}</div>)}
+            {canManage ? <ColumnPicker scope="item" onAdd={(n, t) => createColumn('item', n, t)} /> : <span />}
+          </div>
+          {subs.map((s) => {
+            const kids = subsOf(s.id);
+            const sOpen = expanded.has(s.id);
+            return (
+              <div key={s.id}>
+                <div className="grid border-b border-stone/50 transition-colors hover:bg-linen" style={{ gridTemplateColumns: subGrid(nestCols) }}>
+                  <div className="flex min-w-0 items-center border-r border-stone/60">
+                    {subToggle(s, kids, sOpen)}
+                    {renamingItem === s.id ? (
+                      <NameInput value={s.name} onDone={(n) => renameItem(s, n)} />
+                    ) : (
+                      <span
+                        role={canEdit ? 'button' : undefined}
+                        tabIndex={canEdit ? 0 : undefined}
+                        onClick={() => canEdit && setRenamingItem(s.id)}
+                        onKeyDown={(e) => e.key === 'Enter' && canEdit && setRenamingItem(s.id)}
+                        className={`min-w-0 flex-1 truncate px-2 py-1.5 text-left text-sm ${canEdit ? 'cursor-text rounded hover:ring-1 hover:ring-stone' : ''}`}
+                        title={canEdit ? 'Click to edit' : s.name}
+                      >
+                        {s.name}
+                      </span>
+                    )}
+                    <button type="button" onClick={() => setPanel({ kind: 'item', id: s.id })} className="mr-1 flex h-7 w-7 flex-none items-center justify-center rounded text-muted hover:bg-sand hover:text-brass" aria-label={`Open ${s.name}`} title="Open">
+                      <Maximize2 size={13} />
+                    </button>
+                  </div>
+                  {nestCols.map((c) => <div key={c.id} className="min-h-[34px] min-w-0 border-r border-stone/60"><Cell col={c} item={s} ctx={ctx(s, c, color)} /></div>)}
+                  <span />
+                </div>
+                {sOpen && renderSubs(s, depth + 1, color)}
+              </div>
+            );
+          })}
+          {canEdit && <AddRow placeholder={depth === 1 ? '+ Add sub-item' : '+ Add sub-item here'} autoFocus={subs.length === 0} onAdd={(n) => createItem(parent.group_id, n, parent.id)} />}
+        </div>
+      </div>
+    );
+  };
+
   const activeFilters = Object.values(filters).reduce((s, v) => s + v.length, 0);
   const sortedGroups = [...groups].sort((a, b) => a.position - b.position);
   // "New item" adds to the bottom of the board: the end of its last group.
@@ -864,16 +952,7 @@ export default function BoardView({
                               <input type="checkbox" className="b-check" checked={selected.has(it.id)} onChange={() => toggle(setSelected, it.id)} aria-label={`Select ${it.name}`} />
                             </span>
                             <div className="flex min-w-0 items-center border-r border-stone/60">
-                              {subs.length > 0 || open || !canEdit ? (
-                                <button type="button" onClick={() => toggle(setExpanded, it.id)} className={`ml-1 flex flex-none items-center rounded px-1 py-1 text-[0.68rem] text-muted hover:bg-sand ${subs.length || open ? '' : 'invisible'}`} aria-label="Sub-items" title="Sub-items">
-                                  {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                                  {subs.length > 0 && <span className="ml-0.5">{subs.length}</span>}
-                                </button>
-                              ) : (
-                                <button type="button" onClick={() => toggle(setExpanded, it.id)} className="ml-1 flex h-6 w-6 flex-none items-center justify-center rounded border border-dashed border-stone text-muted hover:border-brass hover:bg-sand hover:text-brass" aria-label={`Add sub-item to ${it.name}`} title="Add sub-item">
-                                  <Plus size={12} />
-                                </button>
-                              )}
+                              {subToggle(it, subs, open)}
                               {renamingItem === it.id ? (
                                 <NameInput value={it.name} onDone={(n) => renameItem(it, n)} />
                               ) : (
@@ -899,43 +978,7 @@ export default function BoardView({
                             {itemCols.map((c) => <div key={c.id} className="min-h-[38px] min-w-0 border-r border-stone/60"><Cell col={c} item={it} ctx={ctx(it, c, color)} /></div>)}
                             <span />
                           </div>
-                          {open && (
-                            <div className="border-b border-stone/60 bg-linen/60 py-2 pl-12 pr-2">
-                              <div className="overflow-hidden rounded-md border border-stone/70 bg-surface" style={{ borderLeft: `4px solid ${color}66` }}>
-                                <div className="grid border-b border-stone/70 text-[0.75rem] text-muted" style={{ gridTemplateColumns: subGrid(subCols) }}>
-                                  <span className="border-r border-stone/60 px-2 py-1.5 text-center">Sub-item</span>
-                                  {subCols.map((c) => <div key={c.id} className="border-r border-stone/60 px-2 py-1.5 text-center">{header(c)}</div>)}
-                                  {canManage ? <ColumnPicker scope="subitem" onAdd={(n, t) => createColumn('subitem', n, t)} /> : <span />}
-                                </div>
-                                {subs.map((s) => (
-                                  <div key={s.id} className="grid border-b border-stone/50" style={{ gridTemplateColumns: subGrid(subCols) }}>
-                                    <div className="flex min-w-0 items-center border-r border-stone/60">
-                                      {renamingItem === s.id ? (
-                                        <NameInput value={s.name} onDone={(n) => renameItem(s, n)} />
-                                      ) : (
-                                        <span
-                                          role={canEdit ? 'button' : undefined}
-                                          tabIndex={canEdit ? 0 : undefined}
-                                          onClick={() => canEdit && setRenamingItem(s.id)}
-                                          onKeyDown={(e) => e.key === 'Enter' && canEdit && setRenamingItem(s.id)}
-                                          className={`min-w-0 flex-1 truncate px-3 py-1.5 text-left text-sm ${canEdit ? 'cursor-text rounded hover:ring-1 hover:ring-stone' : ''}`}
-                                          title={canEdit ? 'Click to edit' : s.name}
-                                        >
-                                          {s.name}
-                                        </span>
-                                      )}
-                                      <button type="button" onClick={() => setPanel({ kind: 'item', id: s.id })} className="mr-1 flex h-7 w-7 flex-none items-center justify-center rounded text-muted hover:bg-sand hover:text-brass" aria-label={`Open ${s.name}`} title="Open">
-                                        <Maximize2 size={13} />
-                                      </button>
-                                    </div>
-                                    {subCols.map((c) => <div key={c.id} className="min-h-[34px] min-w-0 border-r border-stone/60"><Cell col={c} item={s} ctx={ctx(s, c, color)} /></div>)}
-                                    <span />
-                                  </div>
-                                ))}
-                                {canEdit && <AddRow placeholder="+ Add sub-item" autoFocus={subs.length === 0} onAdd={(n) => createItem(it.group_id, n, it.id)} />}
-                              </div>
-                            </div>
-                          )}
+                          {open && renderSubs(it, 1, color)}
                         </div>
                       );
                     })}
@@ -1038,7 +1081,10 @@ export default function BoardView({
           onPatch={(patch) => patchItem(panelItem.id, patch)}
           onAddSub={(n) => createItem(panelItem.group_id, n, panelItem.id)}
           onRemoved={(ids) => {
-            setItems((list) => list.filter((i) => !ids.includes(i.id) && !ids.includes(i.parent_id ?? '')));
+            setItems((list) => {
+              const all = withDescendants(ids, list);
+              return list.filter((i) => !all.has(i.id));
+            });
             setPanel(null);
           }}
           onAdded={(added) => setItems((list) => [...list, ...added])}

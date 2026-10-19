@@ -60,8 +60,12 @@ export function ItemPanel({
   exportHref: (format: 'xlsx' | 'pdf', extra?: string) => string;
 }) {
   const isSub = Boolean(item.parent_id);
-  const cols = columns.filter((c) => c.scope === (isSub ? 'subitem' : 'item')).sort((a, b) => a.position - b.position);
-  const subCols = columns.filter((c) => c.scope === 'subitem').sort((a, b) => a.position - b.position);
+  // Sub-items (at any depth) have the table's own columns, plus any sub-item-only columns.
+  const byPos = (a: BoardColumn, b: BoardColumn) => a.position - b.position;
+  const tableCols = columns.filter((c) => c.scope === 'item').sort(byPos);
+  const subOnly = columns.filter((c) => c.scope === 'subitem').sort(byPos);
+  const cols = isSub ? [...tableCols, ...subOnly] : tableCols;
+  const subCols = [...tableCols, ...subOnly];
   const [tab, setTab] = useState<'details' | 'updates'>(initialTab);
   const [name, setName] = useState(item.name);
   const [desc, setDesc] = useState(item.description ?? '');
@@ -187,7 +191,7 @@ export function ItemPanel({
               />
             </div>
 
-            {!isSub && (
+            {(
               <div>
                 <p className="b-label">Sub-items ({subitems.length})</p>
                 <div className="overflow-x-auto rounded-2xl border border-stone/60 bg-surface">
