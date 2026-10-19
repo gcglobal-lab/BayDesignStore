@@ -62,7 +62,8 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set('Content-Security-Policy', csp);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set('Content-Security-Policy', csp);
-  if (expired) response.cookies.delete(SESSION_COOKIE);
+  // Expire it with the original attributes: a bare delete lacks `Secure`, which `__Host-` cookies need.
+  if (expired) response.cookies.set(SESSION_COOKIE, '', { ...sessionCookieOptions, maxAge: 0 });
   else if (session && request.method === 'GET' && Date.now() / 1000 - session.iat > SESSION_REFRESH_AFTER_SECONDS) {
     // Keep active devices signed in indefinitely: re-issue the token (same claims) once a week.
     const { sub, lvl, sv } = session;
