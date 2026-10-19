@@ -759,10 +759,16 @@ export default function BoardView({
                               <input type="checkbox" className="b-check" checked={selected.has(it.id)} onChange={() => toggle(setSelected, it.id)} aria-label={`Select ${it.name}`} />
                             </span>
                             <div className="flex min-w-0 items-center border-r border-stone/60">
-                              <button type="button" onClick={() => toggle(setExpanded, it.id)} className={`ml-1 flex flex-none items-center rounded px-1 py-1 text-[0.68rem] text-muted hover:bg-sand ${subs.length ? '' : 'opacity-0 group-hover/row:opacity-100'}`} aria-label="Sub-items" title="Sub-items">
-                                {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                                {subs.length > 0 && <span className="ml-0.5">{subs.length}</span>}
-                              </button>
+                              {subs.length > 0 || open || !canEdit ? (
+                                <button type="button" onClick={() => toggle(setExpanded, it.id)} className={`ml-1 flex flex-none items-center rounded px-1 py-1 text-[0.68rem] text-muted hover:bg-sand ${subs.length || open ? '' : 'invisible'}`} aria-label="Sub-items" title="Sub-items">
+                                  {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                                  {subs.length > 0 && <span className="ml-0.5">{subs.length}</span>}
+                                </button>
+                              ) : (
+                                <button type="button" onClick={() => toggle(setExpanded, it.id)} className="ml-1 flex h-6 w-6 flex-none items-center justify-center rounded border border-dashed border-stone text-muted hover:border-brass hover:bg-sand hover:text-brass" aria-label={`Add sub-item to ${it.name}`} title="Add sub-item">
+                                  <Plus size={12} />
+                                </button>
+                              )}
                               <button type="button" onClick={() => setPanel({ kind: 'item', id: it.id })} className="min-w-0 flex-1 truncate px-2 py-2 text-left text-sm hover:text-brass" title="Open">{it.name}</button>
                               <button type="button" onClick={() => setPanel({ kind: 'item', id: it.id, tab: 'updates' })} className="relative mr-1 flex h-8 w-9 flex-none items-center justify-center rounded text-muted hover:bg-sand hover:text-brass" aria-label={`Updates (${count})`} title="Updates">
                                 {count ? <MessageCircle size={18} className="text-brass" /> : <MessageCirclePlus size={18} />}
@@ -787,7 +793,7 @@ export default function BoardView({
                                     <span />
                                   </div>
                                 ))}
-                                {canEdit && <AddRow placeholder="+ Add sub-item" onAdd={(n) => createItem(it.group_id, n, it.id)} />}
+                                {canEdit && <AddRow placeholder="+ Add sub-item" autoFocus={subs.length === 0} onAdd={(n) => createItem(it.group_id, n, it.id)} />}
                               </div>
                             </div>
                           )}
@@ -913,7 +919,7 @@ export default function BoardView({
   );
 }
 
-function AddRow({ placeholder, onAdd }: { placeholder: string; onAdd: (name: string) => void }) {
+function AddRow({ placeholder, onAdd, autoFocus }: { placeholder: string; onAdd: (name: string) => void; autoFocus?: boolean }) {
   const [name, setName] = useState('');
   return (
     <form
@@ -923,7 +929,7 @@ function AddRow({ placeholder, onAdd }: { placeholder: string; onAdd: (name: str
         setName('');
       }}
     >
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder={placeholder} maxLength={200} className="w-full bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted focus:bg-linen" />
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder={placeholder} maxLength={200} autoFocus={autoFocus} className="w-full bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted focus:bg-linen" />
     </form>
   );
 }
