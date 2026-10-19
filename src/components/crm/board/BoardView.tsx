@@ -16,6 +16,7 @@ import {
   GripVertical,
   LayoutGrid,
   Layers,
+  Maximize2,
   MessageCircle,
   MessageCirclePlus,
   MoreHorizontal,
@@ -272,6 +273,7 @@ export default function BoardView({
   const [error, setError] = useState<string | null>(null);
   const [drag, setDrag] = useState<string | null>(null);
   const [renamingGroup, setRenamingGroup] = useState<string | null>(null);
+  const [renamingItem, setRenamingItem] = useState<string | null>(null);
 
   useEffect(() => {
     setColumns(data.columns);
@@ -338,8 +340,24 @@ export default function BoardView({
   const createItem = async (groupId: string, name: string, parentId?: string) => {
     const res = await run(addItem(board.id, groupId, name, parentId ?? null));
     const raw = res?.data?.item;
-    if (raw) setItems((list) => [...list, JSON.parse(raw) as BoardItem]);
+    const made = raw ? (JSON.parse(raw) as BoardItem) : null;
+    if (made) setItems((list) => [...list, made]);
     if (parentId) setExpanded((s) => new Set(s).add(parentId));
+    return made;
+  };
+  /** "New item": drop a row straight onto the board with its name ready to type over (no pop-up). */
+  const quickAdd = async (groupId: string) => {
+    setCollapsed((s) => {
+      const n = new Set(s);
+      n.delete(groupId);
+      return n;
+    });
+    const made = await createItem(groupId, `New ${board.item_label.toLowerCase()}`);
+    if (made) setRenamingItem(made.id);
+  };
+  const renameItem = (it: BoardItem, name: string) => {
+    setRenamingItem(null);
+    if (name.trim() && name.trim() !== it.name) patchItem(it.id, { name: name.trim() });
   };
   const createColumn = async (scope: 'item' | 'subitem', name: string, type: ColumnType) => {
     const res = await run(addColumn(board.id, scope, name, type, {}));
@@ -369,11 +387,13 @@ export default function BoardView({
     run(deleteColumn(col.id), () => setColumns((list) => [...list, col]));
   };
   const createGroup = async () => {
-    const name = window.prompt(`Name of the new ${board.group_label.toLowerCase()}:`);
-    if (!name?.trim()) return;
+    const name = `New ${board.group_label.toLowerCase()}`;
     const res = await run(addGroup(board.id, name));
     const d = res?.data;
-    if (d?.id) setGroups((list) => [...list, { id: d.id, board_id: board.id, name: name.trim(), color: d.color, employee_id: null, position: Number(d.position) }]);
+    if (d?.id) {
+      setGroups((list) => [...list, { id: d.id, board_id: board.id, name, color: d.color, employee_id: null, position: Number(d.position) }]);
+      setRenamingGroup(d.id);
+    }
   };
   const patchGroup = (g: BoardGroup, patch: Partial<BoardGroup>) => {
     setGroups((list) => list.map((x) => (x.id === g.id ? { ...x, ...patch } : x)));
@@ -544,7 +564,7 @@ export default function BoardView({
       <div className="mb-5 flex flex-wrap items-center gap-1">
         {canEdit && firstGroup && (
           <span className="mr-2 inline-flex overflow-hidden rounded-md shadow-sm">
-            <button type="button" className="b-btn-brass !rounded-none !rounded-l-md !px-3 !py-1.5" onClick={() => { const n = window.prompt(`New ${board.item_label.toLowerCase()}:`); if (n?.trim()) createItem(firstGroup.id, n); }}>
+            <button type="button" className="b-btn-brass !rounded-none !rounded-l-md !px-3 !py-1.5" onClick={() => quickAdd(firstGroup.id)}>
               New {board.item_label.toLowerCase()}
             </button>
             <PopButton label={<ChevronDown size={15} />} className="b-btn-brass !rounded-none !rounded-r-md border-l border-white/30 !px-1.5 !py-1.5" width={220}>
@@ -688,9 +708,16 @@ export default function BoardView({
                 {g && renamingGroup === g.id ? (
                   <input autoFocus defaultValue={g.name} maxLength={120} className="b-input !w-72 !py-1 font-semibold" onBlur={(e) => { setRenamingGroup(null); if (e.target.value.trim() && e.target.value !== g.name) patchGroup(g, { name: e.target.value.trim() }); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
                 ) : (
-                  <button type="button" onClick={() => g && setPanel({ kind: 'group', id: g.id })} onDoubleClick={() => g && canEdit && setRenamingGroup(g.id)} className="text-[1.1rem] font-semibold hover:opacity-80" style={{ color: b.color }} title={g ? 'Open everything for this group (double-click to rename)' : undefined}>
-                    {b.name}
-                  </button>
+                  <>
+                    <button type="button" onClick={() => g && (canEdit ? setRenamingGroup(g.id) : setPanel({ kind: 'group', id: g.id }))} className={`rounded px-1 text-[1.1rem] font-semibold ${g && canEdit ? 'cursor-text hover:ring-1 hover:ring-stone' : 'hover:opacity-80'}`} style={{ color: b.color }} title={g ? (canEdit ? 'Click to rename' : 'Open summary') : undefined}>
+                      {b.name}
+                    </button>
+                    {g && canEdit && (
+                      <button type="button" onClick={() => setPanel({ kind: 'group', id: g.id })} className="rounded p-1 text-muted hover:bg-sand hover:text-brass" aria-label={`Open ${b.name} summary`} title="Open summary">
+                        <Maximize2 size={14} />
+                      </button>
+                    )}
+                  </>
                 )}
                 <span className="text-xs text-muted opacity-0 transition-opacity group-hover/g:opacity-100">{rows.length} {rows.length === 1 ? board.item_label.toLowerCase() : 'rows'}</span>
                 {g && canEdit && (
@@ -769,7 +796,23 @@ export default function BoardView({
                                   <Plus size={12} />
                                 </button>
                               )}
-                              <button type="button" onClick={() => setPanel({ kind: 'item', id: it.id })} className="min-w-0 flex-1 truncate px-2 py-2 text-left text-sm hover:text-brass" title="Open">{it.name}</button>
+                              {renamingItem === it.id ? (
+                                <NameInput value={it.name} onDone={(n) => renameItem(it, n)} />
+                              ) : (
+                                <span
+                                  role={canEdit ? 'button' : undefined}
+                                  tabIndex={canEdit ? 0 : undefined}
+                                  onClick={() => canEdit && setRenamingItem(it.id)}
+                                  onKeyDown={(e) => e.key === 'Enter' && canEdit && setRenamingItem(it.id)}
+                                  className={`min-w-0 flex-1 truncate px-2 py-2 text-left text-sm ${canEdit ? 'cursor-text rounded hover:ring-1 hover:ring-stone' : ''}`}
+                                  title={canEdit ? 'Click to edit' : it.name}
+                                >
+                                  {it.name}
+                                </span>
+                              )}
+                              <button type="button" onClick={() => setPanel({ kind: 'item', id: it.id })} className="flex h-8 w-8 flex-none items-center justify-center rounded text-muted hover:bg-sand hover:text-brass" aria-label={`Open ${it.name}`} title="Open">
+                                <Maximize2 size={14} />
+                              </button>
                               <button type="button" onClick={() => setPanel({ kind: 'item', id: it.id, tab: 'updates' })} className="relative mr-1 flex h-8 w-9 flex-none items-center justify-center rounded text-muted hover:bg-sand hover:text-brass" aria-label={`Updates (${count})`} title="Updates">
                                 {count ? <MessageCircle size={18} className="text-brass" /> : <MessageCirclePlus size={18} />}
                                 {count > 0 && <span className="absolute right-0.5 top-0.5 rounded-full bg-brass px-1 text-[0.55rem] font-bold leading-[14px] text-white">{count}</span>}
@@ -788,7 +831,25 @@ export default function BoardView({
                                 </div>
                                 {subs.map((s) => (
                                   <div key={s.id} className="grid border-b border-stone/50" style={{ gridTemplateColumns: subGrid(subCols) }}>
-                                    <button type="button" onClick={() => setPanel({ kind: 'item', id: s.id })} className="truncate border-r border-stone/60 px-3 py-1.5 text-left text-sm hover:text-brass">{s.name}</button>
+                                    <div className="flex min-w-0 items-center border-r border-stone/60">
+                                      {renamingItem === s.id ? (
+                                        <NameInput value={s.name} onDone={(n) => renameItem(s, n)} />
+                                      ) : (
+                                        <span
+                                          role={canEdit ? 'button' : undefined}
+                                          tabIndex={canEdit ? 0 : undefined}
+                                          onClick={() => canEdit && setRenamingItem(s.id)}
+                                          onKeyDown={(e) => e.key === 'Enter' && canEdit && setRenamingItem(s.id)}
+                                          className={`min-w-0 flex-1 truncate px-3 py-1.5 text-left text-sm ${canEdit ? 'cursor-text rounded hover:ring-1 hover:ring-stone' : ''}`}
+                                          title={canEdit ? 'Click to edit' : s.name}
+                                        >
+                                          {s.name}
+                                        </span>
+                                      )}
+                                      <button type="button" onClick={() => setPanel({ kind: 'item', id: s.id })} className="mr-1 flex h-7 w-7 flex-none items-center justify-center rounded text-muted hover:bg-sand hover:text-brass" aria-label={`Open ${s.name}`} title="Open">
+                                        <Maximize2 size={13} />
+                                      </button>
+                                    </div>
                                     {subCols.map((c) => <div key={c.id} className="min-h-[34px] min-w-0 border-r border-stone/60"><Cell col={c} item={s} ctx={ctx(s, c, color)} /></div>)}
                                     <span />
                                   </div>
@@ -801,9 +862,13 @@ export default function BoardView({
                       );
                     })}
                     {canEdit && g && (
-                      <div className="grid border-b border-stone/60" style={{ gridTemplateColumns: '40px minmax(0,1fr)' }}>
+                      <div className="grid border-b border-stone/60" style={{ gridTemplateColumns: grid(itemCols) }}>
                         <span className="border-r border-stone/60" />
-                        <AddRow placeholder={`+ Add ${board.item_label.toLowerCase()}`} onAdd={(n) => createItem(g.id, n)} />
+                        <div className="min-w-0 border-r border-stone/60">
+                          <AddRow placeholder={`+ Add ${board.item_label.toLowerCase()}`} onAdd={(n) => createItem(g.id, n)} />
+                        </div>
+                        {itemCols.map((c) => <span key={c.id} className="border-r border-stone/60 bg-linen/40" />)}
+                        <span />
                       </div>
                     )}
                     {/* footer */}
@@ -849,7 +914,7 @@ export default function BoardView({
                       </div>
                     </button>
                   ))}
-                  {canEdit && g && <button type="button" onClick={() => { const n = window.prompt(`New ${board.item_label.toLowerCase()}:`); if (n?.trim()) createItem(g.id, n); }} className="flex min-h-[120px] items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-stone text-sm text-muted hover:border-brass hover:text-brass"><Plus size={15} /> Add</button>}
+                  {canEdit && g && <button type="button" onClick={() => quickAdd(g.id)} className="flex min-h-[120px] items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-stone text-sm text-muted hover:border-brass hover:text-brass"><Plus size={15} /> Add</button>}
                 </div>
               )}
             </section>
@@ -916,6 +981,28 @@ export default function BoardView({
       )}
       {setup && <ColumnSetup col={setup} columns={columns} onClose={() => setSetup(null)} onSave={(s) => patchColumn(setup, { settings: s })} />}
     </div>
+  );
+}
+
+/** Inline name editor: Enter or clicking away saves, Escape cancels. */
+function NameInput({ value, onDone }: { value: string; onDone: (name: string) => void }) {
+  return (
+    <input
+      autoFocus
+      defaultValue={value}
+      maxLength={200}
+      onFocus={(e) => e.target.select()}
+      onBlur={(e) => onDone(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        if (e.key === 'Escape') {
+          (e.target as HTMLInputElement).value = value;
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+      className="mx-1 min-w-0 flex-1 rounded border border-brass bg-surface px-2 py-1.5 text-sm outline-none"
+      aria-label="Name"
+    />
   );
 }
 

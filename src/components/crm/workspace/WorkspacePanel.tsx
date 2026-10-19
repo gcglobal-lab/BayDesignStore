@@ -91,7 +91,7 @@ function WorkspaceForm({ ws, onDone }: { ws?: Workspace; onDone?: () => void }) 
           <option value="members">Closed — only members</option>
         </Select>
       </Field>
-      <div className="flex justify-end"><SubmitButton className="b-btn-brass">{ws ? 'Save' : 'Create workspace'}</SubmitButton></div>
+      <div className="flex justify-end"><SubmitButton className="b-btn-brass" pendingLabel={ws ? 'Saving…' : 'Creating…'}>{ws ? 'Save' : 'Create workspace'}</SubmitButton></div>
     </ActionForm>
   );
 }
@@ -158,10 +158,14 @@ export default function WorkspacePanel({
     Object.entries(o).forEach(([k, v]) => fd.set(k, v));
     return fd;
   };
-  const addFolder = (parentId?: string | null) => {
-    const name = window.prompt('Folder name:');
-    if (name?.trim()) act(createFolder(workspace.id, name, parentId ?? null));
-  };
+  /** Adds "New folder" in place with its name ready to type over (no pop-up). */
+  const addFolder = (parentId?: string | null) =>
+    start(async () => {
+      const r = await createFolder(workspace.id, 'New folder', parentId ?? null);
+      if (!r?.ok) setError(r?.message ?? 'Something went wrong.');
+      router.refresh();
+      if (r?.ok && r.data?.id) setRenaming(r.data.id);
+    });
 
   const q = search?.trim().toLowerCase() ?? '';
   const match = (b: Board) => !q || b.name.toLowerCase().includes(q);

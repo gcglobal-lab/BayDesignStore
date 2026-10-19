@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import type { Viewer } from '@/lib/base/auth';
 import { db, must } from '@/lib/base/db';
 import type { Board } from './boardTypes';
@@ -31,8 +32,14 @@ export async function visibleWorkspaces(viewer: Viewer): Promise<Workspace[]> {
 
 export const viewerKey = (v: Viewer) => v.employeeId ?? v.id;
 
-/** Everything the workspace panel shows: the workspace list, this workspace's folders and boards, favourites. */
-export async function workspaceTree(viewer: Viewer, wsId: string) {
+/** One workspace row. Cached per request so the layout and the page share a single query. */
+export const getWorkspace = cache(async (wsId: string) => (await db().from('crm_workspaces').select('*').eq('id', wsId).maybeSingle<Workspace>()).data);
+
+/**
+ * Everything the workspace panel shows. Cached per request (the layout and the page both need it);
+ * the viewer object is itself cached per request by getViewer, so it works as a key.
+ */
+export const workspaceTree = cache(async (viewer: Viewer, wsId: string) => {
   const [workspaces, folders, boards, favs] = await Promise.all([
     visibleWorkspaces(viewer),
     db().from('crm_folders').select('id, workspace_id, parent_id, name, color, position').eq('workspace_id', wsId).order('position').order('name'),
@@ -47,4 +54,4 @@ export async function workspaceTree(viewer: Viewer, wsId: string) {
     favorites: boards.filter((b) => favorites.has(b.id) && !b.archived) as Board[],
     favoriteIds: [...favorites],
   };
-}
+});

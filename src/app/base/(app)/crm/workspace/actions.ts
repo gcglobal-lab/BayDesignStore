@@ -41,8 +41,10 @@ export async function createWorkspace(_prev: ActionResult, fd: FormData): Promis
     .select('id')
     .single();
   if (error || !data) return fail('Couldn’t create the workspace.');
-  if (viewer.employeeId) await db().from('crm_workspace_members').insert({ workspace_id: data.id, employee_id: viewer.employeeId, role: 'owner' });
-  await audit(viewer, 'crm.workspace', 'crm_workspaces', data.id, { text: `created the workspace “${parsed.data.name}”` });
+  await Promise.all([
+    viewer.employeeId ? db().from('crm_workspace_members').insert({ workspace_id: data.id, employee_id: viewer.employeeId, role: 'owner' }) : null,
+    audit(viewer, 'crm.workspace', 'crm_workspaces', data.id, { text: `created the workspace “${parsed.data.name}”` }),
+  ]);
   refresh();
   redirect(`/base/crm/workspace/${data.id}`);
 }

@@ -11,7 +11,7 @@ import { listEmployees } from '@/lib/base/queries';
 import { getSettings } from '@/lib/base/settings';
 import { fmtDate } from '@/lib/base/time';
 import { fullName } from '@/lib/base/types';
-import { workspaceAccess, workspaceTree, type Workspace } from '@/lib/crm/workspaces';
+import { getWorkspace, workspaceAccess, workspaceTree } from '@/lib/crm/workspaces';
 import { archiveBoard, deleteBoard } from '../../boards/actions';
 
 export const metadata: Metadata = { title: 'Workspace' };
@@ -29,7 +29,7 @@ export default async function WorkspaceHome({ params, searchParams }: PageProps<
   const { wsId } = await params;
   const sp = await searchParams;
   const tab = TABS.find((t) => t.key === sp.tab)?.key ?? 'recents';
-  const { data: ws } = await db().from('crm_workspaces').select('*').eq('id', wsId).maybeSingle<Workspace>();
+  const ws = await getWorkspace(wsId);
   if (!ws) notFound();
   const [access, tree, { timezone: zone }, employees, membersRes] = await Promise.all([
     workspaceAccess(viewer, ws),

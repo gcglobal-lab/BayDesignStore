@@ -12,8 +12,9 @@ import type { Task, TaskList } from '@/lib/tasks/types';
 export const metadata: Metadata = { title: 'Team Tasks' };
 
 /** Team Tasks — everyone can open it; what you see depends on your role (see lib/tasks/access). */
-export default async function TasksPage() {
+export default async function TasksPage({ searchParams }: PageProps<'/base/crm/tasks'>) {
   const viewer = await requireViewer();
+  const { task: openTask } = await searchParams;
   const { timezone: zone } = await getSettings();
   const today = todayYmd(zone);
   const doneSince = zonedMidnight(addDaysYmd(today, -60, zone), zone).toISOString();
@@ -34,6 +35,7 @@ export default async function TasksPage() {
       lists={lists}
       people={people}
       today={today}
+      initialOpen={typeof openTask === 'string' && tasks.some((t) => t.id === openTask) ? openTask : null}
       me={{ id: viewer.employeeId, name: viewer.name, canAssign: canAssignOthers(viewer), canSeeAll: seeAll, isLead: isTaskLead(viewer) }}
     />
   );

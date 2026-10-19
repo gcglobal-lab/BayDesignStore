@@ -366,7 +366,7 @@ function Bucket({ title, tone, tasks, children, defaultOpen = true }: { title: s
   );
 }
 
-export default function TaskCenter({ tasks: initial, lists, people, me, today }: { tasks: Task[]; lists: TaskList[]; people: Person[]; me: Me; today: string }) {
+export default function TaskCenter({ tasks: initial, lists, people, me, today, initialOpen }: { tasks: Task[]; lists: TaskList[]; people: Person[]; me: Me; today: string; initialOpen?: string | null }) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initial);
   useEffect(() => setTasks(initial), [initial]);
@@ -378,7 +378,7 @@ export default function TaskCenter({ tasks: initial, lists, people, me, today }:
   const [priority, setPriority] = useState('');
   const [list, setList] = useState('');
   const [due, setDue] = useState('');
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(initialOpen ?? null);
   const [creating, setCreating] = useState<null | { status?: TaskStatus }>(null);
   const [listsOpen, setListsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);

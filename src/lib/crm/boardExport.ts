@@ -2,7 +2,8 @@ import 'server-only';
 import ExcelJS from 'exceljs';
 import { jsPDF } from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
-import { cellText, formulaIsMoney, formulaValue, isNumeric, money2, num, type Board, type BoardColumn, type BoardGroup, type BoardItem } from './boardTypes';
+import { LOGO_PNG } from './pdfLogo';
+import { cellText,formulaIsMoney, formulaValue, isNumeric, money2, num, type Board, type BoardColumn, type BoardGroup, type BoardItem } from './boardTypes';
 
 type Data = { board: Board; columns: BoardColumn[]; groups: BoardGroup[]; items: BoardItem[] };
 export type Scope = { kind: 'board' } | { kind: 'group'; group: BoardGroup } | { kind: 'item'; item: BoardItem };
@@ -96,89 +97,229 @@ export async function boardXlsx(d: Data, scope: Scope, names: Record<string, str
   return (await wb.xlsx.writeBuffer()) as ArrayBuffer;
 }
 
+type RGB = [number, number, number];
+const BRASS: RGB = [168, 131, 79];
+const RULE: RGB = [229, 224, 213];
+const IVORY: RGB = [250, 248, 243];
+const STORE_LINE = 'Bay Design Store  ·  326 13th Avenue South, Naples, FL 34102  ·  (239) 649-0906';
+
+/** A Status / Dropdown cell's label colour, so the PDF shows the same coloured pills as the board. */
+const labelRgb = (c: BoardColumn | undefined, it: BoardItem | undefined): RGB | null => {
+  if (!c || !it || (c.type !== 'status' && c.type !== 'dropdown')) return null;
+  const l = (c.settings.labels ?? []).find((x) => x.id === it.values[c.id]);
+  return l ? hexRgb(l.color) : null;
+};
+
+/**
+ * A branded report: logo and store name, the board / group / row title with a few headline
+ * figures, then one table per group in that group's colour, with page numbers and the store's
+ * address on every page.
+ */
 export function boardPdf(d: Data, scope: Scope, names: Record<string, string>, generated: string): ArrayBuffer {
   const h = helpers(d, names);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'letter' });
   const W = doc.internal.pageSize.getWidth();
-  const M = 32;
+  const H = doc.internal.pageSize.getHeight();
+  const M = 40;
+  const groupName = (id: string) => d.groups.find((g) => g.id === id)?.name ?? '';
   const title = scope.kind === 'item' ? scope.item.name : scope.kind === 'group' ? scope.group.name : d.board.name;
-  const color = scope.kind === 'group' ? hexRgb(scope.group.color) : hexRgb(d.board.color);
-  doc.setFillColor(...color);
-  doc.rect(0, 0, W, 64, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(18);
-  doc.text(latin(title), M, 32);
+  const subtitle = scope.kind === 'item' ? `${d.board.name}  ·  ${groupName(scope.item.group_id)}` : scope.kind === 'group' ? d.board.name : (d.board.description ?? '').replace(/\s+/g, ' ').slice(0, 150);
+  const kind = scope.kind === 'item' ? `${d.board.item_label} details` : scope.kind === 'group' ? `${d.board.group_label} report` : 'Board report';
+
+  // ---- letterhead
+  doc.addImage(LOGO_PNG, 'PNG', M, 28, 34, 34);
+  doc.setFont('times', 'normal');
+  doc.setFontSize(16);
+  doc.setTextColor(...INK);
+  doc.text('BAY DESIGN STORE', M + 46, 45, { charSpace: 1.2 });
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9.5);
-  doc.text(latin(scope.kind === 'board' ? d.board.description?.slice(0, 120) ?? '' : d.board.name), M, 50);
-  doc.text(latin(`Bay Design Store · ${generated}`), W - M, 32, { align: 'right' });
-  let y = 82;
-  const table = (head: string[], body: (string | number)[][], foot?: string[], numericFrom = -1, numericCols: boolean[] = []) => {
+  doc.setFontSize(6.5);
+  doc.setTextColor(...MUTED);
+  doc.text('FINE FURNITURE   |   INTERIOR DESIGN', M + 46, 57, { charSpace: 0.9 });
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...BRASS);
+  doc.text(latin(kind.toUpperCase()), W - M, 42, { align: 'right', charSpace: 1 });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  doc.text(latin(`Generated ${generated}`), W - M, 55, { align: 'right' });
+  doc.setDrawColor(...BRASS);
+  doc.setLineWidth(1.2);
+  doc.line(M, 74, W - M, 74);
+
+  // ---- title
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(21);
+  doc.setTextColor(...INK);
+  doc.text(latin(title), M, 106);
+  let y = 106;
+  if (subtitle) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(...MUTED);
+    doc.text(latin(subtitle), M, 122);
+    y = 122;
+  }
+
+  // ---- headline figures
+  const groups = scope.kind === 'item' ? [] : h.groupsIn(scope);
+  const topRows = scope.kind === 'item' ? [scope.item] : groups.flatMap((g) => h.rowsOf(g));
+  const chips: { label: string; value: string }[] =
+    scope.kind === 'item'
+      ? [{ label: 'Sub-items', value: String(h.subsOf(scope.item.id).length) }]
+      : [
+          { label: cap(`${d.board.item_label}s`), value: String(topRows.length) },
+          ...(scope.kind === 'board' ? [{ label: cap(`${d.board.group_label}s`), value: String(groups.length) }] : []),
+          { label: 'Sub-items', value: String(topRows.reduce((s, it) => s + h.subsOf(it.id).length, 0)) },
+        ];
+  for (const c of h.itemCols.filter((c) => h.isMoney(c)).slice(0, 3)) chips.push({ label: c.name, value: h.fmtTotal(c, topRows.reduce((s, it) => s + (Number(h.value(c, it)) || 0), 0)) });
+  y += 16;
+  let x = M;
+  for (const chip of chips) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    const w = Math.max(84, doc.getTextWidth(latin(chip.value)) + 28, (doc.getTextWidth(latin(chip.label.toUpperCase())) * 7) / 13 + 28);
+    if (x + w > W - M) break;
+    doc.setFillColor(...IVORY);
+    doc.setDrawColor(...RULE);
+    doc.setLineWidth(0.6);
+    doc.roundedRect(x, y, w, 42, 6, 6, 'FD');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...MUTED);
+    doc.text(latin(chip.label.toUpperCase()), x + 12, y + 15, { charSpace: 0.5 });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(...INK);
+    doc.text(latin(chip.value), x + 12, y + 33);
+    x += w + 10;
+  }
+  y += 66;
+
+  // ---- building blocks
+  type Cell = { text: string; color?: RGB | null };
+  const table = (head: string[], body: Cell[][], opts: { accent?: RGB; foot?: string[]; right?: boolean[]; first?: number } = {}) => {
+    const accent = opts.accent ?? INK;
     autoTable(doc, {
       startY: y,
-      margin: { left: M, right: M, bottom: 34 },
+      margin: { left: M, right: M, top: 44, bottom: 46 },
       head: [head.map(latin)],
-      body: body.map((r) => r.map((v) => latin(String(v ?? '')))),
-      foot: foot ? [foot.map(latin)] : undefined,
-      theme: 'grid',
-      styles: { font: 'helvetica', fontSize: head.length > 9 ? 7 : 8, cellPadding: 3.5, textColor: INK, lineColor: [221, 224, 239], lineWidth: 0.5, overflow: 'linebreak' },
-      headStyles: { fillColor: INK, textColor: 255 },
-      footStyles: { fillColor: [238, 240, 252], textColor: INK, fontStyle: 'bold' },
-      columnStyles: Object.fromEntries(numericCols.map((n, i) => [i + Math.max(0, numericFrom), { halign: n ? 'right' : 'left' }])),
-      didDrawPage: () => {
-        doc.setFontSize(7.5);
-        doc.setTextColor(...MUTED);
-        doc.text(latin(`${d.board.name} · page ${doc.getNumberOfPages()}`), W - M, doc.internal.pageSize.getHeight() - 14, { align: 'right' });
+      body: body.map((r) => r.map((c) => latin(c.text ?? ''))),
+      foot: opts.foot ? [opts.foot.map(latin)] : undefined,
+      theme: 'plain',
+      styles: { font: 'helvetica', fontSize: head.length > 9 ? 7.2 : 8.3, cellPadding: { top: 5, bottom: 5, left: 6, right: 6 }, textColor: INK, overflow: 'linebreak', valign: 'middle' },
+      headStyles: { fillColor: accent, textColor: 255, fontStyle: 'bold', fontSize: head.length > 9 ? 7 : 7.8 },
+      alternateRowStyles: { fillColor: IVORY },
+      footStyles: { fillColor: [241, 237, 228], textColor: INK, fontStyle: 'bold' },
+      columnStyles: {
+        ...Object.fromEntries((opts.right ?? []).map((r, i) => [i, { halign: r ? 'right' : 'left' }])),
+        [0]: { fontStyle: 'bold', cellWidth: opts.first ?? 'auto' },
+      },
+      didParseCell: (cell) => {
+        if (cell.section !== 'body') return;
+        const rgb = body[cell.row.index]?.[cell.column.index]?.color;
+        if (rgb && cell.cell.raw) {
+          cell.cell.styles.fillColor = rgb;
+          cell.cell.styles.textColor = 255;
+          cell.cell.styles.fontStyle = 'bold';
+          cell.cell.styles.halign = 'center';
+        }
+      },
+      didDrawCell: (cell) => {
+        if (cell.section !== 'body') return;
+        doc.setDrawColor(...RULE);
+        doc.setLineWidth(0.4);
+        doc.line(cell.cell.x, cell.cell.y + cell.cell.height, cell.cell.x + cell.cell.width, cell.cell.y + cell.cell.height);
       },
     });
-    y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 18;
+    y = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y) + 24;
   };
-  const heading = (text: string, rgb: [number, number, number] = INK) => {
-    if (y > doc.internal.pageSize.getHeight() - 90) {
+  const heading = (text: string, note: string, rgb: RGB = INK) => {
+    if (y > H - 130) {
       doc.addPage();
-      y = 40;
+      y = 48;
     }
+    doc.setFillColor(...rgb);
+    doc.roundedRect(M, y - 9, 5, 13, 1.5, 1.5, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
+    doc.setFontSize(12.5);
     doc.setTextColor(...rgb);
-    doc.text(latin(text), M, y);
-    y += 10;
+    doc.text(latin(text), M + 12, y + 2);
+    if (note) {
+      const tw = doc.getTextWidth(latin(text));
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...MUTED);
+      doc.text(latin(note), M + 20 + tw, y + 2);
+    }
+    y += 12;
   };
+  const totalOf = (c: BoardColumn, list: BoardItem[]) => h.fmtTotal(c, list.reduce((s, it) => s + (Number(h.value(c, it)) || 0), 0));
 
   if (scope.kind === 'item') {
     const it = scope.item;
-    table(['Field', 'Value'], [[d.board.group_label, d.groups.find((g) => g.id === it.group_id)?.name ?? ''], ...h.itemCols.map((c) => [c.name, h.text(c, it)])]);
+    heading('Details', '');
+    table(
+      ['Field', 'Value'],
+      [[{ text: cap(d.board.group_label) }, { text: groupName(it.group_id) }], ...h.itemCols.map((c) => [{ text: c.name }, { text: h.text(c, it), color: labelRgb(c, it) }])],
+      { first: 180 },
+    );
     if (it.description) {
-      heading('Description');
+      heading('Description', '');
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.setTextColor(...INK);
       const lines = doc.splitTextToSize(latin(it.description), W - M * 2);
       doc.text(lines, M, y + 4);
-      y += lines.length * 11 + 16;
+      y += lines.length * 11 + 20;
     }
     const subs = h.subsOf(it.id);
     if (subs.length) {
-      heading(`Sub-items (${subs.length})`);
-      const numeric = h.subCols.map((c) => isNumeric(c.type));
-      const foot = numeric.some(Boolean) ? ['Total', ...h.subCols.map((c) => (isNumeric(c.type) ? h.fmtTotal(c, subs.reduce((s, si) => s + (Number(h.value(c, si)) || 0), 0)) : ''))] : undefined;
-      table(['Name', ...h.subCols.map((c) => c.name)], subs.map((si) => [si.name, ...h.subCols.map((c) => h.text(c, si))]), foot, 1, numeric);
+      heading('Sub-items', String(subs.length));
+      const right = [false, ...h.subCols.map((c) => isNumeric(c.type))];
+      const foot = right.some(Boolean) ? ['Total', ...h.subCols.map((c) => (isNumeric(c.type) ? totalOf(c, subs) : ''))] : undefined;
+      table(['Name', ...h.subCols.map((c) => c.name)], subs.map((si) => [{ text: si.name }, ...h.subCols.map((c) => ({ text: h.text(c, si), color: labelRgb(c, si) }))]), { foot, right });
     }
   } else {
-    const cols = h.itemCols.filter((c) => c.type !== 'long_text');
-    const numeric = cols.map((c) => isNumeric(c.type));
-    for (const g of h.groupsIn(scope)) {
+    const cols = h.itemCols.filter((c) => c.type !== 'long_text' && c.type !== 'files');
+    const right = [false, ...cols.map((c) => isNumeric(c.type))];
+    for (const g of groups) {
       const rows = h.rowsOf(g);
-      heading(`${g.name} — ${rows.length} ${d.board.item_label.toLowerCase()}${rows.length === 1 ? '' : 's'}`, hexRgb(g.color));
-      const foot = numeric.some(Boolean) && rows.length ? ['Total', ...cols.map((c) => (isNumeric(c.type) ? h.fmtTotal(c, rows.reduce((s, it) => s + (Number(h.value(c, it)) || 0), 0)) : ''))] : undefined;
-      table([d.board.item_label, ...cols.map((c) => c.name)], rows.length ? rows.map((it) => [it.name, ...cols.map((c) => h.text(c, it))]) : [['Nothing here yet.']], foot, 1, numeric);
+      const rgb = hexRgb(g.color);
+      heading(g.name, `${rows.length} ${d.board.item_label.toLowerCase()}${rows.length === 1 ? '' : 's'}`, rgb);
+      const foot = right.some(Boolean) && rows.length ? ['Total', ...cols.map((c) => (isNumeric(c.type) ? totalOf(c, rows) : ''))] : undefined;
+      table(
+        [cap(d.board.item_label), ...cols.map((c) => c.name)],
+        rows.length ? rows.map((it) => [{ text: it.name }, ...cols.map((c) => ({ text: h.text(c, it), color: labelRgb(c, it) }))]) : [[{ text: 'Nothing here yet.' }]],
+        { accent: rgb, foot, right },
+      );
       const subs = rows.flatMap((it) => h.subsOf(it.id).map((s) => ({ it, s })));
       if (subs.length && scope.kind === 'group') {
-        heading('Sub-items');
-        table([d.board.item_label, 'Sub-item', ...h.subCols.map((c) => c.name)], subs.map(({ it, s }) => [it.name, s.name, ...h.subCols.map((c) => h.text(c, s))]), undefined, 2, h.subCols.map((c) => isNumeric(c.type)));
+        heading('Sub-items', String(subs.length), rgb);
+        table(
+          [cap(d.board.item_label), 'Sub-item', ...h.subCols.map((c) => c.name)],
+          subs.map(({ it, s }) => [{ text: it.name }, { text: s.name }, ...h.subCols.map((c) => ({ text: h.text(c, s), color: labelRgb(c, s) }))]),
+          { accent: rgb, right: [false, false, ...h.subCols.map((c) => isNumeric(c.type))] },
+        );
       }
     }
   }
+
+  // ---- footer on every page
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setDrawColor(...RULE);
+    doc.setLineWidth(0.6);
+    doc.line(M, H - 30, W - M, H - 30);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...MUTED);
+    doc.text(latin(STORE_LINE), M, H - 17);
+    doc.text(latin(`${title}  ·  Page ${p} of ${pages}`), W - M, H - 17, { align: 'right' });
+  }
   return doc.output('arraybuffer');
 }
+
+const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);

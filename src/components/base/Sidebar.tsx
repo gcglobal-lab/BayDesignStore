@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -19,10 +19,12 @@ import {
   LogOut,
   Map,
   Menu,
+  Moon,
   Navigation,
   PackageCheck,
   Settings,
   ShieldCheck,
+  Sun,
   Tags,
   Truck,
   UserRound,
@@ -34,6 +36,8 @@ import {
 import { LogoMark } from '@/components/Logo';
 import { Avatar } from './ui';
 import { signOut } from '@/app/base/login/actions';
+import { setTheme } from '@/app/base/theme-actions';
+import WorkflowSearch, { SearchButton } from '@/components/portal/WorkflowSearch';
 import { APPS, appOf, appsFor, PORTAL_NAME, type AppKey, type CrmRole, type DeliveriesRole } from '@/lib/portal/apps';
 
 type Item = { href: string; label: string; icon: LucideIcon; badge?: number; exact?: boolean; match?: (pathname: string) => boolean };
@@ -210,7 +214,29 @@ function AppSwitcher({ viewer, app }: { viewer: SidebarViewer; app: AppKey }) {
   );
 }
 
-function Nav({ viewer, pathname, app }: { viewer: SidebarViewer; pathname: string; app: AppKey }) {
+/** Light / dark switch for Workflow (and Deliveries), right in the menu. */
+function ThemeToggle({ dark, onToggle }: { dark: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      role="switch"
+      aria-checked={dark}
+      className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[0.9rem] text-white/75 transition-colors hover:bg-white/[0.07] hover:text-white"
+    >
+      {dark ? <Moon size={18} strokeWidth={1.75} className="text-white/50 group-hover:text-violet-400" /> : <Sun size={18} strokeWidth={1.75} className="text-white/50 group-hover:text-violet-400" />}
+      Theme
+      <span className="ml-auto flex items-center gap-2 text-[0.72rem] text-white/50">
+        {dark ? 'Dark' : 'Light'}
+        <span className={`relative h-5 w-9 rounded-full transition-colors ${dark ? 'bg-[#1164A3]' : 'bg-white/20'}`}>
+          <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${dark ? 'left-[1.15rem]' : 'left-0.5'}`} />
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function Nav({ viewer, pathname, app, theme }: { viewer: SidebarViewer; pathname: string; app: AppKey; theme: { dark: boolean; toggle: () => void } }) {
   return (
     <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label={`${APPS[app].label} menu`}>
       <ul className="space-y-1">
@@ -222,6 +248,11 @@ function Nav({ viewer, pathname, app }: { viewer: SidebarViewer; pathname: strin
               <Link_ item={entry} active={isActive(pathname, entry)} app={app} />
             </li>
           ),
+        )}
+        {app === 'crm' && (
+          <li>
+            <ThemeToggle dark={theme.dark} onToggle={theme.toggle} />
+          </li>
         )}
       </ul>
     </nav>
@@ -276,12 +307,55 @@ const PANELS: Record<AppKey, string> = {
   deliveries: 'bg-gradient-to-b from-[#17173A] via-[#1E1B4B] to-[#312E81]',
 };
 
-export default function Sidebar({ viewer }: { viewer: SidebarViewer }) {
+const darkQuery = '(prefers-color-scheme: dark)';
+const subscribeDark = (cb: () => void) => {
+  const m = window.matchMedia(darkQuery);
+  m.addEventListener('change', cb);
+  return () => m.removeEventListener('change', cb);
+};
+
+export default function Sidebar({ viewer, theme }: { viewer: SidebarViewer; theme: 'light' | 'dark' | 'system' }) {
   const pathname = usePathname() ?? '/base';
   const app = appOf(pathname);
   const [open, setOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const canSearch = app === 'crm';
+
+  // The switch flips straight away; the saved choice then re-renders the page in that theme.
+  const systemDark = useSyncExternalStore(subscribeDark, () => window.matchMedia(darkQuery).matches, () => false);
+  const [picked, setPicked] = useState<'light' | 'dark' | null>(null);
+  useEffect(() => setPicked(null), [theme]);
+  const dark = picked ? picked === 'dark' : theme === 'dark' || (theme === 'system' && systemDark);
+  const [, startTheme] = useTransition();
+  const toggleTheme = () => {
+    const next = dark ? 'light' : 'dark';
+    setPicked(next);
+    document.querySelector('main[data-theme]')?.setAttribute('data-theme', next);
+    const fd = new FormData();
+    fd.set('theme', next);
+    startTheme(() => setTheme(fd));
+  };
+  const themeCtl = { dark, toggle: toggleTheme };
 
   useEffect(() => setOpen(false), [pathname]);
+
+  // Ctrl / ⌘ + K opens Workflow search.
+  useEffect(() => {
+    if (!canSearch) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setOpen(false);
+        setSearching(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [canSearch]);
+  const openSearch = () => {
+    setOpen(false);
+    setSearching(true);
+  };
 
   // A page restored from the browser's back/forward cache skips the server, so it could show a
   // signed-in screen after sign-out. Reload it instead — the proxy then sends signed-out people to sign in.
@@ -299,9 +373,11 @@ export default function Sidebar({ viewer }: { viewer: SidebarViewer }) {
       <aside className={`fixed inset-y-0 left-0 z-30 hidden w-64 flex-col print:!hidden lg:flex ${PANELS[app]}`}>
         <Brand app={app} />
         <AppSwitcher viewer={viewer} app={app} />
-        <Nav viewer={viewer} pathname={pathname} app={app} />
+        {canSearch && <SearchButton onOpen={openSearch} />}
+        <Nav viewer={viewer} pathname={pathname} app={app} theme={themeCtl} />
         <ViewerCard viewer={viewer} />
       </aside>
+      {canSearch && <WorkflowSearch open={searching} onClose={() => setSearching(false)} dark={dark} />}
 
       {/* Mobile top bar */}
       <header className={`sticky top-0 z-30 flex items-center justify-between border-b border-white/10 px-3 py-2 print:hidden lg:hidden bg-[#17173A]`}>
@@ -327,7 +403,8 @@ export default function Sidebar({ viewer }: { viewer: SidebarViewer }) {
               </button>
             </div>
             <AppSwitcher viewer={viewer} app={app} />
-            <Nav viewer={viewer} pathname={pathname} app={app} />
+            {canSearch && <SearchButton onOpen={openSearch} />}
+            <Nav viewer={viewer} pathname={pathname} app={app} theme={themeCtl} />
             <ViewerCard viewer={viewer} />
           </aside>
         </div>

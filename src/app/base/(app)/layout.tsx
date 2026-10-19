@@ -62,6 +62,7 @@ export default async function BaseAppLayout({ children }: { children: ReactNode 
           newInquiries,
           ...crm,
         }}
+        theme={theme}
       />
       <PortalMain theme={theme}>{children}</PortalMain>
       <BaseChat firstName={viewer.firstName} level={viewer.level} />

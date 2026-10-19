@@ -1,19 +1,18 @@
 import { notFound, redirect } from 'next/navigation';
 import WorkspacePanel from '@/components/crm/workspace/WorkspacePanel';
 import { requireCrm } from '@/lib/base/auth';
-import { db } from '@/lib/base/db';
-import { workspaceAccess, workspaceTree, type Workspace } from '@/lib/crm/workspaces';
+import { getWorkspace, workspaceAccess, workspaceTree } from '@/lib/crm/workspaces';
 
 /** Workflow ▸ Workspace: the workspace panel (middle column) next to the page (right column). */
 export default async function WorkspaceLayout({ children, params }: LayoutProps<'/base/crm/workspace/[wsId]'>) {
   const viewer = await requireCrm();
   const { wsId } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(wsId)) notFound();
-  const { data: ws } = await db().from('crm_workspaces').select('*').eq('id', wsId).maybeSingle<Workspace>();
+  const ws = await getWorkspace(wsId);
   if (!ws) notFound();
-  const access = await workspaceAccess(viewer, ws);
+  // The tree loads alongside the access check (the page below reuses both from the per-request cache).
+  const [access, tree] = await Promise.all([workspaceAccess(viewer, ws), workspaceTree(viewer, wsId)]);
   if (!access.see) redirect('/base/crm/workspace');
-  const tree = await workspaceTree(viewer, wsId);
   return (
     <div className="flex min-h-screen">
       <WorkspacePanel
