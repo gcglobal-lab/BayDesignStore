@@ -306,6 +306,8 @@ const PANELS: Record<AppKey, string> = {
   crm: 'bg-gradient-to-b from-[#17173A] via-[#1E1B4B] to-[#312E81]',
   deliveries: 'bg-gradient-to-b from-[#17173A] via-[#1E1B4B] to-[#312E81]',
 };
+/** Menu bar in dark mode (Workflow and Deliveries): deep navy blue to match the page. */
+const DARK_PANEL = 'bg-gradient-to-b from-[#06101F] via-[#0A1A35] to-[#0F2550]';
 
 const darkQuery = '(prefers-color-scheme: dark)';
 const subscribeDark = (cb: () => void) => {
@@ -336,6 +338,8 @@ export default function Sidebar({ viewer, theme }: { viewer: SidebarViewer; them
     startTheme(() => setTheme(fd));
   };
   const themeCtl = { dark, toggle: toggleTheme };
+  // Time always keeps its usual look; Workflow and Deliveries follow the light / dark choice.
+  const panel = dark && app !== 'time' ? DARK_PANEL : PANELS[app];
 
   useEffect(() => setOpen(false), [pathname]);
 
@@ -370,7 +374,7 @@ export default function Sidebar({ viewer, theme }: { viewer: SidebarViewer; them
   return (
     <>
       {/* Desktop */}
-      <aside className={`fixed inset-y-0 left-0 z-30 hidden w-64 flex-col print:!hidden lg:flex ${PANELS[app]}`}>
+      <aside className={`fixed inset-y-0 left-0 z-30 hidden w-64 flex-col print:!hidden lg:flex ${panel}`}>
         <Brand app={app} />
         <AppSwitcher viewer={viewer} app={app} />
         {canSearch && <SearchButton onOpen={openSearch} />}
@@ -380,7 +384,7 @@ export default function Sidebar({ viewer, theme }: { viewer: SidebarViewer; them
       {canSearch && <WorkflowSearch open={searching} onClose={() => setSearching(false)} dark={dark} />}
 
       {/* Mobile top bar */}
-      <header className={`sticky top-0 z-30 flex items-center justify-between border-b border-white/10 px-3 py-2 print:hidden lg:hidden bg-[#17173A]`}>
+      <header className={`sticky top-0 z-30 flex items-center justify-between border-b border-white/10 px-3 py-2 print:hidden lg:hidden ${dark && app !== 'time' ? 'bg-[#06101F]' : 'bg-[#17173A]'}`}>
         <Link href={APPS[app].home} className="flex items-center gap-2.5 px-1">
           <LogoMark className="h-8 w-8" />
           <span className="font-brand text-sm uppercase tracking-[0.06em] text-white">
@@ -395,7 +399,7 @@ export default function Sidebar({ viewer, theme }: { viewer: SidebarViewer; them
       {open && (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true">
           <button type="button" className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={() => setOpen(false)} aria-label="Close menu" />
-          <aside className={`absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col shadow-2xl ${PANELS[app]}`}>
+          <aside className={`absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col shadow-2xl ${panel}`}>
             <div className="flex items-center justify-between pr-3">
               <Brand app={app} />
               <button type="button" onClick={() => setOpen(false)} className="rounded-xl p-2 text-white/70" aria-label="Close menu">

@@ -87,21 +87,23 @@
   --slack-green-hover: 20 133 103;
   --slack-aubergine: 74 21 75;
 }
-.base-theme [data-app='crm'][data-theme='dark'] {
-  --c-ivory: 34 37 41;
-  --c-linen: 26 29 33;
-  --c-sand: 44 47 52;
-  --c-stone: 56 59 64;
-  --c-ink: 209 210 211;
-  --c-charcoal: 232 232 232;
-  --c-muted: 171 171 173;
-  --c-brass: 29 155 209;
-  --c-brass-light: 54 197 240;
-  --c-brass-dark: 29 155 209;
-  --c-surface: 34 37 41;
+/* Dark mode is deep navy blue: midnight canvas, slightly lighter blue cards, sky-blue accents. */
+.base-theme [data-app='crm'][data-theme='dark'],
+.base-theme [data-app='deliveries'][data-theme='dark'] {
+  --c-ivory: 16 30 56;
+  --c-linen: 10 21 41;
+  --c-sand: 27 46 80;
+  --c-stone: 38 61 101;
+  --c-ink: 226 234 248;
+  --c-charcoal: 236 242 255;
+  --c-muted: 148 166 199;
+  --c-brass: 96 165 250;
+  --c-brass-light: 125 211 252;
+  --c-brass-dark: 147 197 253;
+  --c-surface: 17 32 59;
   --slack-green: 43 172 118;
   --slack-green-hover: 52 190 132;
-  --slack-aubergine: 232 232 232;
+  --slack-aubergine: 226 234 248;
 }
 .base-theme [data-app='crm'] .b-btn-brass {
   background-image: none;
@@ -116,7 +118,7 @@
   background-color: rgb(var(--slack-aubergine));
 }
 .base-theme [data-app='crm'][data-theme='dark'] .b-btn-primary {
-  color: rgb(26 29 33);
+  color: rgb(10 21 41);
 }
 .base-theme [data-app='crm'] .b-btn,
 .base-theme [data-app='crm'] .b-btn-ghost,
@@ -415,18 +417,20 @@ body::after {
 }
 
 /* Scrollbar */
+/* Uses the palette, so it matches the public site, the portal and portal dark mode alike. */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #f4eee5;
+  background: rgb(var(--c-linen));
 }
 ::-webkit-scrollbar-thumb {
-  background: #cfc3b2;
+  background: rgb(var(--c-stone));
   border-radius: 8px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #a8834f;
+  background: rgb(var(--c-brass));
 }
 
 .no-scrollbar::-webkit-scrollbar {

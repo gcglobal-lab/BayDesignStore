@@ -8,10 +8,12 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps<
   const viewer = await requireCrm();
   const { wsId } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(wsId)) notFound();
+  // The workspace and its panel tree load together (the page below reuses both from the per-request cache).
+  const treeP = workspaceTree(viewer, wsId);
+  treeP.catch(() => {}); // awaited below; avoids an unhandled rejection on notFound()
   const ws = await getWorkspace(wsId);
   if (!ws) notFound();
-  // The tree loads alongside the access check (the page below reuses both from the per-request cache).
-  const [access, tree] = await Promise.all([workspaceAccess(viewer, ws), workspaceTree(viewer, wsId)]);
+  const [access, tree] = await Promise.all([workspaceAccess(viewer, ws), treeP]);
   if (!access.see) redirect('/base/crm/workspace');
   return (
     <div className="flex min-h-screen">

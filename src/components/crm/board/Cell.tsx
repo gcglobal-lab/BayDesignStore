@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, Download, ExternalLink, FileUp, Loader2, Mail, Phone, Plus, Search, Trash2, X } from 'lucide-react';
 import { deleteFile, type PortalFile } from '@/app/base/(app)/crm/files/actions';
 import { Popover } from '@/components/ui/Popover';
@@ -276,7 +276,8 @@ export default function Cell({ col, item, ctx }: { col: BoardColumn; item: Board
           </button>
           <Popover anchor={p.ref} open={p.open} onClose={p.close} width={240}>
             <div className="space-y-2 p-1.5">
-              <input type="date" autoFocus defaultValue={s} onChange={(e) => { if (e.target.value) { ctx.onSave(e.target.value); p.close(); } }} className="b-input" aria-label={col.name} />
+              {/* Typing a year fires a change per digit (0002, 0020, 0202…): only a full, sensible date saves. */}
+              <input type="date" autoFocus defaultValue={s} min="1900-01-01" max="2200-12-31" onChange={(e) => { const v = e.target.value; const y = Number(v.slice(0, 4)); if (v && y >= 1900 && y <= 2200) { ctx.onSave(v); p.close(); } }} className="b-input" aria-label={col.name} />
               <div className="flex justify-between">
                 <button type="button" className="b-btn-quiet b-btn-sm" onClick={() => { ctx.onSave(new Date().toLocaleDateString('en-CA')); p.close(); }}>Today</button>
                 {s && <button type="button" className="b-btn-quiet b-btn-sm text-red-600" onClick={() => { ctx.onSave(null); p.close(); }}>Clear</button>}
@@ -382,14 +383,44 @@ export default function Cell({ col, item, ctx }: { col: BoardColumn; item: Board
   }
 }
 
+/**
+ * Notes editor. Whatever is typed is kept when the box closes — by Save, clicking elsewhere or
+ * scrolling away — so nothing is lost; only Cancel (or Esc) throws the change away.
+ */
 function LongText({ value, onSave, onCancel }: { value: string; onSave: (v: string) => void; onCancel: () => void }) {
   const [draft, setDraft] = useState(value);
+  const latest = useRef({ draft: value, done: false, onSave });
+  latest.current.draft = draft;
+  latest.current.onSave = onSave;
+  useEffect(
+    () => () => {
+      const l = latest.current;
+      if (!l.done && l.draft !== value) l.onSave(l.draft);
+    },
+    [value],
+  );
+  const finish = (save: boolean) => {
+    latest.current.done = true;
+    if (save) onSave(draft);
+    else onCancel();
+  };
   return (
     <div className="p-1.5">
-      <textarea autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={5000} className="b-input min-h-[150px] text-sm" />
-      <div className="mt-2 flex justify-end gap-2">
-        <button type="button" className="b-btn-quiet b-btn-sm" onClick={onCancel}>Cancel</button>
-        <button type="button" className="b-btn-brass b-btn-sm" onClick={() => onSave(draft)}>Save</button>
+      <textarea
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) finish(true);
+          if (e.key === 'Escape') latest.current.done = true;
+        }}
+        maxLength={5000}
+        className="b-input min-h-[150px] text-sm"
+      />
+      <div className="mt-2 flex items-center justify-end gap-2">
+        <span className="mr-auto text-[0.7rem] text-muted">Saves when you click away</span>
+        <button type="button" className="b-btn-quiet b-btn-sm" onClick={() => finish(false)}>Cancel</button>
+        <button type="button" className="b-btn-brass b-btn-sm" onClick={() => finish(true)}>Save</button>
       </div>
     </div>
   );

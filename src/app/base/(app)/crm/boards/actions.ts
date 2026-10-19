@@ -65,26 +65,34 @@ export async function createBoard(_prev: ActionResult, fd: FormData): Promise<Ac
     .single();
   if (error || !board) return fail('Couldn’t create the board.');
 
-  // Columns (formulas point at other columns by template key → real id).
+  // Columns (formulas point at other columns by template key → real id). Both scopes, the
+  // groups, membership and the audit entry are written at the same time.
   const keyToId = new Map<string, string>();
   const scopes = ['item', 'subitem'] as const;
-  for (const scope of scopes) {
-    const cols = tpl.columns.filter((c) => (c.scope ?? 'item') === scope);
-    const { data: made } = await db()
-      .from('crm_board_columns')
-      .insert(cols.map((c, i) => ({ board_id: board.id, scope, name: c.name, type: c.type, settings: c.type === 'formula' ? {} : (c.settings ?? {}), width: c.width ?? 160, position: i })))
-      .select('id, position');
-    (made ?? []).forEach((m) => {
+  const made = await Promise.all(
+    scopes.map(async (scope) => {
+      const cols = tpl.columns.filter((c) => (c.scope ?? 'item') === scope);
+      if (!cols.length) return { scope, cols, rows: [] as { id: string; position: number }[] };
+      const { data } = await db()
+        .from('crm_board_columns')
+        .insert(cols.map((c, i) => ({ board_id: board.id, scope, name: c.name, type: c.type, settings: c.type === 'formula' ? {} : (c.settings ?? {}), width: c.width ?? 160, position: i })))
+        .select('id, position');
+      return { scope, cols, rows: (data ?? []) as { id: string; position: number }[] };
+    }),
+  );
+  for (const { scope, cols, rows } of made)
+    rows.forEach((m) => {
       const c = cols[m.position];
       if (c.key) keyToId.set(c.key, m.id);
       if (c.type === 'formula') keyToId.set(`formula:${scope}:${m.position}`, m.id);
     });
-    for (const [i, c] of cols.entries()) {
-      if (c.type !== 'formula' || !c.settings) continue;
-      const settings = { op: c.settings.op, a: c.settings.a ? keyToId.get(c.settings.a) : undefined, b: c.settings.b ? keyToId.get(c.settings.b) : undefined };
-      await db().from('crm_board_columns').update({ settings }).eq('id', keyToId.get(`formula:${scope}:${i}`)!);
-    }
-  }
+  const formulaUpdates = made.flatMap(({ scope, cols }) =>
+    cols.flatMap((c, i) =>
+      c.type === 'formula' && c.settings
+        ? [db().from('crm_board_columns').update({ settings: { op: c.settings.op, a: c.settings.a ? keyToId.get(c.settings.a) : undefined, b: c.settings.b ? keyToId.get(c.settings.b) : undefined } }).eq('id', keyToId.get(`formula:${scope}:${i}`)!)]
+        : [],
+    ),
+  );
 
   // Groups: the template's, or one per designer on the team.
   let groups = tpl.groups.map((name) => ({ name, employee_id: null as string | null }));
@@ -92,9 +100,12 @@ export async function createBoard(_prev: ActionResult, fd: FormData): Promise<Ac
     const designers = (await listEmployees()).filter((e) => workTypeOf(e) === 'designer');
     if (designers.length) groups = designers.map((e) => ({ name: fullName(e), employee_id: e.id }));
   }
-  await db().from('crm_board_groups').insert(groups.map((g, i) => ({ board_id: board.id, name: g.name, employee_id: g.employee_id, color: GROUP_COLORS[i % GROUP_COLORS.length], position: i })));
-  if (v.visibility === 'members' && viewer.employeeId) await db().from('crm_board_members').insert({ board_id: board.id, employee_id: viewer.employeeId, role: 'editor' });
-  await audit(viewer, 'crm.board', 'crm_boards', board.id, { text: `created the board “${v.name}”` });
+  await Promise.all([
+    ...formulaUpdates,
+    db().from('crm_board_groups').insert(groups.map((g, i) => ({ board_id: board.id, name: g.name, employee_id: g.employee_id, color: GROUP_COLORS[i % GROUP_COLORS.length], position: i }))),
+    v.visibility === 'members' && viewer.employeeId ? db().from('crm_board_members').insert({ board_id: board.id, employee_id: viewer.employeeId, role: 'editor' }) : null,
+    audit(viewer, 'crm.board', 'crm_boards', board.id, { text: `created the board “${v.name}”` }),
+  ]);
   revalidatePath('/base/crm/workspace', 'layout');
   redirect(`/base/crm/workspace/${ws.id}/board/${board.id}`);
 }

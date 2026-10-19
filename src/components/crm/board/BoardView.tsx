@@ -867,7 +867,11 @@ export default function BoardView({
                         <div className="min-w-0 border-r border-stone/60">
                           <AddRow placeholder={`+ Add ${board.item_label.toLowerCase()}`} onAdd={(n) => createItem(g.id, n)} />
                         </div>
-                        {itemCols.map((c) => <span key={c.id} className="border-r border-stone/60 bg-linen/40" />)}
+                        {itemCols.map((c) => (
+                          <button key={c.id} type="button" onClick={() => quickAdd(g.id)} className="border-r border-stone/60 bg-linen/40 text-xs text-transparent hover:bg-sand/60 hover:text-muted" title={`Add a ${board.item_label.toLowerCase()} first`}>
+                            + New
+                          </button>
+                        ))}
                         <span />
                       </div>
                     )}

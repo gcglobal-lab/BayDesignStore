@@ -23,19 +23,32 @@ export default async function WorkspaceBoardPage({ params, searchParams }: PageP
   const { wsId, boardId } = await params;
   const sp = await searchParams;
   if (!/^[0-9a-f-]{36}$/i.test(boardId)) notFound();
-  const data = await loadBoard(boardId);
-  if (!data) notFound();
-  if (data.board.workspace_id !== wsId) redirect(`/base/crm/workspace/${data.board.workspace_id}/board/${boardId}`);
-  const access = await boardAccess(viewer, data.board);
-  if (!access.see) redirect(`/base/crm/workspace/${wsId}`);
-
-  const [all, membersRes, filesRes, updatesRes, favRes] = await Promise.all([
+  // Everything that only needs the board id starts at the same time as the board itself
+  // (one round of queries instead of two); nothing is shown until access has been checked.
+  const boardP = loadBoard(boardId);
+  const extrasP = Promise.all([
     listEmployees(true),
     db().from('crm_board_members').select('employee_id, role').eq('board_id', boardId),
     db().from('portal_files').select('id, item_id, column_id, task_id, name, mime, size, created_at, uploader_name').eq('board_id', boardId).order('created_at'),
-    db().from('crm_board_updates').select('item_id, crm_board_items!inner(board_id)').eq('kind', 'comment').eq('crm_board_items.board_id', boardId).limit(20000),
     db().from('crm_favorites').select('board_id').eq('viewer', viewerKey(viewer)).eq('board_id', boardId).maybeSingle(),
   ]);
+  extrasP.catch(() => {}); // awaited below; avoids an unhandled rejection if we redirect first
+  const data = await boardP;
+  if (!data) notFound();
+  if (data.board.workspace_id !== wsId) redirect(`/base/crm/workspace/${data.board.workspace_id}/board/${boardId}`);
+  const itemIds = data.items.map((i) => i.id);
+  const [access, [all, membersRes, filesRes, favRes], updatesRes] = await Promise.all([
+    boardAccess(viewer, data.board),
+    extrasP,
+    // Comment counts per row: by row id for normal boards (uses the item index, no join);
+    // very large boards fall back to the join so the request URL stays short.
+    itemIds.length === 0
+      ? Promise.resolve({ data: [] })
+      : itemIds.length <= 250
+        ? db().from('crm_board_updates').select('item_id').eq('kind', 'comment').in('item_id', itemIds).limit(20000)
+        : db().from('crm_board_updates').select('item_id, crm_board_items!inner(board_id)').eq('kind', 'comment').eq('crm_board_items.board_id', boardId).limit(20000),
+  ]);
+  if (!access.see) redirect(`/base/crm/workspace/${wsId}`);
   const names = Object.fromEntries(all.map((e) => [e.id, fullName(e)]));
   const people = all.filter((e) => e.status !== 'terminated').map((e) => ({ id: e.id, name: fullName(e) }));
   const members = (membersRes.data ?? []) as { employee_id: string; role: 'editor' | 'viewer' }[];
