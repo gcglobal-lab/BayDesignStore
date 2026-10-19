@@ -27,7 +27,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
-import { addColumn, addGroup, addItem, bulkItems, deleteColumn, deleteGroup, duplicateItem, setCell, updateColumn, updateGroup, updateItem } from '@/app/base/(app)/crm/boards/actions';
+import { addColumn, addGroup, addItem, bulkItems, deleteColumn, deleteGroup, duplicateItem, setCell, setItemLabel, updateColumn, updateGroup, updateItem } from '@/app/base/(app)/crm/boards/actions';
 import type { PortalFile } from '@/app/base/(app)/crm/files/actions';
 import { Popover } from '@/components/ui/Popover';
 import Select from '@/components/ui/Select';
@@ -57,6 +57,7 @@ import {
 } from '@/lib/crm/boardTypes';
 import Cell, { Initials, type CellCtx } from './Cell';
 import { GroupPanel, ItemPanel } from './Panels';
+import { confirmDialog, friendlyError, isControlFlow, toast } from '@/components/ui/toast';
 
 export type BoardData = { board: Board; columns: BoardColumn[]; groups: BoardGroup[]; items: BoardItem[] };
 type Person = { id: string; name: string };
@@ -186,6 +187,49 @@ function ColumnPicker({ scope, onAdd }: { scope: 'item' | 'subitem'; onAdd: (nam
   );
 }
 
+/**
+ * Where the cursor goes when a name becomes editable: a placeholder name ("New item",
+ * "New group", "Group 1") is selected so typing replaces it; a real name keeps its text with the
+ * cursor blinking at the end, ready to edit.
+ */
+function placeCaret(e: { target: HTMLInputElement }) {
+  const el = e.target;
+  if (/^(new |group \d|item \d)/i.test(el.value)) el.select();
+  else el.setSelectionRange(el.value.length, el.value.length);
+}
+
+/** A header title that becomes a text box on one click (for people who can change the board's setup). */
+function TitleEdit({ value, manage, onSave }: { value: string; manage: boolean; onSave: (name: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  if (editing)
+    return (
+      <input
+        autoFocus
+        defaultValue={value}
+        maxLength={40}
+        onFocus={placeCaret}
+        className="w-full rounded bg-surface px-1.5 py-1 text-center text-[0.8rem] outline-none ring-2 ring-brass/60"
+        onBlur={(e) => {
+          setEditing(false);
+          const n = e.target.value.trim();
+          if (n && n !== value) onSave(n);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          if (e.key === 'Escape') {
+            (e.target as HTMLInputElement).value = value;
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+      />
+    );
+  return (
+    <span className={`truncate rounded px-1 ${manage ? 'cursor-text hover:ring-1 hover:ring-stone' : ''}`} title={manage ? 'Click to rename' : value} onClick={() => manage && setEditing(true)}>
+      {value}
+    </span>
+  );
+}
+
 function ColumnHeader({ col, manage, onRename, onSetup, onMove, onDelete, onHide, onSort }: { col: BoardColumn; manage: boolean; onRename: (n: string) => void; onSetup: () => void; onMove: (d: -1 | 1) => void; onDelete: () => void; onHide: () => void; onSort: (dir: 1 | -1) => void }) {
   const [renaming, setRenaming] = useState(false);
   if (renaming) {
@@ -194,18 +238,31 @@ function ColumnHeader({ col, manage, onRename, onSetup, onMove, onDelete, onHide
         autoFocus
         defaultValue={col.name}
         maxLength={60}
+        onFocus={placeCaret}
         className="w-full rounded bg-surface px-1.5 py-1 text-center text-[0.8rem] outline-none ring-2 ring-brass/60"
         onBlur={(e) => {
           setRenaming(false);
-          if (e.target.value.trim() && e.target.value !== col.name) onRename(e.target.value);
+          if (e.target.value.trim() && e.target.value !== col.name) onRename(e.target.value.trim());
         }}
-        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          if (e.key === 'Escape') {
+            (e.target as HTMLInputElement).value = col.name;
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
       />
     );
   }
   return (
     <div className="group/h relative flex items-center justify-center gap-1">
-      <span className="truncate" title={col.name} onDoubleClick={() => manage && setRenaming(true)}>{col.name}</span>
+      <span
+        className={`truncate rounded px-1 ${manage ? 'cursor-text hover:ring-1 hover:ring-stone' : ''}`}
+        title={manage ? 'Click to rename' : col.name}
+        onClick={() => manage && setRenaming(true)}
+      >
+        {col.name}
+      </span>
       <span className="absolute right-0 opacity-0 group-hover/h:opacity-100">
         <PopButton label={<MoreHorizontal size={14} />} className="rounded p-0.5 text-muted hover:bg-sand hover:text-ink" width={200} align="end">
           {(close) => (
@@ -220,7 +277,7 @@ function ColumnHeader({ col, manage, onRename, onSetup, onMove, onDelete, onHide
                   {(col.type === 'status' || col.type === 'dropdown' || col.type === 'formula') && <MenuItem onClick={() => { close(); onSetup(); }}>{col.type === 'formula' ? 'Edit formula' : 'Edit labels'}</MenuItem>}
                   <MenuItem onClick={() => { close(); onMove(-1); }}>Move left</MenuItem>
                   <MenuItem onClick={() => { close(); onMove(1); }}>Move right</MenuItem>
-                  <MenuItem danger onClick={() => { close(); if (window.confirm(`Delete the column “${col.name}” and its data?`)) onDelete(); }}><Trash2 size={14} /> Delete column</MenuItem>
+                  <MenuItem danger onClick={() => { close(); void confirmDialog({ title: `Delete the column “${col.name}”?`, message: "Everything stored in this column is removed from every row.", danger: true }).then((ok) => ok && onDelete()); }}><Trash2 size={14} /> Delete column</MenuItem>
                 </>
               )}
             </>
@@ -270,7 +327,6 @@ export default function BoardView({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [panel, setPanel] = useState<{ kind: 'item' | 'group'; id: string; tab?: 'details' | 'updates' } | null>(initialItem ? { kind: 'item', id: initialItem } : null);
   const [setup, setSetup] = useState<BoardColumn | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [drag, setDrag] = useState<string | null>(null);
   const [renamingGroup, setRenamingGroup] = useState<string | null>(null);
   const [renamingItem, setRenamingItem] = useState<string | null>(null);
@@ -313,14 +369,22 @@ export default function BoardView({
   const peopleCols = allItemCols.filter((c) => c.type === 'people' || c.type === 'person');
   const labelCols = allItemCols.filter((c) => c.type === 'status' || c.type === 'dropdown');
 
-  const fail = (msg?: string) => setError(msg ?? 'Couldn’t save — please try again.');
-  const run = async <T extends { ok: boolean; message?: string } | null>(p: Promise<T>, rollback?: () => void) => {
-    const res = await p;
-    if (!res?.ok) {
+  /** Every save goes through here: a refused or crashed save undoes the change on screen and says why. */
+  const run = async <T extends { ok: boolean; message?: string } | null>(p: Promise<T>, rollback?: () => void): Promise<T | null> => {
+    try {
+      const res = await p;
+      if (!res?.ok) {
+        rollback?.();
+        toast.error(res?.message || 'Couldn’t save — please try again.');
+      }
+      return res;
+    } catch (err) {
+      if (isControlFlow(err)) throw err;
+      console.error(err);
       rollback?.();
-      fail(res?.message);
+      toast.error(friendlyError(err));
+      return null;
     }
-    return res;
   };
 
   // ------------------------------------------------------------ mutations --
@@ -399,8 +463,8 @@ export default function BoardView({
     setGroups((list) => list.map((x) => (x.id === g.id ? { ...x, ...patch } : x)));
     run(updateGroup(g.id, patch), () => setGroups((list) => list.map((x) => (x.id === g.id ? g : x))));
   };
-  const removeGroup = (g: BoardGroup) => {
-    if (!window.confirm(`Delete “${g.name}” and everything in it?`)) return;
+  const removeGroup = async (g: BoardGroup) => {
+    if (!(await confirmDialog({ title: `Delete “${g.name}”?`, message: "The group and every row in it are removed.", danger: true }))) return;
     const before = { groups, items };
     setGroups((list) => list.filter((x) => x.id !== g.id));
     setItems((list) => list.filter((i) => i.group_id !== g.id));
@@ -419,7 +483,7 @@ export default function BoardView({
   };
   const bulk = async (op: 'move' | 'delete', groupId?: string) => {
     const ids = [...selected];
-    if (op === 'delete' && !window.confirm(`Delete ${ids.length} row${ids.length === 1 ? '' : 's'}?`)) return;
+    if (op === 'delete' && !(await confirmDialog({ title: `Delete ${ids.length} row${ids.length === 1 ? '' : 's'}?`, message: 'Their sub-items and updates are removed too.', danger: true }))) return;
     const before = items;
     setItems((list) => (op === 'delete' ? list.filter((i) => !ids.includes(i.id) && !ids.includes(i.parent_id ?? '')) : list.map((i) => (ids.includes(i.id) || ids.includes(i.parent_id ?? '') ? { ...i, group_id: groupId! } : i))));
     setSelected(new Set());
@@ -540,7 +604,9 @@ export default function BoardView({
     <ColumnHeader col={c} manage={canManage} onRename={(n) => patchColumn(c, { name: n })} onSetup={() => setSetup(c)} onMove={(d) => moveColumn(c, d)} onDelete={() => removeColumn(c)} onHide={() => toggleHidden(c.id)} onSort={(dir) => setSort({ col: c.id, dir })} />
   );
   const activeFilters = Object.values(filters).reduce((s, v) => s + v.length, 0);
-  const firstGroup = [...groups].sort((a, b) => a.position - b.position)[0];
+  const sortedGroups = [...groups].sort((a, b) => a.position - b.position);
+  // "New item" adds to the bottom of the board: the end of its last group.
+  const lastGroup = sortedGroups[sortedGroups.length - 1];
   const toggle = (set: (fn: (s: Set<string>) => Set<string>) => void, id: string) =>
     set((s) => {
       const n = new Set(s);
@@ -562,13 +628,28 @@ export default function BoardView({
 
       {/* Toolbar */}
       <div className="mb-5 flex flex-wrap items-center gap-1">
-        {canEdit && firstGroup && (
+        {canEdit && lastGroup && (
           <span className="mr-2 inline-flex overflow-hidden rounded-md shadow-sm">
-            <button type="button" className="b-btn-brass !rounded-none !rounded-l-md !px-3 !py-1.5" onClick={() => quickAdd(firstGroup.id)}>
+            <button type="button" className="b-btn-brass !rounded-none !rounded-l-md !px-3 !py-1.5" onClick={() => quickAdd(lastGroup.id)} title={`Adds to the bottom of “${lastGroup.name}”`}>
               New {board.item_label.toLowerCase()}
             </button>
-            <PopButton label={<ChevronDown size={15} />} className="b-btn-brass !rounded-none !rounded-r-md border-l border-white/30 !px-1.5 !py-1.5" width={220}>
-              {(close) => <MenuItem onClick={() => { close(); createGroup(); }}><Layers size={14} /> New {board.group_label.toLowerCase()}</MenuItem>}
+            <PopButton label={<ChevronDown size={15} />} className="b-btn-brass !rounded-none !rounded-r-md border-l border-white/30 !px-1.5 !py-1.5" width={250}>
+              {(close) => (
+                <div className="p-1">
+                  {sortedGroups.length > 1 && (
+                    <>
+                      <p className="px-2.5 pb-1 pt-1.5 text-xs text-muted">New {board.item_label.toLowerCase()} in…</p>
+                      {sortedGroups.map((gr) => (
+                        <MenuItem key={gr.id} onClick={() => { close(); quickAdd(gr.id); }}>
+                          <span className="h-3 w-3 flex-none rounded-sm" style={{ background: gr.color }} /> <span className="truncate">{gr.name}</span>
+                        </MenuItem>
+                      ))}
+                      <div className="my-1 border-t border-stone/60" />
+                    </>
+                  )}
+                  <MenuItem onClick={() => { close(); createGroup(); }}><Layers size={14} /> New {board.group_label.toLowerCase()}</MenuItem>
+                </div>
+              )}
             </PopButton>
           </span>
         )}
@@ -677,11 +758,6 @@ export default function BoardView({
         </PopButton>
       </div>
 
-      {error && (
-        <p role="alert" className="mb-4 flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error} <button type="button" className="ml-auto" onClick={() => setError(null)} aria-label="Dismiss"><X size={14} /></button>
-        </p>
-      )}
 
       <div className="space-y-9">
         {buckets.map((b) => {
@@ -706,7 +782,7 @@ export default function BoardView({
                   {isCollapsed ? <ChevronRight size={18} style={{ color: b.color }} /> : <ChevronDown size={18} style={{ color: b.color }} />}
                 </button>
                 {g && renamingGroup === g.id ? (
-                  <input autoFocus defaultValue={g.name} maxLength={120} className="b-input !w-72 !py-1 font-semibold" onBlur={(e) => { setRenamingGroup(null); if (e.target.value.trim() && e.target.value !== g.name) patchGroup(g, { name: e.target.value.trim() }); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
+                  <input autoFocus defaultValue={g.name} maxLength={120} onFocus={placeCaret} className="b-input !w-72 !py-1 font-semibold" onBlur={(e) => { setRenamingGroup(null); if (e.target.value.trim() && e.target.value !== g.name) patchGroup(g, { name: e.target.value.trim() }); }} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
                 ) : (
                   <>
                     <button type="button" onClick={() => g && (canEdit ? setRenamingGroup(g.id) : setPanel({ kind: 'group', id: g.id }))} className={`rounded px-1 text-[1.1rem] font-semibold ${g && canEdit ? 'cursor-text hover:ring-1 hover:ring-stone' : 'hover:opacity-80'}`} style={{ color: b.color }} title={g ? (canEdit ? 'Click to rename' : 'Open summary') : undefined}>
@@ -755,7 +831,9 @@ export default function BoardView({
                       <span className="flex items-center justify-center border-r border-stone/60">
                         <input type="checkbox" className="b-check" checked={allSel} onChange={() => setSelected((s) => { const n = new Set(s); rows.forEach((r) => (allSel ? n.delete(r.id) : n.add(r.id))); return n; })} aria-label="Select all rows" />
                       </span>
-                      <span className="flex items-center justify-center border-r border-stone/60 px-2 py-2">{cap(board.item_label)}</span>
+                      <div className="flex items-center justify-center border-r border-stone/60 px-2 py-2">
+                        <TitleEdit value={cap(board.item_label)} manage={canManage} onSave={(n) => run(setItemLabel(board.id, n))} />
+                      </div>
                       {itemCols.map((c) => <div key={c.id} className="border-r border-stone/60 px-2 py-2 text-center">{header(c)}</div>)}
                       {canManage ? <ColumnPicker scope="item" onAdd={(n, t) => createColumn('item', n, t)} /> : <span />}
                     </div>
@@ -861,19 +939,10 @@ export default function BoardView({
                         </div>
                       );
                     })}
-                    {canEdit && g && (
-                      <div className="grid border-b border-stone/60" style={{ gridTemplateColumns: grid(itemCols) }}>
-                        <span className="border-r border-stone/60" />
-                        <div className="min-w-0 border-r border-stone/60">
-                          <AddRow placeholder={`+ Add ${board.item_label.toLowerCase()}`} onAdd={(n) => createItem(g.id, n)} />
-                        </div>
-                        {itemCols.map((c) => (
-                          <button key={c.id} type="button" onClick={() => quickAdd(g.id)} className="border-r border-stone/60 bg-linen/40 text-xs text-transparent hover:bg-sand/60 hover:text-muted" title={`Add a ${board.item_label.toLowerCase()} first`}>
-                            + New
-                          </button>
-                        ))}
-                        <span />
-                      </div>
+                    {rows.length === 0 && (
+                      <p className="border-b border-stone/60 px-4 py-3 text-sm text-muted">
+                        No {board.item_label.toLowerCase()}s here yet{canEdit ? <> — use <span className="font-medium text-ink">New {board.item_label.toLowerCase()}</span> above.</> : '.'}
+                      </p>
                     )}
                     {/* footer */}
                     {rows.length > 0 && (
@@ -918,7 +987,6 @@ export default function BoardView({
                       </div>
                     </button>
                   ))}
-                  {canEdit && g && <button type="button" onClick={() => quickAdd(g.id)} className="flex min-h-[120px] items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-stone text-sm text-muted hover:border-brass hover:text-brass"><Plus size={15} /> Add</button>}
                 </div>
               )}
             </section>
@@ -995,7 +1063,7 @@ function NameInput({ value, onDone }: { value: string; onDone: (name: string) =>
       autoFocus
       defaultValue={value}
       maxLength={200}
-      onFocus={(e) => e.target.select()}
+      onFocus={placeCaret}
       onBlur={(e) => onDone(e.target.value)}
       onKeyDown={(e) => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();

@@ -417,6 +417,26 @@ body::after {
 }
 
 /* Scrollbar */
+/* Toasts and confirm dialogs slide up gently. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.toast-in {
+  animation: toast-in 0.18s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast-in {
+    animation: none;
+  }
+}
+
 /* Uses the palette, so it matches the public site, the portal and portal dark mode alike. */
 ::-webkit-scrollbar {
   width: 8px;

@@ -5,6 +5,7 @@ import { useDialog } from './Dialog';
 import { deleteTimeCard, saveTimeCard } from '@/app/base/(app)/timesheets/actions';
 import { DatePicker } from './calendar/Calendar';
 import Select from '@/components/ui/Select';
+import { confirmDialog, friendlyError, toast } from '@/components/ui/toast';
 
 export type TimeCardValues = { id: string; employee_id: string; date: string; clock_in: string; clock_out: string; meal_minutes: number; notes: string };
 
@@ -35,9 +36,14 @@ export default function TimeCardForm({ employees, date, values }: { employees: {
             type="submit"
             formNoValidate
             formAction={async (fd) => {
-              if (!window.confirm('Delete this time card? This can’t be undone.')) return;
-              await deleteTimeCard(fd);
-              close();
+              if (!(await confirmDialog({ title: 'Delete this time card?', message: 'This can’t be undone.', danger: true }))) return;
+              try {
+                await deleteTimeCard(fd);
+                toast.success('Time card deleted.');
+                close();
+              } catch (e) {
+                toast.error(friendlyError(e));
+              }
             }}
             className="b-btn-danger"
           >

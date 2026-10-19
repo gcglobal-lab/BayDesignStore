@@ -6,6 +6,7 @@ import { deleteFile, type PortalFile } from '@/app/base/(app)/crm/files/actions'
 import { Popover } from '@/components/ui/Popover';
 import { fileKind, fileUrl, fmtBytes, uploadFile } from '@/components/ui/upload';
 import { asIds, asTimeline, fmtShortDate, fmtTimeline, formulaIsMoney, formulaValue, money2, num, type BoardColumn, type BoardItem } from '@/lib/crm/boardTypes';
+import { confirmDialog } from '@/components/ui/toast';
 
 export type CellCtx = {
   columns: BoardColumn[];
@@ -185,7 +186,7 @@ function FilesCell({ ctx, item, col }: { ctx: CellCtx; item: BoardItem; col: Boa
                       className="rounded p-1 text-muted hover:text-red-600"
                       aria-label="Delete file"
                       onClick={async () => {
-                        if (!window.confirm(`Delete ${f.name}?`)) return;
+                        if (!(await confirmDialog({ title: `Delete ${f.name}?`, danger: true }))) return;
                         const res = await deleteFile(f.id);
                         if (res.ok) ctx.onFiles?.(files.filter((x) => x.id !== f.id));
                         else setError(res.message ?? 'Couldn’t delete.');

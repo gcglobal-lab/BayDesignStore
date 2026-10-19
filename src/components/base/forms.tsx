@@ -4,15 +4,34 @@ import { useActionState, useEffect, useRef, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import type { ActionResult } from '@/lib/base/actionResult';
+import { confirmDialog, friendlyError, isControlFlow, toast } from '@/components/ui/toast';
 
 export function SubmitButton({ children, className = 'b-btn-primary', pendingLabel, confirm }: { children: ReactNode; className?: string; pendingLabel?: string; confirm?: string }) {
   const { pending } = useFormStatus();
+  const confirmed = useRef(false);
   return (
     <button
       type="submit"
       className={className}
       disabled={pending}
-      onClick={confirm ? (e) => { if (!window.confirm(confirm)) e.preventDefault(); } : undefined}
+      onClick={
+        confirm
+          ? (e) => {
+              // Ask with the site's own dialog, then submit the same button for real.
+              if (confirmed.current) {
+                confirmed.current = false;
+                return;
+              }
+              e.preventDefault();
+              const button = e.currentTarget;
+              confirmDialog({ title: confirm, danger: /delete|remove|sign .* out|cancel|archive|terminate/i.test(confirm), confirmLabel: /delete/i.test(confirm) ? 'Delete' : 'Yes, continue' }).then((ok) => {
+                if (!ok) return;
+                confirmed.current = true;
+                button.form?.requestSubmit(button);
+              });
+            }
+          : undefined
+      }
     >
       {pending && <Loader2 size={14} className="animate-spin" />}
       {pending && pendingLabel ? pendingLabel : children}
@@ -34,8 +53,9 @@ export function FormMessage({ result }: { result: ActionResult }) {
 }
 
 /**
- * A form bound to a server action that returns an ActionResult — shows errors and
- * confirmations inline. `onSuccess` runs once per successful submission.
+ * A form bound to a server action that returns an ActionResult. The result appears as a toast
+ * (errors also stay inline next to the fields); a save that crashes or can't reach the server
+ * shows a friendly error instead of breaking the page. `onSuccess` runs once per successful submission.
  */
 export function ActionForm({
   action,
@@ -52,13 +72,23 @@ export function ActionForm({
   onSuccess?: (result: ActionResult) => void;
   showMessage?: boolean;
 }) {
-  const [result, formAction] = useActionState(action, null);
+  const [result, formAction] = useActionState(async (prev: ActionResult, fd: FormData): Promise<ActionResult> => {
+    try {
+      return await action(prev, fd);
+    } catch (err) {
+      if (isControlFlow(err)) throw err; // redirects after a successful save
+      console.error(err);
+      return { ok: false, message: friendlyError(err) };
+    }
+  }, null);
   const formRef = useRef<HTMLFormElement>(null);
   const handled = useRef<ActionResult>(null);
 
   useEffect(() => {
-    if (!result?.ok || handled.current === result) return;
+    if (!result || handled.current === result) return;
     handled.current = result;
+    if (result.message) (result.ok ? toast.success : toast.error)(result.message);
+    if (!result.ok) return;
     if (resetOnSuccess) formRef.current?.reset();
     onSuccess?.(result);
   }, [result, resetOnSuccess, onSuccess]);
@@ -66,7 +96,7 @@ export function ActionForm({
   return (
     <form ref={formRef} action={formAction} className={className}>
       {typeof children === 'function' ? children(result) : children}
-      {showMessage && <FormMessage result={result} />}
+      {showMessage && !result?.ok && <FormMessage result={result} />}
     </form>
   );
 }

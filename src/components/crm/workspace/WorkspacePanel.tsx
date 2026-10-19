@@ -31,6 +31,7 @@ import {
 import { archiveBoard, deleteBoard, duplicateBoard } from '@/app/base/(app)/crm/boards/actions';
 import { createFolder, createWorkspace, deleteFolder, deleteWorkspace, moveBoard, renameBoard, renameFolder, toggleFavorite, updateWorkspace } from '@/app/base/(app)/crm/workspace/actions';
 import { ActionForm, Field, SubmitButton } from '@/components/base/forms';
+import { confirmDialog, friendlyError, isControlFlow, toast } from '@/components/ui/toast';
 import Modal from '@/components/ui/Modal';
 import { Popover } from '@/components/ui/Popover';
 import Select from '@/components/ui/Select';
@@ -125,7 +126,6 @@ export default function WorkspacePanel({
   const [closedFolders, setClosedFolders] = useState<Set<string>>(new Set());
   const [modal, setModal] = useState<null | { kind: 'board'; folderId?: string | null } | { kind: 'workspace' } | { kind: 'edit' } | { kind: 'browse' }>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [, start] = useTransition();
   const live = boards.filter((b) => !b.archived);
   const favs = new Set(favoriteIds);
@@ -147,10 +147,18 @@ export default function WorkspacePanel({
     }
   };
 
-  const act = (p: Promise<{ ok: boolean; message?: string } | null | void | undefined>) =>
+  /** Runs a panel action; refusals and crashes become an error toast, a success message a toast. */
+  const act = (p: Promise<{ ok: boolean; message?: string } | null | void | undefined>, success?: string) =>
     start(async () => {
-      const r = await p;
-      if (r && 'ok' in r && !r.ok) setError(r.message ?? 'Something went wrong.');
+      try {
+        const r = await p;
+        if (r && 'ok' in r && !r.ok) toast.error(r.message ?? 'Something went wrong.');
+        else if (success) toast.success(success);
+      } catch (err) {
+        if (isControlFlow(err)) throw err;
+        console.error(err);
+        toast.error(friendlyError(err));
+      }
       router.refresh();
     });
   const fdOf = (o: Record<string, string>) => {
@@ -162,7 +170,7 @@ export default function WorkspacePanel({
   const addFolder = (parentId?: string | null) =>
     start(async () => {
       const r = await createFolder(workspace.id, 'New folder', parentId ?? null);
-      if (!r?.ok) setError(r?.message ?? 'Something went wrong.');
+      if (!r?.ok) toast.error(r?.message ?? 'Something went wrong.');
       router.refresh();
       if (r?.ok && r.data?.id) setRenaming(r.data.id);
     });
@@ -225,7 +233,7 @@ export default function WorkspacePanel({
               <Item icon={<Copy size={15} />} disabled={!canManageWs} onClick={() => { close(); act(duplicateBoard(fdOf({ id: b.id }))); }}>Duplicate</Item>
               <div className="my-1 border-t border-stone/60" />
               <Item icon={<Archive size={15} />} disabled={!canManageWs} onClick={() => { close(); act(archiveBoard(fdOf({ id: b.id, archived: 'true' }))); }}>Archive</Item>
-              <Item icon={<Trash2 size={15} />} danger disabled={!isManager} onClick={() => { close(); if (window.confirm(`Delete “${b.name}” and everything on it? This can’t be undone.`)) act(deleteBoard(fdOf({ id: b.id }))); }}>Delete</Item>
+              <Item icon={<Trash2 size={15} />} danger disabled={!isManager} onClick={async () => { close(); if (await confirmDialog({ title: `Delete “${b.name}”?`, message: 'Everything on the board is removed. This can’t be undone.', danger: true })) act(deleteBoard(fdOf({ id: b.id })), `Deleted “${b.name}”.`); }}>Delete</Item>
             </div>
           )}
         </Pop>
@@ -270,7 +278,7 @@ export default function WorkspacePanel({
                     <Item icon={<Table2 size={15} />} onClick={() => { close(); setModal({ kind: 'board', folderId: f.id }); }}>Add board here</Item>
                     <Item icon={<FolderPlus size={15} />} onClick={() => { close(); addFolder(f.id); }}>Add sub-folder</Item>
                     <Item icon={<Pencil size={15} />} onClick={() => { close(); setRenaming(f.id); }}>Rename</Item>
-                    <Item icon={<Trash2 size={15} />} danger onClick={() => { close(); if (window.confirm(`Delete the folder “${f.name}”? Its boards are kept.`)) act(deleteFolder(f.id)); }}>Delete folder</Item>
+                    <Item icon={<Trash2 size={15} />} danger onClick={async () => { close(); if (await confirmDialog({ title: `Delete the folder “${f.name}”?`, message: 'Its boards are kept and move to the top of the workspace.', danger: true })) act(deleteFolder(f.id), 'Folder deleted.'); }}>Delete folder</Item>
                   </div>
                 )}
               </Pop>
@@ -307,7 +315,7 @@ export default function WorkspacePanel({
             <div className="p-1">
               <Item icon={<LayoutDashboard size={15} />} onClick={() => { close(); router.push(`/base/crm/workspace/${workspace.id}`); }}>Manage workspace</Item>
               <Item icon={<Pencil size={15} />} disabled={!canManageWs} onClick={() => { close(); setModal({ kind: 'edit' }); }}>Edit workspace</Item>
-              <Item icon={<Trash2 size={15} />} danger disabled={!isManager || workspaces.length <= 1} onClick={() => { close(); if (window.confirm(`Delete the workspace “${workspace.name}” with all its boards? This can’t be undone.`)) act(deleteWorkspace(fdOf({ id: workspace.id }))); }}>Delete workspace</Item>
+              <Item icon={<Trash2 size={15} />} danger disabled={!isManager || workspaces.length <= 1} onClick={async () => { close(); if (await confirmDialog({ title: `Delete the workspace “${workspace.name}”?`, message: 'All of its boards are deleted too. This can’t be undone.', danger: true })) act(deleteWorkspace(fdOf({ id: workspace.id })), 'Workspace deleted.'); }}>Delete workspace</Item>
               <div className="my-1 border-t border-stone/60" />
               {isManager && <Item icon={<Plus size={15} />} onClick={() => { close(); setModal({ kind: 'workspace' }); }}>Add new workspace</Item>}
               <Item icon={<LayoutGrid size={15} />} onClick={() => { close(); setModal({ kind: 'browse' }); }}>Browse all workspaces</Item>
@@ -398,7 +406,6 @@ export default function WorkspacePanel({
         {live.length === 0 && folders.length === 0 && <p className="px-2 py-3 text-xs text-muted">This workspace is empty. Use + to add a board or a folder.</p>}
         {q && !live.some(match) && <p className="px-2 py-3 text-xs text-muted">No boards match “{search}”.</p>}
       </div>
-      {error && <p className="mx-3 mb-3 rounded-md bg-red-50 px-2.5 py-1.5 text-xs text-red-700">{error} <button type="button" onClick={() => setError(null)} className="float-right">×</button></p>}
     </div>
   );
 

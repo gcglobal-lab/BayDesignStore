@@ -6,6 +6,7 @@ import { addItemUpdate, deleteItem, duplicateItem, itemUpdates } from '@/app/bas
 import { cellText, formulaIsMoney, formulaValue, isNumeric, money2, num, type Board, type BoardColumn, type BoardGroup, type BoardItem, type BoardUpdate } from '@/lib/crm/boardTypes';
 import Cell, { type CellCtx } from './Cell';
 import Select from '@/components/ui/Select';
+import { confirmDialog, friendlyError, reportResult, toast } from '@/components/ui/toast';
 
 function Drawer({ onClose, children, label }: { onClose: () => void; children: React.ReactNode; label: string }) {
   useEffect(() => {
@@ -142,11 +143,14 @@ export function ItemPanel({
                 type="button"
                 disabled={pending}
                 className="b-btn-quiet b-btn-sm text-red-600"
-                onClick={() => {
-                  if (!window.confirm(`Delete “${item.name}”${subitems.length ? ` and its ${subitems.length} sub-items` : ''}?`)) return;
+                onClick={async () => {
+                  if (!(await confirmDialog({ title: `Delete “${item.name}”?`, message: subitems.length ? `Its ${subitems.length} sub-items and all updates are removed too.` : 'Its updates and files are removed too.', danger: true }))) return;
                   start(async () => {
-                    const res = await deleteItem(item.id);
-                    if (res?.ok) onRemoved([item.id]);
+                    const res = await deleteItem(item.id).catch((e) => ({ ok: false, message: friendlyError(e) }));
+                    if (reportResult(res)) {
+                      toast.success(`Deleted “${item.name}”.`);
+                      onRemoved([item.id]);
+                    }
                   });
                 }}
               >

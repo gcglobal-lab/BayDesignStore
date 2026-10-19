@@ -136,6 +136,17 @@ export async function updateBoard(_prev: ActionResult, fd: FormData): Promise<Ac
   return done('Board saved.');
 }
 
+/** Renames what a row is called on this board (the first column's title, e.g. "Item" → "Client"). */
+export async function setItemLabel(boardId: string, label: string): Promise<ActionResult> {
+  const g = await guard(boardId, 'manage');
+  if ('error' in g) return g.error;
+  const name = label.trim().slice(0, 40);
+  if (!name) return fail('The column needs a name.');
+  await db().from('crm_boards').update({ item_label: name }).eq('id', boardId);
+  revalidatePath('/base/crm/workspace', 'layout');
+  return done();
+}
+
 export async function archiveBoard(fd: FormData) {
   const id = String(fd.get('id') ?? '');
   const g = await guard(id, 'manage');

@@ -8,6 +8,7 @@ import { DatePicker } from './calendar/Calendar';
 import { deleteShift, saveShift } from '@/app/base/(app)/schedule/actions';
 import { fmtDuration } from '@/lib/base/time';
 import Select from '@/components/ui/Select';
+import { confirmDialog, friendlyError, toast } from '@/components/ui/toast';
 
 export type GridShift = {
   id: string;
@@ -317,9 +318,14 @@ export default function ScheduleGrid({
                         type="submit"
                         formNoValidate
                         formAction={async (fd) => {
-                          if (!window.confirm('Delete this shift?')) return;
-                          await deleteShift(fd);
-                          setEditing(null);
+                          if (!(await confirmDialog({ title: 'Delete this shift?', danger: true }))) return;
+                          try {
+                            await deleteShift(fd);
+                            toast.success('Shift deleted.');
+                            setEditing(null);
+                          } catch (e) {
+                            toast.error(friendlyError(e));
+                          }
                         }}
                         className="b-btn-danger"
                       >

@@ -33,6 +33,7 @@ import { Popover } from '@/components/ui/Popover';
 import Select from '@/components/ui/Select';
 import { fileKind, fileUrl, fmtBytes, uploadFile } from '@/components/ui/upload';
 import { PRIORITIES, priorityMeta, STATUSES, statusMeta, type ChecklistItem, type Task, type TaskComment, type TaskList, type TaskStatus } from '@/lib/tasks/types';
+import { confirmDialog, friendlyError, reportResult, toast } from '@/components/ui/toast';
 
 type Person = { id: string; name: string };
 type Me = { id: string | null; name: string; canAssign: boolean; canSeeAll: boolean; isLead: boolean };
@@ -345,7 +346,7 @@ function TaskDrawer({ task, people, names, lists, me, onClose, onPatch, onDelete
         </div>
         {full && (
           <footer className="border-t border-stone/60 px-5 py-3">
-            <button type="button" onClick={() => { if (window.confirm('Delete this task?')) start(async () => { const r = await deleteTask(task.id); if (r?.ok) onDeleted(); }); }} className="b-btn-quiet b-btn-sm text-red-600"><Trash2 size={13} /> Delete task</button>
+            <button type="button" onClick={async () => { if (await confirmDialog({ title: 'Delete this task?', message: 'Its checklist, comments and files are removed too.', danger: true })) start(async () => { const r = await deleteTask(task.id).catch((e) => ({ ok: false, message: friendlyError(e) })); if (reportResult(r)) { toast.success('Task deleted.'); onDeleted(); } }); }} className="b-btn-quiet b-btn-sm text-red-600"><Trash2 size={13} /> Delete task</button>
           </footer>
         )}
       </aside>

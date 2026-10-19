@@ -10,6 +10,7 @@ import { ActionForm, Field, SubmitButton } from '@/components/base/forms';
 import type { Person } from '@/lib/crm/types';
 import type { DlSettings, Route, Truck } from '@/lib/deliveries/types';
 import Select from '@/components/ui/Select';
+import { toast } from '@/components/ui/toast';
 
 export function RouteForm({ date, trucks, drivers, route, defaultStart, suggestedName }: { date: string; trucks: Truck[]; drivers: Person[]; route?: Route; defaultStart: string; suggestedName?: string }) {
   return (
@@ -110,9 +111,10 @@ export function CopyLink({ url }: { url: string }) {
         try {
           await navigator.clipboard.writeText(url);
           setCopied(true);
+          toast.success('Tracking link copied.');
           window.setTimeout(() => setCopied(false), 2000);
         } catch {
-          window.prompt('Copy the tracking link:', url);
+          toast.info(`Couldn’t copy automatically — the link is ${url}`);
         }
       }}
     >
