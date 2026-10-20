@@ -437,6 +437,11 @@ export default function BoardView({
     const made = await createItem(groupId, `New ${board.item_label.toLowerCase()}`);
     if (made) setRenamingItem(made.id);
   };
+  /** Add a sub-item straight away (cells ready to click) with its name ready to type over. */
+  const quickSub = async (parent: BoardItem) => {
+    const made = await createItem(parent.group_id, 'New sub-item', parent.id);
+    if (made) setRenamingItem(made.id);
+  };
   const renameItem = (it: BoardItem, name: string) => {
     setRenamingItem(null);
     if (name.trim() && name.trim() !== it.name) patchItem(it.id, { name: name.trim() });
@@ -637,7 +642,7 @@ export default function BoardView({
         {subs.length > 0 && <span className="ml-0.5">{subs.length}</span>}
       </button>
     ) : (
-      <button type="button" onClick={() => toggle(setExpanded, it.id)} className="ml-1 flex h-6 w-6 flex-none items-center justify-center rounded border border-dashed border-stone text-muted hover:border-brass hover:bg-sand hover:text-brass" aria-label={`Add sub-item to ${it.name}`} title="Add sub-item">
+      <button type="button" onClick={() => void quickSub(it)} className="ml-1 flex h-6 w-6 flex-none items-center justify-center rounded border border-dashed border-stone text-muted hover:border-brass hover:bg-sand hover:text-brass" aria-label={`Add sub-item to ${it.name}`} title="Add sub-item">
         <Plus size={12} />
       </button>
     );
@@ -685,7 +690,15 @@ export default function BoardView({
               </div>
             );
           })}
-          {canEdit && <AddRow placeholder={depth === 1 ? '+ Add sub-item' : '+ Add sub-item here'} autoFocus={subs.length === 0} onAdd={(n) => createItem(parent.group_id, n, parent.id)} />}
+          {canEdit && (
+            <div className="grid" style={{ gridTemplateColumns: subGrid(nestCols) }}>
+              <div className="min-w-0 border-r border-stone/60">
+                <GroupAddRow label={depth === 1 ? 'Add sub-item' : 'Add sub-item here'} onAdd={(n) => createItem(parent.group_id, n, parent.id)} />
+              </div>
+              {nestCols.map((c) => <span key={c.id} className="border-r border-stone/60" />)}
+              <span />
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1168,25 +1181,10 @@ function GroupAddRow({ label, onAdd }: { label: string; onAdd: (name: string) =>
           setEditing(false);
         }
       }}
-      placeholder={`${label.replace(/^Add new /, '')} name`}
+      placeholder={`${label.replace(/^Add (new )?/, '').replace(/ here$/, '')} name`}
       maxLength={200}
       className="mx-1 my-1 w-[calc(100%-0.5rem)] rounded border border-brass bg-surface px-2 py-1.5 text-sm outline-none"
       aria-label={label}
     />
-  );
-}
-
-function AddRow({ placeholder, onAdd, autoFocus }: { placeholder: string; onAdd: (name: string) => void; autoFocus?: boolean }) {
-  const [name, setName] = useState('');
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (name.trim()) onAdd(name);
-        setName('');
-      }}
-    >
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder={placeholder} maxLength={200} autoFocus={autoFocus} className="w-full bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted focus:bg-linen" />
-    </form>
   );
 }
