@@ -193,15 +193,9 @@ Open **http://localhost:3000** for the website and **http://localhost:3000/base*
 | `npm run load-test -- --users 500 --requests 1000` | Load + data-integrity test against a running server (creates and removes temporary test people) |
 | `node scripts/db-latency.mjs` | How fast the database answers from this machine |
 
-### 🐳 Production with Docker
+### 🚀 Production
 
-```bash
-docker compose up -d --build                       # 4 app copies behind Caddy → https://localhost
-SITE_ADDRESS=baydesignstore.com docker compose up -d --build   # real HTTPS certificate
-APP_REPLICAS=6 docker compose up -d --build        # more copies for more traffic
-```
-
-Every copy reads `.env.local`. HTTPS is required in production (the sign-in cookie is Secure).
+The site is hosted on Vercel, which builds and scales it automatically. HTTPS is required in production (the sign-in cookie is Secure).
 Speed tips: run the app in the same region as the Supabase project (each query is ~5 ms there
 instead of ~350 ms across the world), and upgrade the Supabase plan if you need more than
 ~45 database queries per second.
