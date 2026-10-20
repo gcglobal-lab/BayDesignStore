@@ -61,6 +61,30 @@ function parse(fd: FormData) {
 
 const refresh = () => revalidatePath('/base', 'layout');
 
+/** "Add new customer" in the order form: save the typed customer to Workflow and link the order to it. */
+async function addCustomer(employeeId: string | null, v: Omit<z.infer<typeof orderSchema>, 'items'>) {
+  const [first, ...rest] = v.customer_name.split(/\s+/);
+  const { data } = await db()
+    .from('crm_contacts')
+    .insert({
+      first_name: first.slice(0, 80),
+      last_name: rest.join(' ').slice(0, 80),
+      email: v.email,
+      phone: v.phone,
+      address1: v.address1,
+      address2: v.address2,
+      city: v.city,
+      state: v.state,
+      postal_code: v.postal_code,
+      lifecycle: 'customer',
+      source: 'Delivery',
+      created_by: employeeId,
+    })
+    .select('id')
+    .single();
+  return data?.id ?? null;
+}
+
 async function saveItems(orderId: string, items: z.infer<typeof orderSchema>['items']) {
   await db().from('dl_order_items').delete().eq('order_id', orderId);
   if (items.length) await db().from('dl_order_items').insert(items.map((it, i) => ({ ...it, order_id: orderId, position: i })));
@@ -72,6 +96,7 @@ export async function createOrder(_prev: ActionResult, fd: FormData): Promise<Ac
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? 'Please check the order.');
   const { items, ...v } = parsed.data;
   if (v.window_start && v.window_end && v.window_end <= v.window_start) return fail('The time window must end after it starts.');
+  if (!v.contact_id && fd.get('new_customer') === '1') v.contact_id = await addCustomer(viewer.employeeId, v);
   const where = await geocode(v);
   const { data, error } = await db()
     .from('dl_orders')
@@ -96,6 +121,7 @@ export async function updateOrder(_prev: ActionResult, fd: FormData): Promise<Ac
   if (!before) return fail('Order not found.');
   const { items, ...v } = parsed.data;
   if (v.window_start && v.window_end && v.window_end <= v.window_start) return fail('The time window must end after it starts.');
+  if (!v.contact_id && fd.get('new_customer') === '1') v.contact_id = await addCustomer(viewer.employeeId, v);
   const moved = before.address1 !== v.address1 || before.city !== v.city || before.postal_code !== v.postal_code || before.lat == null;
   const where = moved ? await geocode(v) : { lat: before.lat!, lng: before.lng! };
   const dateChanged = before.scheduled_date !== v.scheduled_date;

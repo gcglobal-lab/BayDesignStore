@@ -1,11 +1,12 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Plus, Trash2, UserPlus } from 'lucide-react';
 import { createOrder, updateOrder } from '@/app/base/(app)/deliveries/orders/actions';
 import { ActionForm, Field, SubmitButton } from '@/components/base/forms';
 import { serviceLabel, type Order, type OrderItem, type ServiceType } from '@/lib/deliveries/types';
 import Select from '@/components/ui/Select';
+import { Popover } from '@/components/ui/Popover';
 
 export type ContactOption = {
   id: string;
@@ -42,6 +43,20 @@ export default function OrderForm({
   const initialContact = contacts.find((c) => c.id === (order?.contact_id ?? defaults?.contact_id));
   const v = (k: keyof Order) => (order ? ((order[k] as string | null) ?? '') : '');
 
+  // Customer picker: type to filter Workflow customers, pick one, add a new one, or leave a one-off name.
+  const nameInput = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState(v('customer_name') || initialContact?.name || '');
+  const [contactId, setContactId] = useState(order?.contact_id ?? defaults?.contact_id ?? '');
+  const [isNew, setIsNew] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const linked = contacts.find((c) => c.id === contactId);
+  const matches = useMemo(() => {
+    const q = name.trim().toLowerCase();
+    const hit = q ? contacts.filter((c) => [c.name, c.phone, c.email, c.city].some((x) => x?.toLowerCase().includes(q))) : contacts;
+    return hit.slice(0, 50);
+  }, [contacts, name]);
+
   const fill = (id: string) => {
     const c = contacts.find((x) => x.id === id);
     const f = form.current;
@@ -50,7 +65,6 @@ export default function OrderForm({
       const el = f.elements.namedItem(name) as HTMLInputElement | null;
       if (el && value) el.value = value;
     };
-    set('customer_name', c.name);
     set('phone', c.phone);
     set('email', c.email);
     set('address1', c.address1);
@@ -60,19 +74,46 @@ export default function OrderForm({
     set('postal_code', c.postal_code);
   };
 
+  const pickContact = (c: ContactOption) => {
+    setName(c.name);
+    setContactId(c.id);
+    setIsNew(false);
+    setOpen(false);
+    fill(c.id);
+  };
+  const addNew = () => {
+    setContactId('');
+    setIsNew(true);
+    setOpen(false);
+    const next = name.trim() ? form.current?.elements.namedItem('phone') : nameInput.current;
+    (next as HTMLInputElement | null)?.focus();
+  };
+  // Row 0 is "Add new customer"; rows 1… are the matches.
+  const onNameKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!open) setOpen(true);
+      else setActive((i) => Math.min(matches.length, i + 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActive((i) => Math.max(0, i - 1));
+    } else if (e.key === 'Enter' && open) {
+      e.preventDefault();
+      if (active === 0) addNew();
+      else pickContact(matches[active - 1]);
+    } else if (e.key === 'Tab') setOpen(false);
+  };
+
   return (
     <div ref={(el) => { form.current = el?.querySelector('form') ?? null; }}>
       <ActionForm action={order ? updateOrder : createOrder} className="space-y-5">
         {order && <input type="hidden" name="id" value={order.id} />}
         <input type="hidden" name="items" value={JSON.stringify(items.filter((i) => i.description.trim()))} />
 
+        <input type="hidden" name="contact_id" value={contactId} />
+        <input type="hidden" name="new_customer" value={isNew && !contactId ? '1' : ''} />
+
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Customer from Workflow (optional)" htmlFor="o-contact" hint="Fills in the name, phone and address.">
-            <Select id="o-contact" name="contact_id" className="b-input" defaultValue={initialContact?.id ?? ''} onChange={(e) => fill(e.target.value)}>
-              <option value="">— Not linked —</option>
-              {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}{c.city ? ` · ${c.city}` : ''}</option>)}
-            </Select>
-          </Field>
           <Field label="Deal (optional)" htmlFor="o-deal">
             <Select id="o-deal" name="deal_id" className="b-input" defaultValue={order?.deal_id ?? defaults?.deal_id ?? ''}>
               <option value="">— None —</option>
@@ -83,7 +124,66 @@ export default function OrderForm({
 
         <fieldset className="grid gap-3 rounded-2xl border border-stone/60 p-4 md:grid-cols-6">
           <legend className="b-label px-1">Customer & address</legend>
-          <input name="customer_name" className="b-input md:col-span-3" required maxLength={160} placeholder="Customer name" defaultValue={v('customer_name') || initialContact?.name || ''} aria-label="Customer name" />
+          <div className="md:col-span-3">
+            <input
+              ref={nameInput}
+              name="customer_name"
+              className="b-input"
+              required
+              maxLength={160}
+              autoComplete="off"
+              placeholder="Customer name — type to search"
+              aria-label="Customer name"
+              role="combobox"
+              aria-expanded={open}
+              value={name}
+              onClick={() => setOpen(true)}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (linked && e.target.value !== linked.name) setContactId('');
+                setActive(0);
+                setOpen(true);
+              }}
+              onKeyDown={onNameKey}
+            />
+            <p className="mt-1 text-xs text-muted">
+              {linked ? <>Linked to <span className="font-semibold text-ink">{linked.name}</span> in Workflow</> : contactId ? 'Linked to a Workflow customer' : isNew ? 'New customer — added to Workflow when you save' : 'One-off delivery — not linked to a customer'}
+            </p>
+            <Popover anchor={nameInput} open={open} onClose={() => setOpen(false)} matchWidth width={260}>
+              <ul role="listbox" className="space-y-0.5">
+                <li>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={active === 0}
+                    onMouseEnter={() => setActive(0)}
+                    onClick={addNew}
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-brass-dark transition-colors ${active === 0 ? 'bg-brass/10' : ''}`}
+                  >
+                    <UserPlus size={14} className="flex-none" />
+                    <span className="min-w-0 flex-1 truncate">{name.trim() ? `Add “${name.trim()}” as a new customer` : 'Add new customer'}</span>
+                  </button>
+                </li>
+                {matches.length > 0 && <li className="px-2.5 pb-1 pt-2 text-[0.65rem] font-semibold uppercase tracking-wider text-muted">Customers</li>}
+                {matches.map((c, i) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={active === i + 1}
+                      onMouseEnter={() => setActive(i + 1)}
+                      onClick={() => pickContact(c)}
+                      className={`flex w-full flex-col rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors ${active === i + 1 ? 'bg-brass/10' : ''} ${c.id === contactId ? 'font-semibold text-brass-dark' : 'text-ink'}`}
+                    >
+                      <span className="truncate">{c.name}</span>
+                      {(c.city || c.phone) && <span className="truncate text-xs font-normal text-muted">{[c.city, c.phone].filter(Boolean).join(' · ')}</span>}
+                    </button>
+                  </li>
+                ))}
+                {matches.length === 0 && name.trim() && <li className="px-2.5 py-2 text-xs text-muted">No customers match “{name.trim()}”</li>}
+              </ul>
+            </Popover>
+          </div>
           <input name="phone" type="tel" className="b-input md:col-span-3" maxLength={40} placeholder="Phone (the driver calls ahead)" defaultValue={v('phone') || initialContact?.phone || ''} aria-label="Phone" />
           <input name="email" type="email" className="b-input md:col-span-6" maxLength={254} placeholder="Email (for the tracking link)" defaultValue={v('email') || initialContact?.email || ''} aria-label="Email" />
           <input name="address1" className="b-input md:col-span-6" required maxLength={200} placeholder="Street address" defaultValue={v('address1') || initialContact?.address1 || ''} aria-label="Street address" />
