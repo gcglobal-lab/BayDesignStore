@@ -41,7 +41,7 @@ export default async function NewOrderPage({ searchParams }: PageProps<'/base/de
       <Link href={dealId ? `/base/crm/deals/${dealId}` : '/base/deliveries/orders'} className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft size={15} /> Back</Link>
       <PageHeader plain title="New delivery order" description={items ? 'Items were copied from the deal’s quote — check them before saving.' : undefined} />
       <Card>
-        <OrderForm contacts={opts.contacts} deals={opts.deals} defaults={{ deal_id: dealId ?? null, contact_id: contactId ?? null, scheduled_date: date ?? null, items }} windowHours={settings.window_hours} />
+        <OrderForm contacts={opts.contacts} defaults={{ deal_id: dealId ?? null, contact_id: contactId ?? null, scheduled_date: date ?? null, items }} windowHours={settings.window_hours} />
       </Card>
     </>
   );

@@ -2,10 +2,12 @@
 
 import { Copy, Sparkles } from 'lucide-react';
 import { useState } from 'react';
+import { createCustomer } from '@/app/base/(app)/deliveries/customers/actions';
 import { autoPlanDay, saveRoute } from '@/app/base/(app)/deliveries/dispatch/actions';
 import { addOrderNote } from '@/app/base/(app)/deliveries/orders/actions';
 import { saveDlSettings } from '@/app/base/(app)/deliveries/settings/actions';
 import { saveTruck } from '@/app/base/(app)/deliveries/trucks/actions';
+import { useDialog } from '@/components/base/Dialog';
 import { ActionForm, Field, SubmitButton } from '@/components/base/forms';
 import type { Person } from '@/lib/crm/types';
 import type { DlSettings, Route, Truck } from '@/lib/deliveries/types';
@@ -68,6 +70,22 @@ export function TruckForm({ truck }: { truck?: Truck }) {
       <Field label="Notes" htmlFor="t-notes"><textarea id="t-notes" name="notes" className="b-input min-h-[60px]" maxLength={1000} defaultValue={truck?.notes ?? ''} placeholder="Lift gate, dollies, blankets…" /></Field>
       {truck && <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="active" className="b-check" defaultChecked={truck.active} /> In service</label>}
       <div className="flex justify-end"><SubmitButton className="b-btn-brass">{truck ? 'Save' : 'Add truck'}</SubmitButton></div>
+    </ActionForm>
+  );
+}
+
+export function CustomerForm() {
+  const { close } = useDialog();
+  return (
+    <ActionForm action={createCustomer} resetOnSuccess onSuccess={close} className="space-y-4">
+      <Field label="Name" htmlFor="c-name"><input id="c-name" name="name" className="b-input" required maxLength={160} autoFocus /></Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Email" htmlFor="c-email"><input id="c-email" name="email" type="email" className="b-input" maxLength={254} /></Field>
+        <Field label="Phone number" htmlFor="c-phone"><input id="c-phone" name="phone" type="tel" className="b-input" maxLength={40} /></Field>
+      </div>
+      <Field label="Address" htmlFor="c-addr"><input id="c-addr" name="address1" className="b-input" maxLength={200} /></Field>
+      <p className="text-xs text-muted">Also saved to Workflow contacts.</p>
+      <div className="flex justify-end"><SubmitButton className="b-btn-brass">Add customer</SubmitButton></div>
     </ActionForm>
   );
 }

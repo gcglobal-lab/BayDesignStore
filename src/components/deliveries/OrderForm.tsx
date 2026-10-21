@@ -26,14 +26,12 @@ export default function OrderForm({
   order,
   items: initialItems,
   contacts,
-  deals,
   defaults,
   windowHours,
 }: {
   order?: Order;
   items?: OrderItem[];
   contacts: ContactOption[];
-  deals: { id: string; name: string }[];
   defaults?: Partial<Pick<Order, 'contact_id' | 'deal_id' | 'scheduled_date'>> & { items?: OrderItem[] };
   windowHours: number;
 }) {
@@ -113,14 +111,8 @@ export default function OrderForm({
         <input type="hidden" name="contact_id" value={contactId} />
         <input type="hidden" name="new_customer" value={isNew && !contactId ? '1' : ''} />
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Deal (optional)" htmlFor="o-deal">
-            <Select id="o-deal" name="deal_id" className="b-input" defaultValue={order?.deal_id ?? defaults?.deal_id ?? ''}>
-              <option value="">— None —</option>
-              {deals.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </Select>
-          </Field>
-        </div>
+        {/* Orders started from a Workflow deal stay linked to it; there's no deal picker here. */}
+        <input type="hidden" name="deal_id" value={order?.deal_id ?? defaults?.deal_id ?? ''} />
 
         <fieldset className="grid gap-3 rounded-2xl border border-stone/60 p-4 md:grid-cols-6">
           <legend className="b-label px-1">Customer & address</legend>

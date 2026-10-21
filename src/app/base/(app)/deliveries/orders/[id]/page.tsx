@@ -77,7 +77,7 @@ export default async function OrderPage({ params }: PageProps<'/base/deliveries/
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Dialog trigger={<><Pencil size={14} /> Edit</>} triggerClassName="b-btn-ghost" title={`Edit order #${order.number}`} wide>
-            <OrderForm order={order} items={items} contacts={opts.contacts} deals={opts.deals} windowHours={settings.window_hours} />
+            <OrderForm order={order} items={items} contacts={opts.contacts} windowHours={settings.window_hours} />
           </Dialog>
           {(status === 'failed' || status === 'cancelled') && <StatusBtn id={order.id} status={order.scheduled_date ? 'scheduled' : 'unscheduled'} className="b-btn-brass"><RotateCcw size={14} /> Reschedule</StatusBtn>}
           {(status === 'scheduled' || status === 'en_route' || status === 'arrived') && <StatusBtn id={order.id} status="delivered" confirm="Mark as delivered without the driver’s proof?"><CheckCircle2 size={14} /> Mark delivered</StatusBtn>}

@@ -112,16 +112,12 @@ export async function siteOrigin() {
   return `${proto}://${host}`;
 }
 
-/** Workflow customers (with addresses) and deals for the order form's pickers. */
+/** Workflow customers (with addresses) for the order form's customer picker. */
 export async function orderFormOptions() {
-  const [contacts, deals] = await Promise.all([
-    db().from('crm_contacts').select('id, first_name, last_name, email, phone, address1, address2, city, state, postal_code').order('updated_at', { ascending: false }).limit(800),
-    db().from('crm_deals').select('id, title, status').order('updated_at', { ascending: false }).limit(300),
-  ]);
+  const contacts = await db().from('crm_contacts').select('id, first_name, last_name, email, phone, address1, address2, city, state, postal_code').order('updated_at', { ascending: false }).limit(800);
   return {
     contacts: must<{ id: string; first_name: string; last_name: string; email: string | null; phone: string | null; address1: string | null; address2: string | null; city: string | null; state: string | null; postal_code: string | null }[]>(contacts, 'load customers').map(
       ({ first_name, last_name, ...c }) => ({ ...c, name: `${first_name} ${last_name}`.trim() }),
     ),
-    deals: must<{ id: string; title: string; status: string }[]>(deals, 'load deals').map((d) => ({ id: d.id, name: `${d.title}${d.status !== 'open' ? ` (${d.status})` : ''}` })),
   };
 }

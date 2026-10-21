@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ClipboardCheck,
   Clock3,
+  Contact,
   Globe,
   Home,
   LayoutDashboard,
@@ -96,12 +97,13 @@ function timeNav({ level, onRoster, newInquiries = 0, tasksDue = 0 }: SidebarVie
   return entries;
 }
 
-/** Workflow: just three places — the dashboard (with the sales tools), the workspace, and tasks. */
+/** Workflow: the dashboard (with the sales tools), customers, the workspace, and tasks. */
 function crmNav({ crm, newLeads = 0, tasksDue = 0 }: SidebarViewer): Entry[] {
   const tasks: Item = { href: '/base/crm/tasks', label: 'Team Tasks', icon: ListTodo, badge: tasksDue };
   if (crm === 'none') return [tasks];
   return [
-    { href: '/base/crm', label: 'Dashboard', icon: LayoutDashboard, badge: newLeads, match: (p) => p === '/base/crm' || (p.startsWith('/base/crm/') && !/^\/base\/crm\/(workspace|tasks|boards)/.test(p)) },
+    { href: '/base/crm', label: 'Dashboard', icon: LayoutDashboard, badge: newLeads, match: (p) => p === '/base/crm' || (p.startsWith('/base/crm/') && !/^\/base\/crm\/(workspace|tasks|boards|contacts)/.test(p)) },
+    { href: '/base/crm/contacts', label: 'Customers', icon: Contact },
     { href: '/base/crm/workspace', label: 'Workspace', icon: LayoutGrid, match: (p) => p.startsWith('/base/crm/workspace') || p.startsWith('/base/crm/boards') },
     tasks,
   ];
@@ -112,6 +114,7 @@ function deliveriesNav({ deliveries, onRoster }: SidebarViewer): Entry[] {
   return [
     { href: '/base/deliveries', label: 'Dashboard', icon: LayoutDashboard, exact: true },
     { href: '/base/deliveries/orders', label: 'Orders', icon: PackageCheck },
+    { href: '/base/deliveries/customers', label: 'Customers', icon: Contact },
     { href: '/base/deliveries/dispatch', label: 'Dispatch Board', icon: Map },
     { href: '/base/deliveries/post-delivery', label: 'Post-delivery', icon: ClipboardCheck },
     { href: '/base/deliveries/calendar', label: 'Calendar', icon: CalendarDays },
