@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { AlarmClock, ArrowRight, BarChart3, Building2, CalendarClock, Contact, FileText, Inbox, KanbanSquare, LayoutGrid, ListTodo, Package, Percent, Settings, Target, TrendingUp, Trophy, Zap } from 'lucide-react';
+import { AlarmClock, ArrowRight, BarChart3, Building2, CalendarClock, Contact, FileText, Inbox, KanbanSquare, LayoutGrid, ListTodo, Package, Percent, Settings, Store, Target, TrendingUp, Trophy, Zap } from 'lucide-react';
 import AutoRefresh from '@/components/base/AutoRefresh';
 import { Card, EmptyState } from '@/components/base/ui';
 import { ActivityIcon, DoneToggle } from '@/components/crm/Timeline';
@@ -115,6 +115,7 @@ export default async function CrmDashboard({ searchParams }: PageProps<'/base/cr
             { href: '/base/crm/deals', label: 'Deals', icon: KanbanSquare, tone: '#1264A3' },
             { href: '/base/crm/contacts', label: 'Contacts', icon: Contact, tone: '#36C5F0' },
             { href: '/base/crm/companies', label: 'Companies', icon: Building2, tone: '#2EB67D' },
+            { href: '/base/crm/vendors', label: 'Vendors', icon: Store, tone: '#E8912D' },
             { href: '/base/crm/activities', label: 'Activities', icon: CalendarClock, tone: '#ECB22E' },
             { href: '/base/crm/quotes', label: 'Quotes', icon: FileText, tone: '#A25DDC' },
             { href: '/base/crm/products', label: 'Products', icon: Package, tone: '#FF642E' },

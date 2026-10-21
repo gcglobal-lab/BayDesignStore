@@ -456,7 +456,9 @@ export default function BoardView({
     const raw = res?.data?.column;
     if (raw) {
       const col = JSON.parse(raw) as BoardColumn;
-      setColumns((list) => [...list, col]);
+      // The levels below get their own copy of a new column.
+      const copies = res?.data?.copies ? (JSON.parse(res.data.copies) as BoardColumn[]) : [];
+      setColumns((list) => [...list, col, ...copies]);
       if (type === 'formula') setSetup(col);
     }
   };
@@ -473,6 +475,18 @@ export default function BoardView({
     const updated = list.map((c, n) => ({ ...c, position: n }));
     setColumns((all) => all.map((c) => updated.find((u) => u.id === c.id) ?? c));
     updated.forEach((c) => run(updateColumn(c.id, { position: c.position })));
+  };
+  /** Delete a row's whole sub-item table: every sub-item under it, at any depth. */
+  const removeSubs = async (parent: BoardItem) => {
+    const subs = subsOf(parent.id);
+    if (!subs.length || !(await confirmDialog({ title: `Delete all ${subs.length} sub-item${subs.length === 1 ? '' : 's'} of “${parent.name}”?`, message: 'Their own sub-items and updates are removed too.', danger: true }))) return;
+    const before = items;
+    const ids = subs.map((s) => s.id);
+    setItems((list) => {
+      const all = withDescendants(ids, list);
+      return list.filter((i) => !all.has(i.id));
+    });
+    run(bulkItems(board.id, ids, 'delete'), () => setItems(before));
   };
   const removeSub = async (s: BoardItem) => {
     const kids = subsOf(s.id).length;
@@ -668,7 +682,14 @@ export default function BoardView({
       <div className={`border-b border-stone/60 bg-linen/60 py-2 pr-2 ${depth === 1 ? 'pl-12' : 'pl-8'}`}>
         <div className="overflow-hidden rounded-md border border-stone/70 bg-surface" style={{ borderLeft: `4px solid ${color}${depth === 1 ? '88' : '55'}` }}>
           <div className="grid border-b border-stone/70 text-[0.75rem] text-muted" style={{ gridTemplateColumns: subGrid(nestCols) }}>
-            <span className="border-r border-stone/60 px-2 py-1.5 text-center">{depth === 1 ? 'Sub-item' : `Sub-item · level ${depth}`}</span>
+            <span className="relative flex items-center justify-center border-r border-stone/60 px-2 py-1.5">
+              {depth === 1 ? 'Sub-item' : `Sub-item · level ${depth}`}
+              {canEdit && subs.length > 0 && (
+                <button type="button" onClick={() => void removeSubs(parent)} className="absolute right-1 flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.7rem] text-muted hover:bg-red-50 hover:text-red-600" title="Delete this sub-item table">
+                  <Trash2 size={12} /> Delete all
+                </button>
+              )}
+            </span>
             {nestCols.map((c) => <div key={c.id} className="border-r border-stone/60 px-2 py-1.5 text-center">{header(c)}</div>)}
             {canManage ? <ColumnPicker scope="subitem" onAdd={(n, t) => createColumn('subitem', n, t, depth)} /> : <span />}
           </div>

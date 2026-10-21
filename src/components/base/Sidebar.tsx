@@ -25,6 +25,7 @@ import {
   PackageCheck,
   Settings,
   ShieldCheck,
+  Store,
   Sun,
   Tags,
   Truck,
@@ -97,13 +98,14 @@ function timeNav({ level, onRoster, newInquiries = 0, tasksDue = 0 }: SidebarVie
   return entries;
 }
 
-/** Workflow: the dashboard (with the sales tools), customers, the workspace, and tasks. */
+/** Workflow: the dashboard (with the sales tools), customers, vendors, the workspace, and tasks. */
 function crmNav({ crm, newLeads = 0, tasksDue = 0 }: SidebarViewer): Entry[] {
   const tasks: Item = { href: '/base/crm/tasks', label: 'Team Tasks', icon: ListTodo, badge: tasksDue };
   if (crm === 'none') return [tasks];
   return [
-    { href: '/base/crm', label: 'Dashboard', icon: LayoutDashboard, badge: newLeads, match: (p) => p === '/base/crm' || (p.startsWith('/base/crm/') && !/^\/base\/crm\/(workspace|tasks|boards|contacts)/.test(p)) },
+    { href: '/base/crm', label: 'Dashboard', icon: LayoutDashboard, badge: newLeads, match: (p) => p === '/base/crm' || (p.startsWith('/base/crm/') && !/^\/base\/crm\/(workspace|tasks|boards|contacts|vendors)/.test(p)) },
     { href: '/base/crm/contacts', label: 'Customers', icon: Contact },
+    { href: '/base/crm/vendors', label: 'Vendors', icon: Store },
     { href: '/base/crm/workspace', label: 'Workspace', icon: LayoutGrid, match: (p) => p.startsWith('/base/crm/workspace') || p.startsWith('/base/crm/boards') },
     tasks,
   ];

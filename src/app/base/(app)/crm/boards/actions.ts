@@ -321,8 +321,24 @@ export async function addColumn(boardId: string, scope: 'item' | 'subitem', name
     .select('*')
     .single();
   if (error || !data) return fail('Couldn’t add the column.');
+  // Columns flow down: every sub-item level below this one gets its own copy (each can delete
+  // theirs without touching this level). Formulas point at their own level's columns, so they stay put.
+  const copies: BoardColumn[] = [];
+  if (type !== 'formula') {
+    const { data: below } = await db().from('crm_board_columns').select('level').eq('board_id', boardId).eq('scope', 'subitem').gte('level', scope === 'item' ? 1 : lvl + 1);
+    const levels = [...new Set((below ?? []).map((r) => r.level as number))].sort((x, y) => x - y);
+    for (const level of levels) {
+      const { count: at } = await db().from('crm_board_columns').select('id', { count: 'exact', head: true }).eq('board_id', boardId).eq('scope', 'subitem').eq('level', level);
+      const { data: copy } = await db()
+        .from('crm_board_columns')
+        .insert({ board_id: boardId, scope: 'subitem', level, name: n, type, settings: s, width: data.width, position: at ?? 0 })
+        .select('*')
+        .single();
+      if (copy) copies.push(copy as BoardColumn);
+    }
+  }
   await touch(boardId);
-  return done(undefined, { column: JSON.stringify(data) });
+  return done(undefined, { column: JSON.stringify(data), ...(copies.length ? { copies: JSON.stringify(copies) } : {}) });
 }
 
 export async function updateColumn(id: string, patch: { name?: string; settings?: unknown; width?: number; position?: number }): Promise<ActionResult> {
