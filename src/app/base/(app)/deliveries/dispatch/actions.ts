@@ -176,12 +176,11 @@ export async function autoPlanDay(_prev: ActionResult, fd: FormData): Promise<Ac
   }
   let placed = 0;
   for (const [routeId, list] of plan) {
-    for (const o of list) {
-      await db().from('dl_orders').update({ route_id: routeId, stop_order: 999 }).eq('id', o.id);
-      placed++;
-    }
+    if (!list.length) continue;
+    await db().from('dl_orders').update({ route_id: routeId, stop_order: 999 }).in('id', list.map((o) => o.id));
+    placed += list.length;
   }
-  for (const route of routes) await optimize(route.id);
+  await Promise.all(routes.map((route) => optimize(route.id)));
   await audit(viewer, 'delivery.route', 'dl_routes', null, { text: `auto-planned ${placed} deliveries for ${day.data}` });
   refresh();
   return done(placed < orders.length ? `Planned ${placed} of ${orders.length}. The trucks are full — add a route or raise truck capacity for the rest.` : `Planned all ${placed} deliveries and optimised the routes.`);

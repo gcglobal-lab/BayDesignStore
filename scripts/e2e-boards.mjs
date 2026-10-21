@@ -111,7 +111,12 @@ try {
   check('users can’t create boards', !(await db.from('crm_boards').select('id').eq('name', `${TAG}-x`)).data?.length);
   const priv = await call('createBoard', [null, form({ name: `${TAG}-private`, template: 'blank', visibility: 'members', workspace_id: WS })], admin);
   boardId2 = priv.redirect.match(/board\/([0-9a-f-]{36})/)?.[1] ?? null;
-  check('members-only board is hidden from non-members', (await get(`/base/crm/workspace/${WS}/board/${boardId2}`, user)).status === 307);
+  {
+    // The page streams behind a loading screen, so it's refused with a 307 or a redirect inside the page — and never shows the board.
+    const r = await get(`/base/crm/workspace/${WS}/board/${boardId2}`, user);
+    const html = r.status === 200 ? await r.text() : '';
+    check('members-only board is hidden from non-members', (r.status === 307 || /NEXT_REDIRECT;replace;|NEXT_HTTP_ERROR_FALLBACK;404/.test(html)) && !html.includes(`${TAG}-private`), String(r.status));
+  }
   await call('setBoardMember', [boardId2, emp.id, 'viewer'], admin);
   check('added as view-only → can open it', (await get(`/base/crm/workspace/${WS}/board/${boardId2}`, user)).status === 200);
   const { data: g2 } = await db.from('crm_board_groups').select('id').eq('board_id', boardId2).limit(1).single();

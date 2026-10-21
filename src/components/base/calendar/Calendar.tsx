@@ -7,12 +7,14 @@ import {
   MONTHS_SHORT,
   addMonths,
   firstOfMonth,
+  fmtNumeric,
   fmtRange,
   fmtYmd,
   isYmd,
   lastOfMonth,
   monthGrid,
   monthKey,
+  parseTypedDate,
   parts,
   todayIn,
   weekdayNames,
@@ -87,7 +89,7 @@ function useAnchored(open: boolean, anchor: RefObject<HTMLElement | null>, panel
 }
 
 const panelClass =
-  'z-[80] overflow-auto rounded-3xl border border-stone/70 bg-white/95 p-4 text-ink shadow-[0_30px_70px_-25px_rgba(23,23,58,0.55)] ring-1 ring-black/5 backdrop-blur-xl sm:p-5';
+  'z-[80] overflow-auto rounded-3xl border border-stone/70 bg-surface/95 p-4 text-ink shadow-[0_30px_70px_-25px_rgba(23,23,58,0.55)] ring-1 ring-black/5 backdrop-blur-xl sm:p-5';
 
 /* -------------------------------------------------------------- month view */
 
@@ -143,7 +145,7 @@ function MonthView({ month, weekStart, today, from, to, hover, min, max, onPick,
                   edge
                     ? 'bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 font-semibold text-white shadow-[0_8px_18px_-8px_rgba(124,58,237,0.9)]'
                     : inRange
-                      ? 'font-medium text-indigo-900 hover:bg-white/70'
+                      ? 'font-medium text-indigo-900 hover:bg-surface/70'
                       : 'hover:bg-sand/80'
                 } ${d === today && !edge ? 'font-semibold text-brass-dark ring-2 ring-inset ring-brass/50' : ''}`}
               >
@@ -161,11 +163,11 @@ function MonthView({ month, weekStart, today, from, to, hover, min, max, onPick,
 function MonthNav({ month, onMonth, children }: { month: Ymd; onMonth: (m: Ymd) => void; children?: ReactNode }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-2">
-      <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full border border-stone bg-white text-ink transition-colors hover:border-brass/60 hover:text-brass-dark" onClick={() => onMonth(addMonths(month, -1))} aria-label="Previous month">
+      <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full border border-stone bg-surface text-ink transition-colors hover:border-brass/60 hover:text-brass-dark" onClick={() => onMonth(addMonths(month, -1))} aria-label="Previous month">
         <ChevronLeft size={17} />
       </button>
       {children}
-      <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full border border-stone bg-white text-ink transition-colors hover:border-brass/60 hover:text-brass-dark" onClick={() => onMonth(addMonths(month, 1))} aria-label="Next month">
+      <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full border border-stone bg-surface text-ink transition-colors hover:border-brass/60 hover:text-brass-dark" onClick={() => onMonth(addMonths(month, 1))} aria-label="Next month">
         <ChevronRight size={17} />
       </button>
     </div>
@@ -203,9 +205,81 @@ function MonthYearChooser({ month, onPick }: { month: Ymd; onPick: (m: Ymd) => v
 
 /* ------------------------------------------------------------- date picker */
 
+const monthOf = (d: Ymd) => d.slice(0, 8) + '01';
+const TYPE_HINT = 'Type a date like 10/22/2026, Oct 22 or “tomorrow”.';
+
+/** The month grid with its header, the month/year chooser and the Today / Clear buttons. */
+function CalendarPanel({
+  value,
+  month,
+  onMonth,
+  today,
+  min,
+  max,
+  weekStart,
+  onPick,
+  onClear,
+}: {
+  value: string;
+  month: Ymd;
+  onMonth: (m: Ymd) => void;
+  today: Ymd;
+  min?: string;
+  max?: string;
+  weekStart: number;
+  onPick: (d: Ymd) => void;
+  onClear?: () => void;
+}) {
+  const [choosing, setChoosing] = useState(false);
+  const picked = isYmd(value) ? value : null;
+  return (
+    <>
+      {choosing ? (
+        <MonthYearChooser
+          month={month}
+          onPick={(m) => {
+            onMonth(m);
+            setChoosing(false);
+          }}
+        />
+      ) : (
+        <>
+          <MonthNav month={month} onMonth={onMonth}>
+            <button type="button" className="rounded-full px-3 py-1.5 text-[0.95rem] font-semibold tracking-tight transition-colors hover:bg-linen" onClick={() => setChoosing(true)}>
+              {MONTHS[parts(month)[1] - 1]} {parts(month)[0]}
+            </button>
+          </MonthNav>
+          <MonthView month={month} weekStart={weekStart} today={today} from={picked} to={picked} min={min} max={max} onPick={onPick} />
+        </>
+      )}
+      <div className="mt-4 flex items-center justify-between gap-2 border-t border-stone/50 pt-3">
+        <button type="button" className="b-btn-ghost b-btn-sm" disabled={Boolean((min && today < min) || (max && today > max))} onClick={() => onPick(today)}>
+          Today
+        </button>
+        {onClear && picked && (
+          <button type="button" className="b-btn-quiet b-btn-sm" onClick={onClear}>
+            <X size={13} /> Clear
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+/** What has been typed into a date box, and what date (if any) it reads as. */
+function useTypedDate(today: Ymd, min?: string, max?: string) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const read = draft === null ? null : parseTypedDate(draft, today);
+  const parsed = read && !(min && read < min) && !(max && read > max) ? read : null;
+  const cleared = draft !== null && draft.trim() === '';
+  return { draft, setDraft, parsed, cleared, invalid: draft !== null && !cleared && !parsed };
+}
+
 /**
- * A date field with a large pop-up calendar. Works like an <input type="date">: it submits
- * `name` as yyyy-MM-dd and supports defaultValue (uncontrolled) or value + onChange.
+ * A date field: type a date straight in (10/22/2026, Oct 22, tomorrow…) or click the calendar
+ * icon for the large pop-up calendar. Works like an <input type="date">: it submits `name` as
+ * yyyy-MM-dd and supports defaultValue (uncontrolled) or value + onChange. With `trigger`, the
+ * whole control is a button (e.g. a toolbar pill) that opens the calendar.
  */
 export function DatePicker({
   name,
@@ -217,10 +291,14 @@ export function DatePicker({
   max,
   required,
   disabled,
-  placeholder = 'Pick a date',
+  placeholder,
   weekStart = 1,
   zone = DEFAULT_ZONE,
   className = '',
+  fieldClassName = '',
+  compact = false,
+  autoFocus,
+  'aria-label': ariaLabel,
   trigger,
 }: {
   /** Replaces the default field look, e.g. a toolbar pill. Receives the formatted value. */
@@ -237,32 +315,98 @@ export function DatePicker({
   placeholder?: string;
   weekStart?: number;
   zone?: string;
+  /** On the outer wrapper (width, margins). */
   className?: string;
+  /** On the field itself (e.g. a red border). */
+  fieldClassName?: string;
+  /** A slightly shorter field, for filter bars and toolbars. */
+  compact?: boolean;
+  autoFocus?: boolean;
+  'aria-label'?: string;
 }) {
   const [inner, setInner] = useState(defaultValue);
   const current = value ?? inner;
   const [open, setOpen] = useState(false);
-  const [choosing, setChoosing] = useState(false);
+  const [focused, setFocused] = useState(false);
   const today = todayIn(zone);
-  const [month, setMonth] = useState(() => (isYmd(current) ? current : today).slice(0, 8) + '01');
-  const anchor = useRef<HTMLButtonElement>(null);
+  const [month, setMonth] = useState(() => monthOf(isYmd(current) ? current : today));
+  const typed = useTypedDate(today, min, max);
+  const anchor = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const close = useCallback(() => {
-    setOpen(false);
-    setChoosing(false);
-  }, []);
+  const hidden = useRef<HTMLInputElement>(null);
+  const text = useRef<HTMLInputElement>(null);
+  const close = useCallback(() => setOpen(false), []);
   const { style } = useAnchored(open, anchor, panel, close);
   const autoId = useId();
+  const fieldId = id ?? autoId;
+  const showError = typed.invalid && !focused;
 
   const set = (d: string) => {
     if (value === undefined) setInner(d);
-    onChange?.(d);
+    if (d !== current) onChange?.(d);
   };
+  const pick = (d: string) => {
+    set(d);
+    typed.setDraft(null);
+    close();
+  };
+  /** Applies what was typed; false while it isn't a date yet. */
+  const commit = () => {
+    if (typed.draft === null) return true;
+    if (typed.cleared || typed.parsed) {
+      set(typed.parsed ?? '');
+      typed.setDraft(null);
+      return true;
+    }
+    return false;
+  };
+  const toggle = () => {
+    if (!open) setMonth(monthOf(typed.parsed ?? (isYmd(current) ? current : today)));
+    setOpen(!open);
+  };
+
+  // A half-typed date stops the form from submitting (with a hint) instead of sending the old one.
+  useEffect(() => {
+    hidden.current?.setCustomValidity(typed.invalid ? TYPE_HINT : '');
+  }, [typed.invalid]);
+  // When the form is reset (e.g. after saving), go back to the starting date like a native field.
+  const { setDraft } = typed;
+  useEffect(() => {
+    const form = hidden.current?.form;
+    if (!form || value !== undefined) return;
+    const onReset = () => {
+      setInner(defaultValue);
+      setDraft(null);
+    };
+    form.addEventListener('reset', onReset);
+    return () => form.removeEventListener('reset', onReset);
+  }, [value, defaultValue, setDraft]);
+
+  const calendar = open && (
+    <div ref={panel} style={style} className={panelClass} role="dialog" aria-label="Choose a date">
+      <CalendarPanel value={typed.parsed ?? current} month={month} onMonth={setMonth} today={today} min={min} max={max} weekStart={weekStart} onPick={pick} onClear={required ? undefined : () => pick('')} />
+    </div>
+  );
+
+  if (trigger) {
+    return (
+      <div className={`relative ${className}`}>
+        {name && <input type="hidden" name={name} value={current} />}
+        <div ref={anchor}>
+          <button id={fieldId} type="button" disabled={disabled} onClick={toggle} className="block text-left" aria-haspopup="dialog" aria-expanded={open}>
+            {trigger(current ? fmtYmd(current, 'long') : (placeholder ?? 'Pick a date'))}
+          </button>
+        </div>
+        {calendar}
+      </div>
+    );
+  }
 
   return (
     <div className={`relative ${className}`}>
-      {/* Real input so the form submits the value and `required` is enforced. */}
+      {/* The value the form submits (yyyy-MM-dd); also enforces `required` and blocks half-typed dates. */}
       <input
+        ref={hidden}
         tabIndex={-1}
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
@@ -270,90 +414,237 @@ export function DatePicker({
         value={current}
         required={required}
         onChange={() => {}}
-        onFocus={() => anchor.current?.focus()}
+        onFocus={() => text.current?.focus()}
       />
-      <button
+      <div
         ref={anchor}
-        id={id ?? autoId}
-        type="button"
-        disabled={disabled}
-        onClick={() => {
-          if (!open) setMonth((isYmd(current) ? current : today).slice(0, 8) + '01');
-          setOpen(!open);
-        }}
-        className={trigger ? 'block text-left' : `b-input flex items-center justify-between gap-2 text-left ${open ? '!border-brass ring-2 ring-brass/20' : ''}`}
-        aria-haspopup="dialog"
-        aria-expanded={open}
+        className={`b-input relative flex items-center gap-1 !py-0 !pr-1 ${disabled ? 'bg-linen' : ''} ${showError ? '!border-red-400 ring-2 ring-red-200' : open || focused ? '!border-brass ring-2 ring-brass/20' : ''} ${fieldClassName}`}
       >
-        {trigger ? (
-          trigger(current ? fmtYmd(current, 'long') : placeholder)
-        ) : (
-          <>
-            <span className={current ? '' : 'text-muted/70'}>{current ? fmtYmd(current, 'long') : placeholder}</span>
-            <CalendarDays size={17} className="flex-none text-brass" />
-          </>
-        )}
-      </button>
-
-      {open && (
-        <div ref={panel} style={style} className={panelClass} role="dialog" aria-label="Choose a date">
-          {choosing ? (
-            <MonthYearChooser
-              month={month}
-              onPick={(m) => {
-                setMonth(m);
-                setChoosing(false);
-              }}
-            />
-          ) : (
-            <>
-              <MonthNav month={month} onMonth={setMonth}>
-                <button type="button" className="rounded-full px-3 py-1.5 text-[0.95rem] font-semibold tracking-tight transition-colors hover:bg-linen" onClick={() => setChoosing(true)}>
-                  {MONTHS[parts(month)[1] - 1]} {parts(month)[0]}
-                </button>
-              </MonthNav>
-              <MonthView
-                month={month}
-                weekStart={weekStart}
-                today={today}
-                from={isYmd(current) ? current : null}
-                to={isYmd(current) ? current : null}
-                min={min}
-                max={max}
-                onPick={(d) => {
-                  set(d);
-                  close();
-                }}
-              />
-            </>
-          )}
-          <div className="mt-4 flex items-center justify-between gap-2 border-t border-stone/50 pt-3">
-            <button
-              type="button"
-              className="b-btn-ghost b-btn-sm"
-              disabled={Boolean((min && today < min) || (max && today > max))}
-              onClick={() => {
-                set(today);
+        <input
+          ref={text}
+          id={fieldId}
+          type="text"
+          autoComplete="off"
+          spellCheck={false}
+          disabled={disabled}
+          autoFocus={autoFocus}
+          value={typed.draft ?? (focused ? fmtNumeric(current) : fmtYmd(current, 'weekday'))}
+          placeholder={placeholder ?? 'MM/DD/YYYY'}
+          aria-label={ariaLabel}
+          aria-invalid={showError || undefined}
+          aria-describedby={showError ? `${fieldId}-hint` : undefined}
+          onFocus={(e) => {
+            setFocused(true);
+            const el = e.target;
+            requestAnimationFrame(() => el.select());
+          }}
+          onBlur={() => {
+            setFocused(false);
+            commit();
+          }}
+          onChange={(e) => {
+            typed.setDraft(e.target.value);
+            const d = parseTypedDate(e.target.value, today);
+            if (d) setMonth(monthOf(d));
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              // A real date applies (and, in a form, Enter still submits it); otherwise stay put.
+              if (!commit()) e.preventDefault();
+              else if (open) {
+                e.preventDefault();
                 close();
-              }}
-            >
-              Today
-            </button>
-            {!required && current && (
-              <button
-                type="button"
-                className="b-btn-quiet b-btn-sm"
-                onClick={() => {
-                  set('');
-                  close();
-                }}
-              >
-                <X size={13} /> Clear
-              </button>
-            )}
-          </div>
-        </div>
+              }
+            } else if (e.key === 'Escape' && typed.draft !== null && !open) {
+              e.preventDefault();
+              typed.setDraft(null);
+            } else if (e.key === 'ArrowDown' && !open) {
+              e.preventDefault();
+              toggle();
+            }
+          }}
+          className={`min-w-0 flex-1 bg-transparent ${compact ? 'py-2' : 'py-2.5'} text-inherit outline-none placeholder:text-muted/60 disabled:cursor-not-allowed`}
+        />
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={toggle}
+          className="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-brass transition-colors hover:bg-sand/70 disabled:opacity-50"
+          aria-label="Open calendar"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+        >
+          <CalendarDays size={17} />
+        </button>
+      </div>
+      {showError && (
+        <p id={`${fieldId}-hint`} className="mt-1 text-[0.72rem] text-red-600">
+          {TYPE_HINT}
+        </p>
       )}
+      {calendar}
+    </div>
+  );
+}
+
+/**
+ * For a table cell's pop-up: a box to type a date into, with the calendar right under it.
+ * Enter or a click on a day saves; a valid typed date also saves when the pop-up closes.
+ */
+export function DateEditor({ value, onSave, label, zone = DEFAULT_ZONE, weekStart = 1 }: { value: string; onSave: (v: string | null) => void; label?: string; zone?: string; weekStart?: number }) {
+  const today = todayIn(zone);
+  const [month, setMonth] = useState(() => monthOf(isYmd(value) ? value : today));
+  const typed = useTypedDate(today);
+  const [tried, setTried] = useState(false);
+  // Clicking away with a date typed in keeps it, like the other cells.
+  const latest = useRef({ parsed: typed.parsed, value, onSave, done: false });
+  Object.assign(latest.current, { parsed: typed.parsed, value, onSave });
+  useEffect(() => {
+    const ref = latest.current;
+    return () => {
+      if (!ref.done && ref.parsed && ref.parsed !== ref.value) ref.onSave(ref.parsed);
+    };
+  }, []);
+  const save = (v: string | null) => {
+    latest.current.done = true;
+    onSave(v);
+  };
+  const submit = () => {
+    if (typed.draft === null) return save(isYmd(value) ? value : null);
+    if (typed.cleared) return save(null);
+    if (typed.parsed) return save(typed.parsed);
+    setTried(true);
+  };
+  const error = tried && typed.invalid;
+  return (
+    <div className="w-[19.5rem] max-w-full p-1.5">
+      <input
+        autoFocus
+        type="text"
+        autoComplete="off"
+        spellCheck={false}
+        value={typed.draft ?? fmtNumeric(value)}
+        placeholder="MM/DD/YYYY"
+        aria-label={label}
+        aria-invalid={error || undefined}
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => {
+          typed.setDraft(e.target.value);
+          setTried(false);
+          const d = parseTypedDate(e.target.value, today);
+          if (d) setMonth(monthOf(d));
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            submit();
+          }
+          // Esc closes the pop-up without keeping what was typed.
+          if (e.key === 'Escape') latest.current.done = true;
+        }}
+        className={`b-input !py-2 ${error ? '!border-red-400 ring-2 ring-red-200' : ''}`}
+      />
+      <p className={`mb-3 mt-1 px-0.5 text-[0.7rem] ${error ? 'text-red-600' : 'text-muted'}`}>
+        {error ? TYPE_HINT : typed.parsed ? `${fmtYmd(typed.parsed, 'long')} — press Enter to save` : 'Type a date and press Enter, or pick a day.'}
+      </p>
+      <CalendarPanel value={typed.parsed ?? value} month={month} onMonth={setMonth} today={today} weekStart={weekStart} onPick={(d) => save(d)} onClear={isYmd(value) ? () => save(null) : undefined} />
+    </div>
+  );
+}
+
+/**
+ * For a timeline cell's pop-up: type the start and end dates, or click a start day and then an
+ * end day on the calendar (the days in between light up).
+ */
+export function RangeEditor({
+  value,
+  onSave,
+  zone = DEFAULT_ZONE,
+  weekStart = 1,
+}: {
+  value: { from: string; to: string } | null;
+  onSave: (v: { from: string; to: string } | null) => void;
+  zone?: string;
+  weekStart?: number;
+}) {
+  const today = todayIn(zone);
+  const [from, setFrom] = useState<Ymd | null>(value?.from ?? null);
+  const [to, setTo] = useState<Ymd | null>(value?.to ?? null);
+  const [hover, setHover] = useState<Ymd | null>(null);
+  const [month, setMonth] = useState(() => monthOf(value?.from ?? today));
+  const [texts, setTexts] = useState<{ from: string | null; to: string | null }>({ from: null, to: null });
+
+  const pick = (d: Ymd) => {
+    setTexts({ from: null, to: null });
+    if (!from || to) {
+      setFrom(d);
+      setTo(null);
+    } else if (d < from) setFrom(d);
+    else setTo(d);
+  };
+  const type = (k: 'from' | 'to', raw: string) => {
+    setTexts((t) => ({ ...t, [k]: raw }));
+    const d = parseTypedDate(raw, today);
+    if (!d) return;
+    if (k === 'from') setFrom(d);
+    else setTo(d);
+    setMonth(monthOf(d));
+  };
+  const ordered = from && to ? (to < from ? { from: to, to: from } : { from, to }) : null;
+  const span = ordered ? Math.round((Date.parse(`${ordered.to}T00:00:00Z`) - Date.parse(`${ordered.from}T00:00:00Z`)) / 86_400_000) + 1 : 0;
+
+  return (
+    <div className="w-[19.5rem] max-w-full p-1.5">
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        {(['from', 'to'] as const).map((k) => {
+          const v = k === 'from' ? from : to;
+          const raw = texts[k];
+          const bad = raw !== null && raw.trim() !== '' && !parseTypedDate(raw, today);
+          return (
+            <label key={k} className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-muted">
+              {k === 'from' ? 'Start' : 'End'}
+              <input
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                autoFocus={k === 'from'}
+                value={raw ?? fmtNumeric(v)}
+                placeholder="MM/DD/YYYY"
+                aria-invalid={bad || undefined}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => type(k, e.target.value)}
+                onBlur={() => setTexts((t) => ({ ...t, [k]: null }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && ordered) {
+                    e.preventDefault();
+                    onSave(ordered);
+                  }
+                }}
+                className={`b-input mt-1 !py-1.5 font-normal normal-case tracking-normal ${bad ? '!border-red-400 ring-2 ring-red-200' : ''}`}
+              />
+            </label>
+          );
+        })}
+      </div>
+      <MonthNav month={month} onMonth={setMonth}>
+        <span className="text-sm font-semibold">
+          {MONTHS[parts(month)[1] - 1]} {parts(month)[0]}
+        </span>
+      </MonthNav>
+      <MonthView month={month} weekStart={weekStart} today={today} from={from} to={to} hover={hover} onPick={pick} onHover={setHover} />
+      <div className="mt-4 flex items-center justify-between gap-2 border-t border-stone/50 pt-3">
+        {value ? (
+          <button type="button" className="b-btn-quiet b-btn-sm text-red-600" onClick={() => onSave(null)}>
+            Clear
+          </button>
+        ) : (
+          <span className="text-[0.7rem] text-muted">{from && !to ? 'Now pick the end day' : 'Pick a start day'}</span>
+        )}
+        <span className="text-[0.7rem] text-muted">{span ? `${span} day${span === 1 ? '' : 's'}` : ''}</span>
+        <button type="button" disabled={!ordered} className="b-btn-brass b-btn-sm" onClick={() => ordered && onSave(ordered)}>
+          Save
+        </button>
+      </div>
     </div>
   );
 }
@@ -495,9 +786,9 @@ export function DateRangePicker({
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted">Month</p>
                   <div className="flex items-center gap-1">
-                    <button type="button" className="rounded-full p-1.5 hover:bg-white" onClick={() => setYear(year - 1)} aria-label="Previous year"><ChevronLeft size={14} /></button>
+                    <button type="button" className="rounded-full p-1.5 hover:bg-surface" onClick={() => setYear(year - 1)} aria-label="Previous year"><ChevronLeft size={14} /></button>
                     <span className="min-w-[3rem] text-center text-sm font-semibold">{year}</span>
-                    <button type="button" className="rounded-full p-1.5 hover:bg-white" onClick={() => setYear(year + 1)} aria-label="Next year"><ChevronRight size={14} /></button>
+                    <button type="button" className="rounded-full p-1.5 hover:bg-surface" onClick={() => setYear(year + 1)} aria-label="Next year"><ChevronRight size={14} /></button>
                   </div>
                 </div>
                 <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-12">
@@ -511,8 +802,8 @@ export function DateRangePicker({
                         fullMonth(i)
                           ? 'bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-sm'
                           : partOfMonth(i)
-                            ? 'bg-white text-violet-700 ring-2 ring-inset ring-violet-400'
-                            : 'bg-white text-ink hover:bg-sand'
+                            ? 'bg-surface text-violet-700 ring-2 ring-inset ring-violet-400'
+                            : 'bg-surface text-ink hover:bg-sand'
                       }`}
                     >
                       {label}
@@ -528,7 +819,7 @@ export function DateRangePicker({
                   const v = k === 'from' ? draftFrom : draftTo;
                   const active = k === 'from' ? !draftFrom || Boolean(draftTo) : Boolean(draftFrom) && !draftTo;
                   return (
-                    <div key={k} className={`rounded-2xl border px-3.5 py-2 transition-colors ${active ? 'border-violet-400 bg-violet-50' : 'border-stone/70 bg-white'}`}>
+                    <div key={k} className={`rounded-2xl border px-3.5 py-2 transition-colors ${active ? 'border-violet-400 bg-violet-50' : 'border-stone/70 bg-surface'}`}>
                       <p className="text-[0.62rem] font-semibold uppercase tracking-[0.16em] text-muted">{k === 'from' ? 'From' : 'To'}</p>
                       <p className={`text-sm font-semibold ${v ? 'text-ink' : 'text-muted/70'}`}>{v ? fmtYmd(v, 'long') : active ? (k === 'from' ? 'Click a start day' : 'Now click an end day') : '—'}</p>
                     </div>

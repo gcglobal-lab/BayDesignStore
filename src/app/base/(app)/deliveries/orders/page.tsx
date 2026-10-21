@@ -37,19 +37,21 @@ export default async function OrdersPage({ searchParams }: PageProps<'/base/deli
   else if (tab === 'done') query = query.eq('status', 'delivered').order('completed_at', { ascending: false });
   else query = query.order('created_at', { ascending: false });
   if (q) query = query.or(`customer_name.ilike.%${q}%,address1.ilike.%${q}%,city.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`);
-  const orders = must<(Order & { items: { id: string }[]; route: { name: string } | null })[]>(await query, 'load orders');
-
-  const counts = Object.fromEntries(
-    await Promise.all(
+  // The list and the tab counts are fetched at the same time.
+  const [ordersRes, countPairs] = await Promise.all([
+    query,
+    Promise.all(
       (
         [
           ['unscheduled', db().from('dl_orders').select('id', { count: 'exact', head: true }).eq('status', 'unscheduled')],
           ['today', db().from('dl_orders').select('id', { count: 'exact', head: true }).eq('scheduled_date', today).neq('status', 'cancelled')],
           ['problems', db().from('dl_orders').select('id', { count: 'exact', head: true }).eq('status', 'failed')],
         ] as const
-      ).map(async ([k, p]) => [k, (await p).count ?? 0]),
+      ).map(async ([k, p]) => [k, (await p).count ?? 0] as const),
     ),
-  ) as Record<string, number>;
+  ]);
+  const orders = must<(Order & { items: { id: string }[]; route: { name: string } | null })[]>(ordersRes, 'load orders');
+  const counts = Object.fromEntries(countPairs) as Record<string, number>;
 
   return (
     <>

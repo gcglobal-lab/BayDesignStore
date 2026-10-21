@@ -35,18 +35,26 @@ const publicCsp = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  // The Docker image runs the self-contained server (see Dockerfile); npm start is unaffected.
-  ...(process.env.NEXT_OUTPUT === 'standalone' ? { output: 'standalone' as const } : {}),
   compress: true,
   // Timesheet PDFs are built on the server; load jsPDF from node_modules instead of bundling it.
   serverExternalPackages: ['jspdf', 'jspdf-autotable', 'exceljs'],
   reactStrictMode: true,
   // CSV imports (Workflow) and proof-of-delivery photos (Deliveries) are sent to server actions;
   // Vercel accepts request bodies up to 4.5 MB.
-  experimental: { serverActions: { bodySizeLimit: '4mb' } },
+  experimental: {
+    serverActions: { bodySizeLimit: '4mb' },
+    // Pages you just visited are reused for 30 s when you go back to them; saving anything
+    // (every server action revalidates) still shows fresh data straight away.
+    staleTimes: { dynamic: 30 },
+  },
   async headers() {
     return [
       { source: '/:path*', headers: securityHeaders },
+      // Icons and the web-app manifest rarely change: browsers keep them a day and refresh in the background.
+      {
+        source: '/:file(favicon\\.ico|favicon\\.svg|favicon-32\\.png|favicon-48\\.png|apple-touch-icon\\.png|icon-192\\.png|icon-512\\.png|site\\.webmanifest)',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' }],
+      },
       // Everything except /base and /base/*
       { source: '/:path((?!base(?:/|$)).*)', headers: [{ key: 'Content-Security-Policy', value: publicCsp }] },
     ];

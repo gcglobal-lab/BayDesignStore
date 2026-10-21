@@ -9,6 +9,7 @@ import { CustomerForm } from '@/components/deliveries/Forms';
 import { serviceLabel, type Order, type OrderItem, type ServiceType } from '@/lib/deliveries/types';
 import Select from '@/components/ui/Select';
 import { Popover } from '@/components/ui/Popover';
+import { DatePicker } from '@/components/base/calendar/Calendar';
 
 export type ContactOption = {
   id: string;
@@ -196,7 +197,7 @@ export default function OrderForm({
             </Select>
           </Field>
           <Field label="Date" htmlFor="o-date" hint="Leave empty to schedule later.">
-            <input id="o-date" name="scheduled_date" type="date" className="b-input" defaultValue={order?.scheduled_date ?? defaults?.scheduled_date ?? ''} />
+            <DatePicker id="o-date" name="scheduled_date" defaultValue={order?.scheduled_date ?? defaults?.scheduled_date ?? ''} />
           </Field>
           <Field label="Window from" htmlFor="o-ws">
             <input

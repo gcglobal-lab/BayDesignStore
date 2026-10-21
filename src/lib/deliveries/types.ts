@@ -111,8 +111,6 @@ export const serviceLabel: Record<ServiceType, string> = {
 export const routeStatusLabel: Record<RouteStatus, string> = { planned: 'Planned', dispatched: 'Dispatched', in_progress: 'On the road', completed: 'Completed' };
 export const routeStatusTone: Record<RouteStatus, string> = { planned: 'b-badge-gray', dispatched: 'b-badge-blue', in_progress: 'b-badge-amber', completed: 'b-badge-green' };
 
-/** Stops that still need the truck to go there. */
-export const isOpenStop = (s: OrderStatus) => s === 'scheduled' || s === 'en_route' || s === 'arrived';
 export const isDone = (s: OrderStatus) => s === 'delivered' || s === 'failed' || s === 'cancelled';
 
 export const fullAddress = (o: Pick<Order, 'address1' | 'address2' | 'city' | 'state' | 'postal_code'>) =>
@@ -155,39 +153,47 @@ export function optimizeStops<T extends { id: string; lat: number | null; lng: n
   const groups = new Map<string, (T & Pt)[]>();
   for (const s of located) {
     const k = s.window_start ?? '99:99';
-    groups.set(k, [...(groups.get(k) ?? []), s]);
+    const list = groups.get(k);
+    if (list) list.push(s);
+    else groups.set(k, [s]);
   }
   const ordered: (T & Pt)[] = [];
   let from: Pt = depot;
   for (const k of [...groups.keys()].sort()) {
-    let pending = groups.get(k)!;
-    const path: (T & Pt)[] = [];
-    while (pending.length) {
-      let best = 0;
-      for (let i = 1; i < pending.length; i++) if (miles(from, pending[i]) < miles(from, pending[best])) best = i;
-      from = pending[best];
-      path.push(pending[best]);
-      pending = pending.filter((_, i) => i !== best);
+    const pts = groups.get(k)!;
+    const n = pts.length;
+    // Distances are worked out once: node 0 is where the truck comes from, 1…n are the stops.
+    const nodes: Pt[] = [from, ...pts];
+    const d = nodes.map((a) => nodes.map((b) => miles(a, b)));
+    // Nearest neighbour.
+    const route: number[] = [];
+    const left = new Set(pts.map((_, i) => i + 1));
+    for (let at = 0; left.size; ) {
+      let best = -1;
+      for (const j of left) if (best < 0 || d[at][j] < d[at][best]) best = j;
+      route.push(best);
+      left.delete(best);
+      at = best;
     }
-    // 2-opt within the group
-    const start = ordered.length ? ordered[ordered.length - 1] : depot;
-    const len = (p: Pt[]) => p.reduce((sum, q, i) => sum + miles(i ? p[i - 1] : start, q), 0);
+    // 2-opt on the open path (start fixed, end free): reversing route[i..j] only changes the two
+    // links at its ends, so each candidate is scored in constant time and applied in place.
     let improved = true;
-    let route = path;
     for (let pass = 0; improved && pass < 30; pass++) {
       improved = false;
-      for (let i = 0; i < route.length - 1; i++) {
-        for (let j = i + 1; j < route.length; j++) {
-          const next = [...route.slice(0, i), ...route.slice(i, j + 1).reverse(), ...route.slice(j + 1)];
-          if (len(next) + 1e-9 < len(route)) {
-            route = next;
+      for (let i = 0; i < n - 1; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const before = i ? route[i - 1] : 0;
+          const after = j + 1 < n ? route[j + 1] : -1;
+          const delta = d[before][route[j]] - d[before][route[i]] + (after < 0 ? 0 : d[route[i]][after] - d[route[j]][after]);
+          if (delta < -1e-9) {
+            for (let a = i, b = j; a < b; a++, b--) [route[a], route[b]] = [route[b], route[a]];
             improved = true;
           }
         }
       }
     }
-    ordered.push(...route);
-    from = route[route.length - 1] ?? from;
+    for (const idx of route) ordered.push(pts[idx - 1]);
+    from = ordered[ordered.length - 1] ?? from;
   }
   return [...ordered, ...rest];
 }

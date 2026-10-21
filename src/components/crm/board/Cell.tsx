@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, Download, ExternalLink, FileUp, Loader2, Mail, Phone, Plus, Search, Trash2, X } from 'lucide-react';
 import { deleteFile, type PortalFile } from '@/app/base/(app)/crm/files/actions';
+import { DateEditor, RangeEditor } from '@/components/base/calendar/Calendar';
 import { Popover } from '@/components/ui/Popover';
 import { fileKind, fileUrl, fmtBytes, uploadFile } from '@/components/ui/upload';
 import { asIds, asTimeline, fmtShortDate, fmtTimeline, formulaIsMoney, formulaValue, money2, num, type BoardColumn, type BoardItem } from '@/lib/crm/boardTypes';
@@ -275,15 +276,15 @@ export default function Cell({ col, item, ctx }: { col: BoardColumn; item: Board
           <button ref={p.ref} type="button" disabled={ctx.readOnly} onClick={() => p.setOpen(true)} className="flex h-full w-full items-center justify-center px-2 py-1.5 text-sm hover:ring-1 hover:ring-inset hover:ring-stone">
             {s ? fmtShortDate(s) : ''}
           </button>
-          <Popover anchor={p.ref} open={p.open} onClose={p.close} width={240}>
-            <div className="space-y-2 p-1.5">
-              {/* Typing a year fires a change per digit (0002, 0020, 0202…): only a full, sensible date saves. */}
-              <input type="date" autoFocus defaultValue={s} min="1900-01-01" max="2200-12-31" onChange={(e) => { const v = e.target.value; const y = Number(v.slice(0, 4)); if (v && y >= 1900 && y <= 2200) { ctx.onSave(v); p.close(); } }} className="b-input" aria-label={col.name} />
-              <div className="flex justify-between">
-                <button type="button" className="b-btn-quiet b-btn-sm" onClick={() => { ctx.onSave(new Date().toLocaleDateString('en-CA')); p.close(); }}>Today</button>
-                {s && <button type="button" className="b-btn-quiet b-btn-sm text-red-600" onClick={() => { ctx.onSave(null); p.close(); }}>Clear</button>}
-              </div>
-            </div>
+          <Popover anchor={p.ref} open={p.open} onClose={p.close} width={336}>
+            <DateEditor
+              value={s}
+              label={col.name}
+              onSave={(v) => {
+                if (v !== (s || null)) ctx.onSave(v);
+                p.close();
+              }}
+            />
           </Popover>
         </div>
       );
@@ -295,8 +296,8 @@ export default function Cell({ col, item, ctx }: { col: BoardColumn; item: Board
           <button ref={p.ref} type="button" disabled={ctx.readOnly} onClick={() => p.setOpen(true)} className="flex h-full w-full items-center justify-center rounded-full px-2 text-xs font-semibold text-white" style={{ background: t ? (ctx.color ?? '#579BFC') : 'transparent' }}>
             {t ? fmtTimeline(t) : <span className="text-muted/60">-</span>}
           </button>
-          <Popover anchor={p.ref} open={p.open} onClose={p.close} width={280}>
-            <TimelineEditor value={t} onSave={(v) => { ctx.onSave(v); p.close(); }} />
+          <Popover anchor={p.ref} open={p.open} onClose={p.close} width={336}>
+            <RangeEditor value={t} onSave={(v) => { ctx.onSave(v); p.close(); }} />
           </Popover>
         </div>
       );
@@ -422,23 +423,6 @@ function LongText({ value, onSave, onCancel }: { value: string; onSave: (v: stri
         <span className="mr-auto text-[0.7rem] text-muted">Saves when you click away</span>
         <button type="button" className="b-btn-quiet b-btn-sm" onClick={() => finish(false)}>Cancel</button>
         <button type="button" className="b-btn-brass b-btn-sm" onClick={() => finish(true)}>Save</button>
-      </div>
-    </div>
-  );
-}
-
-function TimelineEditor({ value, onSave }: { value: { from: string; to: string } | null; onSave: (v: { from: string; to: string } | null) => void }) {
-  const [from, setFrom] = useState(value?.from ?? '');
-  const [to, setTo] = useState(value?.to ?? '');
-  return (
-    <div className="space-y-2 p-1.5">
-      <div className="grid grid-cols-2 gap-2">
-        <label className="text-xs text-muted">Start<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="b-input mt-1 !py-1.5" /></label>
-        <label className="text-xs text-muted">End<input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="b-input mt-1 !py-1.5" /></label>
-      </div>
-      <div className="flex justify-between">
-        {value ? <button type="button" className="b-btn-quiet b-btn-sm text-red-600" onClick={() => onSave(null)}>Clear</button> : <span />}
-        <button type="button" disabled={!from || !to} className="b-btn-brass b-btn-sm" onClick={() => onSave({ from, to })}>Save</button>
       </div>
     </div>
   );

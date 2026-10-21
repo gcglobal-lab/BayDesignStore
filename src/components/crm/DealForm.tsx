@@ -6,6 +6,7 @@ import { createDeal, updateDeal } from '@/app/base/(app)/crm/deals/actions';
 import { ActionForm, Field, SubmitButton } from '@/components/base/forms';
 import type { Deal, Person, Pipeline } from '@/lib/crm/types';
 import Select from '@/components/ui/Select';
+import { DatePicker } from '@/components/base/calendar/Calendar';
 
 export type Option = { id: string; name: string; company_id?: string | null };
 
@@ -48,7 +49,7 @@ export default function DealForm({
           <input id="d-value" name="value" type="number" min={0} step="1" className="b-input" defaultValue={deal?.value ?? defaults?.value ?? ''} placeholder="0" />
         </Field>
         <Field label="Expected close" htmlFor="d-close">
-          <input id="d-close" name="expected_close" type="date" className="b-input" defaultValue={deal?.expected_close ?? ''} />
+          <DatePicker id="d-close" name="expected_close" defaultValue={deal?.expected_close ?? ''} />
         </Field>
         <Field label="Pipeline" htmlFor="d-pipeline">
           <Select

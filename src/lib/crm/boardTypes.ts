@@ -40,24 +40,6 @@ export type Board = {
 };
 export type BoardUpdate = { id: string; item_id: string; kind: 'comment' | 'log'; body: string; author_name: string | null; created_at: string };
 
-export const columnTypeLabel: Record<ColumnType, string> = {
-  text: 'Text',
-  long_text: 'Long text / notes',
-  number: 'Number',
-  currency: 'Money ($)',
-  date: 'Date',
-  status: 'Status (coloured labels)',
-  person: 'Person',
-  email: 'Email',
-  phone: 'Phone',
-  link: 'Link',
-  checkbox: 'Checkbox',
-  formula: 'Formula (calculated)',
-  dropdown: 'Dropdown',
-  people: 'People',
-  files: 'Files',
-  timeline: 'Timeline (date range)',
-};
 
 /** The column picker, grouped like monday.com. */
 export const COLUMN_PICKER: { title: string; types: ColumnType[] }[] = [

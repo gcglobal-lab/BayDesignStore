@@ -1,5 +1,4 @@
 import 'server-only';
-import { onRemoteInvalidate, publish } from './sync';
 
 /**
  * A tiny in-process cache for data that is read on almost every request but changes
@@ -29,12 +28,10 @@ function drop(prefixes: string[]) {
   for (const key of [...store.keys()]) if (prefixes.some((p) => key.startsWith(p))) store.delete(key);
 }
 
-/** Drops cached entries whose key starts with any of the given prefixes — here and in sibling processes. */
+/** Drops cached entries whose key starts with any of the given prefixes. */
 export function invalidate(...prefixes: string[]) {
   drop(prefixes);
-  publish('memo', prefixes);
 }
-onRemoteInvalidate('memo', drop);
 
 export const CacheKeys = {
   settings: 'settings',

@@ -6,6 +6,7 @@ import { createActivity } from '@/app/base/(app)/crm/activities/actions';
 import { ActionForm, SubmitButton } from '@/components/base/forms';
 import { fillTemplate, type Person } from '@/lib/crm/types';
 import Select from '@/components/ui/Select';
+import { DatePicker } from '@/components/base/calendar/Calendar';
 
 type Tab = 'note' | 'task' | 'call' | 'meeting' | 'email';
 const TABS: { key: Tab; label: string; icon: typeof Phone }[] = [
@@ -135,7 +136,7 @@ export default function ActivityComposer({
           <div className="grid gap-2 sm:grid-cols-4">
             <label className="sm:col-span-1">
               <span className="b-label">Due</span>
-              <input type="date" name="due_date" className="b-input" defaultValue={today} required />
+              <DatePicker name="due_date" defaultValue={today} required aria-label="Due" />
             </label>
             <label>
               <span className="b-label">Time</span>

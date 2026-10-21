@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { DatePicker } from '@/components/base/calendar/Calendar';
 import Link from 'next/link';
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, MapPinOff, Pencil, Plus, Printer, Route as RouteIcon, Send, Trash2, Undo2, Wand2, X } from 'lucide-react';
 import AutoRefresh from '@/components/base/AutoRefresh';
@@ -89,7 +90,7 @@ export default async function DispatchPage({ searchParams }: PageProps<'/base/de
         <Link href={nav(today)} className="b-btn-ghost b-btn-sm">Today</Link>
         <Link href={nav(addDaysYmd(date, 1, zone))} className="b-btn-ghost b-btn-sm" aria-label="Next day"><ChevronRight size={14} /></Link>
         <form action="/base/deliveries/dispatch" className="flex items-center gap-2">
-          <input type="date" name="date" defaultValue={date} className="b-input !w-auto !py-1.5" />
+          <DatePicker name="date" defaultValue={date} compact className="w-48" aria-label="Day" />
           <button className="b-btn-ghost b-btn-sm" type="submit">Go</button>
         </form>
         {!depot && <span className="text-xs text-amber-700">Set the warehouse address in Deliveries ▸ Settings for accurate routes.</span>}

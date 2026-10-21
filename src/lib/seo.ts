@@ -35,51 +35,51 @@ export type PageSeo = {
 /** Title, description and keywords for each static page — rendered server-side as Next metadata. */
 export const pageSeo = {
   home: {
-    title: 'Bay Design Store | Naples, Florida Interior Design & Fine Furniture',
+    title: 'Bay Design Store | Naples, FL Interior Design & Furniture',
     description:
-      'Naples, Florida interior design firm and fine furniture store founded by Susan Bay in 1979. Luxury full-service interior design, a Downtown Naples showroom and the Bay Design warehouse — serving Southwest Florida and beyond.',
+      'Naples, Florida interior design firm and fine furniture store since 1979: full-service design, a Downtown Naples showroom and the Bay Design warehouse.',
     path: '/',
     keywords: ['interior designer near me', 'Naples FL interior design', 'Southwest Florida interior designer', 'luxury furniture Naples'],
   },
   about: {
-    title: 'About Bay Design Store | Susan Bay, Naples Florida Interior Designer Since 1979',
+    title: 'About Susan Bay | Naples Interior Designer Since 1979',
     description:
-      'Meet Susan Bay, founder of Bay Design Store. Founded in Ann Arbor in 1979 and in Naples, Florida since 2003, we are a full-service interior design firm and fine furniture boutique. Susan also designs for Sherrill Furniture.',
+      'Meet Susan Bay, founder of Bay Design Store: designing homes since 1979 and in Naples, Florida since 2003. She also designs for Sherrill Furniture.',
     path: '/about',
     keywords: ['Susan Bay', 'Susan Bay interior designer', 'Sherrill Furniture DC Collection', 'Naples interior design firm', 'Florida interior designer since 1979'],
   },
   collections: {
-    title: 'Luxury Furniture Store in Naples, FL | Bay Design Store Collection',
+    title: 'Luxury Furniture Store in Naples, FL | Bay Design Store',
     description:
-      'Shop designer-curated sofas, chairs, tables, lighting, art and accessories at Bay Design Store — a luxury furniture store in Naples, Florida with a Downtown showroom and North Naples warehouse. Custom orders and white-glove delivery.',
+      'Designer-curated sofas, tables, lighting and art at our Downtown Naples showroom and North Naples warehouse, with custom orders and white-glove delivery.',
     path: '/collections',
     keywords: ['luxury furniture Naples FL', 'furniture store near me', 'sofas Naples FL', 'coastal furniture Florida', 'custom furniture Naples', 'home furnishings Naples'],
   },
   services: {
-    title: 'Interior Design Services in Naples & Southwest Florida | Bay Design Store',
+    title: 'Interior Design Services in Naples, FL | Bay Design Store',
     description:
-      'Full-service luxury interior design, the complimentary Instant Design Program, custom furniture, white-glove delivery and private appointments from Bay Design Store in Naples, Florida.',
+      'Full-service luxury interior design, the complimentary Instant Design Program, custom furniture and white-glove delivery in Naples, Florida.',
     path: '/services',
     keywords: ['interior design services Naples', 'full-service interior design Florida', 'Instant Design Program', 'white glove furniture delivery Naples', 'custom furniture orders Florida', 'interior decorator Naples FL'],
   },
   portfolio: {
-    title: 'Interior Design Portfolio | Luxury Naples & Florida Homes | Bay Design Store',
+    title: 'Interior Design Portfolio | Naples Homes | Bay Design',
     description:
-      'Explore the Bay Design Store interior design portfolio — elegant, relaxed living rooms, dining rooms, bedrooms and kitchens designed for homes in Naples and Southwest Florida.',
+      'Living rooms, dining rooms, bedrooms and kitchens designed by Bay Design Store for homes in Naples and Southwest Florida: elegant, relaxed, personal.',
     path: '/portfolio',
     keywords: ['interior design portfolio Florida', 'luxury home interiors Naples', 'coastal living room design', 'Florida home interior design ideas'],
   },
   contact: {
-    title: 'Visit Bay Design Store | Naples Showroom & Bay Design Warehouse',
+    title: 'Visit Bay Design Store | Naples Showroom & Warehouse',
     description:
-      'Visit Bay Design Store at 326 13th Avenue South in Downtown Naples, or the Bay Design warehouse at 5510 Shirley Street, North Naples, FL. Call (239) 649-0906 to book a private or video design appointment.',
+      'Visit 326 13th Avenue South in Downtown Naples or the Bay Design warehouse at 5510 Shirley Street. Call (239) 649-0906 for a private or video appointment.',
     path: '/contact',
     keywords: ['Bay Design Store address', 'Bay Design warehouse Shirley Street', 'Bay Design Store phone number', 'furniture showroom Naples', 'interior designer appointment Naples'],
   },
   blog: {
-    title: 'Interior Design Journal | Florida & Coastal Design Ideas | Bay Design Store',
+    title: 'Interior Design Journal | Florida Ideas | Bay Design Store',
     description:
-      'Interior design advice from Naples, Florida: how to choose the best interior designer in Florida, coastal and luxury design ideas, Bay Design warehouse finds, and Southwest Florida trends.',
+      'Interior design advice from Naples, Florida: choosing a designer, coastal and luxury ideas, Bay Design warehouse finds and Southwest Florida trends.',
     path: '/blog',
     keywords: ['interior design blog', 'Florida interior design ideas', 'coastal interior design', 'Naples design trends', 'luxury interior design USA'],
   },

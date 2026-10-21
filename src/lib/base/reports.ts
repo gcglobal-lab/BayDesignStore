@@ -45,11 +45,12 @@ export async function buildReport({ key, from, to, employeeId, settings }: Input
   const [startIso] = dayRangeIso(from, zone);
   const [, endIso] = dayRangeIso(to, zone);
   const employees = await listEmployees(true);
+  const byId = new Map(employees.map((e) => [e.id, e]));
   const nameOf = (id: string | null) => {
-    const e = employees.find((x) => x.id === id);
+    const e = id ? byId.get(id) : undefined;
     return e ? fullName(e) : 'Former team member';
   };
-  const person = employeeId ? employees.find((e) => e.id === employeeId) : undefined;
+  const person = employeeId ? byId.get(employeeId) : undefined;
   const range = from === to ? fmtDate(from, zone, 'EEE, MMM d, yyyy') : `${fmtDate(from, zone, 'MMM d, yyyy')} – ${fmtDate(to, zone, 'MMM d, yyyy')}`;
   const subtitle = REPORTS[key].usesRange ? `${range} · ${person ? fullName(person) : REPORTS[key].usesPerson ? 'All team members' : 'All'}` : `As of ${fmtDate(new Date(), zone, 'MMM d, yyyy')}`;
   const base = { key, title: REPORTS[key].title, subtitle };
@@ -60,7 +61,7 @@ export async function buildReport({ key, from, to, employeeId, settings }: Input
       const byPerson = groupBy(entries, (e) => e.employee_id);
       const rows = [...byPerson.entries()]
         .map(([id, list]) => {
-          const emp = employees.find((e) => e.id === id);
+          const emp = byId.get(id);
           const sum = summarizeHours(list, settings);
           const rate = rateOf(emp);
           const pay = rate == null ? null : (sum.regular / 60) * rate + (sum.overtime / 60) * rate * 1.5;
@@ -94,7 +95,7 @@ export async function buildReport({ key, from, to, employeeId, settings }: Input
       const rows: Cell[][] = [];
       const byPerson = groupBy(entries, (e) => e.employee_id);
       for (const [id, list] of [...byPerson.entries()].sort((a, b) => nameOf(a[0]).localeCompare(nameOf(b[0])))) {
-        const emp = employees.find((e) => e.id === id);
+        const emp = byId.get(id);
         const byPeriod = groupBy(list, (e) => payPeriodStartYmd(toYmd(new Date(e.clock_in_at), zone), settings.pay_period_anchor, settings.pay_period_days, zone));
         for (const [start, cards] of [...byPeriod.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
           const sum = summarizeHours(cards, settings);
@@ -177,10 +178,13 @@ export async function buildReport({ key, from, to, employeeId, settings }: Input
       const now = Date.now();
       const grace = settings.late_grace_minutes * 60_000;
       const counts = { onTime: 0, late: 0, noShow: 0 };
+      // Each punch's local day is worked out once, and each shift only looks at its own person's punches.
+      const dayOf = new Map(entries.map((e) => [e.id, toYmd(new Date(e.clock_in_at), zone)]));
+      const entriesOf = groupBy(entries, (e) => e.employee_id);
       const rows = shifts.map((s) => {
         const day = toYmd(new Date(s.starts_at), zone);
-        const mine = entries
-          .filter((e) => e.employee_id === s.employee_id && (e.shift_id === s.id || toYmd(new Date(e.clock_in_at), zone) === day))
+        const mine = (entriesOf.get(s.employee_id!) ?? [])
+          .filter((e) => e.shift_id === s.id || dayOf.get(e.id) === day)
           .sort((a, b) => a.clock_in_at.localeCompare(b.clock_in_at));
         const first = mine[0];
         const last = mine[mine.length - 1];

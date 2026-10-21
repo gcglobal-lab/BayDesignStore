@@ -55,8 +55,6 @@ function providers(): Provider[] {
   return list;
 }
 
-export const isAiConfigured = () => providers().length > 0;
-
 /** Reasoning models sometimes include their thinking; only the answer is shown. */
 function clean(text: string) {
   return text

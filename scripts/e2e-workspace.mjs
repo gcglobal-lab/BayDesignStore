@@ -49,6 +49,12 @@ const BA = 'crm/boards/actions.ts';
 const FA = 'crm/files/actions.ts';
 const TA = 'crm/tasks/actions.ts';
 const get = (path, cookie) => fetch(`${BASE}${path}`, { headers: { Cookie: cookie }, redirect: 'manual' });
+// Pages stream behind a loading screen, so a redirect is either a 307 or sent inside the page (200).
+const redirectOf = async (path, cookie) => {
+  const r = await get(path, cookie);
+  if (r.status === 307 || r.status === 303) return r.headers.get('location') ?? '';
+  return r.status === 200 ? ((await r.text()).match(/NEXT_REDIRECT;replace;([^;"]+)/)?.[1] ?? null) : null;
+};
 const TAG = `e2e-ws-${Date.now()}`;
 const made = { ws: null, emp: null, tasks: [] };
 
@@ -113,8 +119,13 @@ try {
   check('move it to the top of the workspace', (await call(WSA, 'moveBoard', [boardId, { folder_id: null }], admin)).ok && (await db.from('crm_boards').select('folder_id').eq('id', boardId).single()).data.folder_id === null);
   check('add it to favourites', (await call(WSA, 'toggleFavorite', [boardId], admin)).field('favorite') === 'yes');
   for (const [label, path2] of [['workspace home', `/base/crm/workspace/${made.ws}`], ['content tab', `/base/crm/workspace/${made.ws}?tab=content`], ['members tab', `/base/crm/workspace/${made.ws}?tab=members`], ['board page', `/base/crm/workspace/${made.ws}/board/${boardId}`], ['old board link redirects', `/base/crm/boards/${boardId}`]]) {
+    if (label.includes('redirect')) {
+      const to = await redirectOf(path2, admin);
+      check(`${label} to the board's new address`, Boolean(to?.includes(`/board/${boardId}`)), to ?? 'no redirect');
+      continue;
+    }
     const r = await get(path2, admin);
-    check(`${label} opens`, label.includes('redirect') ? r.status === 307 : r.status === 200, `HTTP ${r.status}`);
+    check(`${label} opens`, r.status === 200, `HTTP ${r.status}`);
   }
   const xl = await get(`/base/crm/boards/${boardId}/export?format=xlsx`, admin);
   check('Excel export of the deposits board', xl.status === 200);
@@ -139,7 +150,7 @@ try {
   check('employees can only give tasks to themselves', own.ok && ownRow.assignee_ids.length === 1 && ownRow.assignee_ids[0] === emp.id);
   check('employees can’t delete tasks given by someone else', !(await call(TA, 'deleteTask', [taskId], worker, '/base/crm/tasks')).ok);
   check('marking done sets 100%', (await call(TA, 'updateTask', [taskId, { status: 'done' }], admin, '/base/crm/tasks')).ok && (await db.from('tasks').select('progress, completed_at').eq('id', taskId).single()).data.progress === 100);
-  check('employees can’t open the Workspace', (await get(`/base/crm/workspace/${made.ws}`, worker)).status === 307);
+  check('employees can’t open the Workspace', (await redirectOf(`/base/crm/workspace/${made.ws}`, worker)) !== null);
 } catch (err) {
   failures++;
   console.error('\n✗ Test crashed:', err);

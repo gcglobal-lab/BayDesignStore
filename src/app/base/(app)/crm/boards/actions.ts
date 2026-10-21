@@ -38,16 +38,43 @@ const touch = (boardId: string) => db().from('crm_boards').update({ updated_at: 
 async function descendantIds(boardId: string, ids: string[]): Promise<string[]> {
   const { data } = await db().from('crm_board_items').select('id, parent_id').eq('board_id', boardId).not('parent_id', 'is', null).limit(20000);
   const kids = new Map<string, string[]>();
-  for (const r of (data ?? []) as { id: string; parent_id: string }[]) kids.set(r.parent_id, [...(kids.get(r.parent_id) ?? []), r.id]);
-  const out: string[] = [];
-  const queue = [...ids];
-  while (queue.length) {
-    for (const k of kids.get(queue.shift()!) ?? []) {
-      out.push(k);
-      queue.push(k);
-    }
+  for (const r of (data ?? []) as { id: string; parent_id: string }[]) {
+    const list = kids.get(r.parent_id);
+    if (list) list.push(r.id);
+    else kids.set(r.parent_id, [r.id]);
   }
+  const queue = [...ids];
+  for (let i = 0; i < queue.length; i++) for (const k of kids.get(queue[i]) ?? []) queue.push(k);
+  return queue.slice(ids.length);
+}
+
+/**
+ * Orders rows so every parent comes before its sub-items (any depth), for copying a tree in a
+ * few bulk inserts. Rows whose parent isn't in the list are treated as top level.
+ */
+function parentsFirst<T extends { id: string; parent_id: string | null }>(rows: T[]): T[] {
+  const ids = new Set(rows.map((r) => r.id));
+  const kids = new Map<string, T[]>();
+  const top: T[] = [];
+  for (const r of rows) {
+    if (r.parent_id && ids.has(r.parent_id)) {
+      const list = kids.get(r.parent_id);
+      if (list) list.push(r);
+      else kids.set(r.parent_id, [r]);
+    } else top.push(r);
+  }
+  const out = [...top];
+  for (let i = 0; i < out.length; i++) for (const k of kids.get(out[i].id) ?? []) out.push(k);
   return out;
+}
+
+/** Bulk insert in slices (PostgREST request size), stopping at the first error. */
+async function insertAll(table: string, rows: Record<string, unknown>[], size = 500) {
+  for (let i = 0; i < rows.length; i += size) {
+    const { error } = await db().from(table).insert(rows.slice(i, i + size));
+    if (error) return error;
+  }
+  return null;
 }
 
 // ------------------------------------------------------------------ boards --
@@ -203,31 +230,31 @@ export async function duplicateBoard(fd: FormData) {
     .select('id')
     .single();
   if (!copy) return;
-  const colMap = new Map<string, string>();
-  for (const c of (cols ?? []) as BoardColumn[]) {
-    const { data } = await db().from('crm_board_columns').insert({ board_id: copy.id, scope: c.scope, level: c.level, name: c.name, type: c.type, settings: c.settings, width: c.width, position: c.position }).select('id').single();
-    if (data) colMap.set(c.id, data.id);
-  }
-  for (const c of (cols ?? []) as BoardColumn[]) {
-    if (c.type !== 'formula') continue;
-    await db().from('crm_board_columns').update({ settings: { ...c.settings, a: c.settings.a ? colMap.get(c.settings.a) : undefined, b: c.settings.b ? colMap.get(c.settings.b) : undefined } }).eq('id', colMap.get(c.id)!);
-  }
-  const groupMap = new Map<string, string>();
-  for (const gr of groups ?? []) {
-    const { data } = await db().from('crm_board_groups').insert({ board_id: copy.id, name: gr.name, color: gr.color, employee_id: gr.employee_id, position: gr.position }).select('id').single();
-    if (data) groupMap.set(gr.id, data.id);
-  }
+  const columns = (cols ?? []) as BoardColumn[];
+  const colMap = new Map(columns.map((c) => [c.id, crypto.randomUUID()]));
+  const groupMap = new Map((groups ?? []).map((gr) => [gr.id as string, crypto.randomUUID()]));
+  const all = parentsFirst((items ?? []) as BoardItem[]);
+  const itemMap = new Map(all.map((it) => [it.id, crypto.randomUUID()]));
   const remap = (values: Record<string, unknown>) => Object.fromEntries(Object.entries(values).flatMap(([k, val]) => (colMap.has(k) ? [[colMap.get(k)!, val]] : [])));
-  const itemMap = new Map<string, string>();
-  const all = (items ?? []) as BoardItem[];
-  for (const it of [...all.filter((x) => !x.parent_id), ...all.filter((x) => x.parent_id)]) {
-    const { data } = await db()
-      .from('crm_board_items')
-      .insert({ board_id: copy.id, group_id: groupMap.get(it.group_id), parent_id: it.parent_id ? itemMap.get(it.parent_id) : null, name: it.name, description: it.description, values: remap(it.values), contact_id: it.contact_id, position: it.position, created_by: viewer.employeeId })
-      .select('id')
-      .single();
-    if (data) itemMap.set(it.id, data.id);
-  }
+  await insertAll(
+    'crm_board_columns',
+    columns.map((c) => ({
+      id: colMap.get(c.id),
+      board_id: copy.id,
+      scope: c.scope,
+      level: c.level,
+      name: c.name,
+      type: c.type,
+      settings: c.type === 'formula' ? { ...c.settings, a: c.settings.a ? colMap.get(c.settings.a) : undefined, b: c.settings.b ? colMap.get(c.settings.b) : undefined } : c.settings,
+      width: c.width,
+      position: c.position,
+    })),
+  );
+  await insertAll('crm_board_groups', (groups ?? []).map((gr) => ({ id: groupMap.get(gr.id), board_id: copy.id, name: gr.name, color: gr.color, employee_id: gr.employee_id, position: gr.position })));
+  await insertAll(
+    'crm_board_items',
+    all.map((it) => ({ id: itemMap.get(it.id), board_id: copy.id, group_id: groupMap.get(it.group_id), parent_id: it.parent_id ? (itemMap.get(it.parent_id) ?? null) : null, name: it.name, description: it.description, values: remap(it.values), contact_id: it.contact_id, position: it.position, created_by: viewer.employeeId })),
+  );
   await audit(viewer, 'crm.board', 'crm_boards', copy.id, { text: `duplicated the board “${b.name}”` });
   revalidatePath('/base/crm/workspace', 'layout');
   redirect(`/base/crm/workspace/${b.workspace_id}/board/${copy.id}`);
@@ -323,18 +350,17 @@ export async function addColumn(boardId: string, scope: 'item' | 'subitem', name
   if (error || !data) return fail('Couldn’t add the column.');
   // Columns flow down: every sub-item level below this one gets its own copy (each can delete
   // theirs without touching this level). Formulas point at their own level's columns, so they stay put.
-  const copies: BoardColumn[] = [];
+  let copies: BoardColumn[] = [];
   if (type !== 'formula') {
     const { data: below } = await db().from('crm_board_columns').select('level').eq('board_id', boardId).eq('scope', 'subitem').gte('level', scope === 'item' ? 1 : lvl + 1);
-    const levels = [...new Set((below ?? []).map((r) => r.level as number))].sort((x, y) => x - y);
-    for (const level of levels) {
-      const { count: at } = await db().from('crm_board_columns').select('id', { count: 'exact', head: true }).eq('board_id', boardId).eq('scope', 'subitem').eq('level', level);
-      const { data: copy } = await db()
+    const perLevel = new Map<number, number>();
+    for (const r of below ?? []) perLevel.set(r.level, (perLevel.get(r.level) ?? 0) + 1);
+    if (perLevel.size) {
+      const { data: made } = await db()
         .from('crm_board_columns')
-        .insert({ board_id: boardId, scope: 'subitem', level, name: n, type, settings: s, width: data.width, position: at ?? 0 })
-        .select('*')
-        .single();
-      if (copy) copies.push(copy as BoardColumn);
+        .insert([...perLevel].map(([level, count]) => ({ board_id: boardId, scope: 'subitem', level, name: n, type, settings: s, width: data.width, position: count })))
+        .select('*');
+      copies = (made ?? []) as BoardColumn[];
     }
   }
   await touch(boardId);
@@ -535,25 +561,29 @@ export async function duplicateItem(id: string): Promise<ActionResult> {
     .select('*')
     .single();
   if (!copy) return fail('Couldn’t duplicate.');
-  // Copy every level below it, one level at a time, pointing each copy at its new parent.
+  // Copy every level below it: each sub-item gets its new id up front, so its copy can point at
+  // its parent's copy, and the whole tree goes in as bulk inserts (parents first).
   const { data: all } = await db().from('crm_board_items').select('*').eq('board_id', it.board_id).not('parent_id', 'is', null).limit(20000);
-  const rows = (all ?? []) as BoardItem[];
-  const made: BoardItem[] = [];
-  let level: [string, string][] = [[id, copy.id]];
-  while (level.length && made.length < 2000) {
-    const next: [string, string][] = [];
-    const batch = level.flatMap(([oldParent, newParent]) => rows.filter((r) => r.parent_id === oldParent).map((r) => ({ r, newParent })));
-    if (!batch.length) break;
-    const { data: inserted } = await db()
-      .from('crm_board_items')
-      .insert(batch.map(({ r, newParent }) => ({ board_id: r.board_id, group_id: copy.group_id, parent_id: newParent, name: r.name, description: r.description, values: r.values, position: r.position, created_by: g.viewer.employeeId })))
-      .select('*');
-    (inserted ?? []).forEach((n: BoardItem, i: number) => {
-      made.push(n);
-      next.push([batch[i].r.id, n.id]);
-    });
-    level = next;
+  const kids = new Map<string, BoardItem[]>();
+  for (const r of (all ?? []) as BoardItem[]) {
+    const list = kids.get(r.parent_id!);
+    if (list) list.push(r);
+    else kids.set(r.parent_id!, [r]);
   }
+  // Breadth-first from the copied row, so parents always come before their sub-items.
+  const tree: BoardItem[] = [];
+  const queue = [id];
+  for (let i = 0; i < queue.length && tree.length < 2000; i++) {
+    for (const k of kids.get(queue[i]) ?? []) {
+      tree.push(k);
+      queue.push(k.id);
+    }
+  }
+  const newId = new Map<string, string>([[id, copy.id], ...tree.map((r) => [r.id, crypto.randomUUID()] as [string, string])]);
+  const now = new Date().toISOString();
+  const made: BoardItem[] = tree.map((r) => ({ ...r, id: newId.get(r.id)!, group_id: copy.group_id, parent_id: newId.get(r.parent_id!)!, created_at: now, updated_at: now }));
+  const error = await insertAll('crm_board_items', made.map((r) => ({ id: r.id, board_id: r.board_id, group_id: r.group_id, parent_id: r.parent_id, name: r.name, description: r.description, values: r.values, position: r.position, created_by: g.viewer.employeeId })));
+  if (error) return fail('Copied the row, but not all of its sub-items.');
   return done(undefined, { items: JSON.stringify([copy, ...made]) });
 }
 

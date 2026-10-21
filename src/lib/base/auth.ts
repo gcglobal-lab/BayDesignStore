@@ -95,8 +95,6 @@ export async function requireDeliveries({ dispatcher = false } = {}): Promise<Vi
   return viewer;
 }
 
-export const isCrmManager = (v: Viewer) => v.crm === 'manager';
-export const isDispatcher = (v: Viewer) => v.deliveries === 'dispatcher';
 
 /** A viewer who is on the roster (can clock in, request time off, etc.). */
 export async function requireEmployee(): Promise<Viewer & { employeeId: string }> {

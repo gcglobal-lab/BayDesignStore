@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { DatePicker } from '@/components/base/calendar/Calendar';
 import Link from 'next/link';
 import { Download } from 'lucide-react';
 import { Card, EmptyState, PageHeader } from '@/components/base/ui';
@@ -124,9 +125,9 @@ export default async function CrmReportsPage({ searchParams }: PageProps<'/base/
           {Object.entries(presets).map(([k, [label]]) => <Link key={k} href={`/base/crm/reports?range=${k}`} aria-current={preset === k ? 'page' : undefined}>{label}</Link>)}
         </div>
         <form action="/base/crm/reports" className="flex flex-wrap items-center gap-2">
-          <input type="date" name="from" defaultValue={from} className="b-input !w-auto !py-2" />
+          <DatePicker name="from" defaultValue={from} compact className="w-48" aria-label="From" />
           <span className="text-muted">to</span>
-          <input type="date" name="to" defaultValue={to} className="b-input !w-auto !py-2" />
+          <DatePicker name="to" defaultValue={to} compact className="w-48" aria-label="To" />
           <button type="submit" className="b-btn-ghost">Apply</button>
         </form>
       </div>

@@ -95,7 +95,6 @@ export function Stat({ label, value, hint }: { label: string; value: ReactNode; 
   );
 }
 
-export const roleChipStyle = (color: string | null | undefined) => ({ backgroundColor: color ?? '#A8834F' });
 
 export function StatusBadge({ status }: { status: string }) {
   const cls = status === 'approved' ? 'b-badge-green' : status === 'pending' ? 'b-badge-amber' : status === 'denied' ? 'b-badge-red' : 'b-badge-gray';

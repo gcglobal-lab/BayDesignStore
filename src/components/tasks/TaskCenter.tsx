@@ -34,9 +34,13 @@ import Select from '@/components/ui/Select';
 import { fileKind, fileUrl, fmtBytes, uploadFile } from '@/components/ui/upload';
 import { PRIORITIES, priorityMeta, STATUSES, statusMeta, type ChecklistItem, type Task, type TaskComment, type TaskList, type TaskStatus } from '@/lib/tasks/types';
 import { confirmDialog, friendlyError, reportResult, toast } from '@/components/ui/toast';
+import { oneOf, usePersistentState } from '@/lib/usePersistentState';
+import { DatePicker } from '@/components/base/calendar/Calendar';
 
 type Person = { id: string; name: string };
 type Me = { id: string | null; name: string; canAssign: boolean; canSeeAll: boolean; isLead: boolean };
+const SCOPES = oneOf('mine', 'created', 'all');
+const VIEWS = oneOf('list', 'board', 'team');
 
 const shortDate = (ymd: string) => new Date(`${ymd}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 const addDays = (ymd: string, n: number) => {
@@ -147,8 +151,8 @@ function NewTaskForm({ people, lists, me, onDone, defaults }: { people: Person[]
             {STATUSES.map((s) => <option key={s} value={s} data-color={statusMeta[s].color}>{statusMeta[s].label}</option>)}
           </Select>
         </Field>
-        <Field label="Start" htmlFor="t-start"><input id="t-start" type="date" name="start_date" className="b-input" /></Field>
-        <Field label="Due" htmlFor="t-due"><input id="t-due" type="date" name="due_date" className="b-input" /></Field>
+        <Field label="Start" htmlFor="t-start"><DatePicker id="t-start" name="start_date" /></Field>
+        <Field label="Due" htmlFor="t-due"><DatePicker id="t-due" name="due_date" /></Field>
       </div>
       {lists.length > 0 && (
         <Field label="List / project" htmlFor="t-list">
@@ -224,9 +228,9 @@ function TaskDrawer({ task, people, names, lists, me, onClose, onPatch, onDelete
             </dd>
             <dt className="text-muted">Dates</dt>
             <dd className="flex flex-wrap items-center gap-2">
-              <input type="date" disabled={!full} value={task.start_date ?? ''} onChange={(e) => onPatch({ start_date: e.target.value || null })} className="b-input !w-auto !py-1.5" aria-label="Start date" />
+              <DatePicker disabled={!full} value={task.start_date ?? ''} onChange={(v) => onPatch({ start_date: v || null })} compact className="w-48" aria-label="Start date" />
               <span className="text-muted">→</span>
-              <input type="date" disabled={!full} value={task.due_date ?? ''} onChange={(e) => onPatch({ due_date: e.target.value || null })} className={`b-input !w-auto !py-1.5 ${overdue ? '!border-red-400 text-red-700' : ''}`} aria-label="Due date" />
+              <DatePicker disabled={!full} value={task.due_date ?? ''} onChange={(v) => onPatch({ due_date: v || null })} compact className="w-48" fieldClassName={overdue ? '!border-red-400 text-red-700' : ''} aria-label="Due date" />
               {overdue && <span className="text-xs font-medium text-red-600">Overdue</span>}
             </dd>
             {lists.length > 0 && (
@@ -371,8 +375,12 @@ export default function TaskCenter({ tasks: initial, lists, people, me, today, i
   const router = useRouter();
   const [tasks, setTasks] = useState(initial);
   useEffect(() => setTasks(initial), [initial]);
-  const [scope, setScope] = useState<'mine' | 'created' | 'all'>(me.id ? 'mine' : 'all');
-  const [view, setView] = useState<'list' | 'board' | 'team'>('list');
+  // Which tasks and which layout you were looking at are remembered in this browser (and fall
+  // back to what this person is allowed to see).
+  const [savedScope, setScope] = usePersistentState<'mine' | 'created' | 'all'>('tasks-scope', me.id ? 'mine' : 'all', SCOPES);
+  const [savedView, setView] = usePersistentState<'list' | 'board' | 'team'>('tasks-view', 'list', VIEWS);
+  const scope = !me.id ? 'all' : savedScope === 'all' && !me.canSeeAll ? 'mine' : savedScope;
+  const view = savedView === 'team' && !me.canSeeAll ? 'list' : savedView;
   const [q, setQ] = useState('');
   const [person, setPerson] = useState('');
   const [status, setStatus] = useState('');

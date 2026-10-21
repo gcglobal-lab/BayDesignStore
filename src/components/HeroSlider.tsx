@@ -43,6 +43,7 @@ function SlideLayer({
   play,
   shown,
   leaving,
+  priority = false,
   onReady,
 }: {
   slide: HeroSlide;
@@ -51,6 +52,8 @@ function SlideLayer({
   play: boolean;
   shown: boolean;
   leaving: boolean;
+  /** The opening slide: its poster is fetched before anything else on the page. */
+  priority?: boolean;
   onReady: (ready: boolean) => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -98,6 +101,8 @@ function SlideLayer({
         <img
           src={slide.poster}
           alt=""
+          fetchPriority={priority ? 'high' : 'auto'}
+          decoding={priority ? 'sync' : 'async'}
           className={`absolute inset-0 h-full w-full object-cover ${!slide.video && (shown || leaving) ? 'animate-kenburns' : ''}`}
         />
       )}
@@ -198,6 +203,7 @@ export default function HeroSlider() {
           play={i === index || i === target || i === leaving}
           shown={i === index}
           leaving={i === leaving}
+          priority={i === 0}
           onReady={(r) => setReady((prev) => (prev[i] === r ? prev : { ...prev, [i]: r }))}
         />
       ))}

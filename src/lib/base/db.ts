@@ -2,7 +2,6 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseConfig } from './env';
-import { onRemoteInvalidate, publish } from './sync';
 
 let client: SupabaseClient | null = null;
 
@@ -27,17 +26,11 @@ const tableVersion = new Map<string, number>();
 /** "employees" for https://…/rest/v1/employees?select=… */
 const tableOf = (url: string) => url.match(/\/rest\/v1\/([a-z_]+)/)?.[1] ?? '';
 
-function dropTable(table: string) {
+function invalidateTable(table: string) {
   writeVersion++;
   tableVersion.set(table, writeVersion);
   for (const key of readCache.keys()) if (key.includes(table)) readCache.delete(key);
 }
-
-function invalidateTable(table: string) {
-  dropTable(table);
-  publish('reads', [table]);
-}
-onRemoteInvalidate('reads', (tables) => tables.forEach(dropTable));
 
 /** True while rendering a page or a GET route; false inside server actions (and outside requests). */
 async function cacheableRequest(): Promise<boolean> {
@@ -147,9 +140,6 @@ async function dbFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Re
   }
   return toResponse(await pending);
 }
-
-/** For the load test / health checks: how busy the database gate is right now. */
-export const dbGateStats = () => ({ inFlight, queued: queue.length + urgent.length, max: MAX_IN_FLIGHT, cachedReads: readCache.size });
 
 /**
  * Supabase client authenticated with the service-role key. Only ever used on the

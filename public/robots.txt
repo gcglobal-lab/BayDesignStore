@@ -1,5 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /base
+Disallow: /track/
+Disallow: /api/
 
 Sitemap: https://baydesignstore.com/sitemap.xml

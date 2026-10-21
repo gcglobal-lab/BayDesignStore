@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: PageProps<'/blog/[postId]'>):
   const post = blogPosts.find((p) => p.id === postId);
   if (!post) return {};
   return buildMetadata({
-    title: `${post.seoTitle} | Bay Design Store`,
+    title: /bay design/i.test(post.seoTitle) || post.seoTitle.length > 42 ? post.seoTitle : `${post.seoTitle} | Bay Design Store`,
     description: post.excerpt,
     path: `/blog/${post.id}`,
     keywords: post.keywords,

@@ -54,6 +54,10 @@ Time clock
 - Home ▸ My Week ▸ Punch in. Allow location for the site the first time. It takes about 1–3 seconds. Off site is allowed (designers/drivers): the street address is recorded. Rest breaks are paid, meal breaks unpaid. Punch out the same way.
 - If location is blocked: phone Settings ▸ Safari/Chrome ▸ Location ▸ Allow (iPhone: turn on Precise Location), then reload.
 
+Dates (every app)
+- Date boxes take typed dates — 10/22/2026, 10/22/26, 10/22, Oct 22, October 22 2026, today, tomorrow, yesterday, +3 (days from today) — and save when you press Enter or click away; a red outline means it isn't a real date yet. The calendar icon opens the calendar (Today, Clear, and click the month name to jump to another month or year). In a board's Date cell, type and press Enter or pick a day; a Timeline cell takes a start and an end.
+- Screens remember how you left them in this browser: a board's view, sort, grouping, hidden columns and folded groups; the schedule's View by and hidden people; Team Tasks' tab and layout.
+
 Troubleshooting
 - "That login ID and password don't match": check the login ID (e.g. first.last) and ask the admin to confirm the password in Team ▸ Roster.
 - "Too many sign-in attempts": wait 15 minutes.

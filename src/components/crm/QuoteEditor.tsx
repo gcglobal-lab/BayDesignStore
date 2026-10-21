@@ -7,6 +7,7 @@ import { saveProduct } from '@/app/base/(app)/crm/products/actions';
 import { ActionForm, Field, SubmitButton } from '@/components/base/forms';
 import { money, quoteTotals, type Product, type Quote, type QuoteItem } from '@/lib/crm/types';
 import Select from '@/components/ui/Select';
+import { DatePicker } from '@/components/base/calendar/Calendar';
 
 type Option = { id: string; name: string };
 const blank = (): QuoteItem => ({ product_id: null, description: '', quantity: 1, unit_price: 0, discount_pct: 0 });
@@ -67,7 +68,7 @@ export default function QuoteEditor({
             </Select>
           </Field>
           <Field label="Valid until" htmlFor="q-valid">
-            <input id="q-valid" name="valid_until" type="date" className="b-input" defaultValue={quote?.valid_until ?? ''} />
+            <DatePicker id="q-valid" name="valid_until" defaultValue={quote?.valid_until ?? ''} />
           </Field>
         </div>
 

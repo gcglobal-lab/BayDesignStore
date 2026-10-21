@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Smoke test of a running production server (npm start / npm run start:cluster):
+ * Smoke test of a running production server (npm start):
  * every Base page as admin and as an employee, report downloads, both chat assistants,
  * the admin password flow, and that a change made on one server process shows up on all
  * of them straight away. Creates one temporary test employee and removes it afterwards.
@@ -58,8 +58,10 @@ try {
     const r = await get(p, employee);
     check(`employee ${p}`, r.status === 200, String(r.status));
   }
+  // The page streams behind a loading screen, so Next sends the redirect inside the page (200) rather than as a 307.
   const blocked = await get('/base/settings', employee);
-  check('employee is kept out of Settings', blocked.status === 307 || blocked.status === 303, String(blocked.status));
+  const blockedHtml = blocked.body.toString();
+  check('employee is kept out of Settings', (blocked.status === 307 || blocked.status === 303 || /NEXT_REDIRECT;replace;\/base[";]/.test(blockedHtml)) && !blockedHtml.includes('Stores &amp; geofences'), String(blocked.status));
 
   console.log('\nDownloads');
   for (const [report, format, expect] of [['hours', 'pdf', 'application/pdf'], ['payroll', 'xlsx', 'spreadsheetml'], ['timecards', 'csv', 'text/csv'], ['attendance', 'pdf', 'application/pdf'], ['roster', 'xlsx', 'spreadsheetml'], ['activity', 'csv', 'text/csv']]) {

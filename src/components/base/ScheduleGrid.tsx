@@ -9,6 +9,7 @@ import { deleteShift, saveShift } from '@/app/base/(app)/schedule/actions';
 import { fmtDuration } from '@/lib/base/time';
 import Select from '@/components/ui/Select';
 import { confirmDialog, friendlyError, toast } from '@/components/ui/toast';
+import { oneOf, usePersistentState } from '@/lib/usePersistentState';
 
 export type GridShift = {
   id: string;
@@ -32,6 +33,20 @@ export type GridDay = { ymd: string; weekday: string; day: string; isToday: bool
 
 type Editing = { kind: 'new'; employeeId: string | null; date: string } | { kind: 'edit'; shift: GridShift } | null;
 type ViewBy = 'first' | 'last' | 'role' | 'hours';
+const VIEW_BY = oneOf<ViewBy>('first', 'last', 'role', 'hours');
+const NO_HIDDEN: string[] = [];
+const HIDDEN = { read: (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : undefined), write: (v: string[]) => v };
+
+function groupBy<T>(list: T[], key: (x: T) => string) {
+  const m = new Map<string, T[]>();
+  for (const x of list) {
+    const k = key(x);
+    const bucket = m.get(k);
+    if (bucket) bucket.push(x);
+    else m.set(k, [x]);
+  }
+  return m;
+}
 
 function ShiftChip({ s, onClick }: { s: GridShift; onClick?: () => void }) {
   const Tag = onClick ? 'button' : 'div';
@@ -84,30 +99,14 @@ export default function ScheduleGrid({
   weekStart: number;
 }) {
   const [editing, setEditing] = useState<Editing>(null);
-  const [viewBy, setViewBy] = useState<ViewBy>('first');
+  // "View by" and who's hidden are remembered in this browser.
+  const [viewBy, setViewBy] = usePersistentState<ViewBy>('bdb-schedule-viewby', 'first', VIEW_BY);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
-  const [hidden, setHidden] = useState<string[]>([]);
+  const [hidden, setHidden] = usePersistentState<string[]>('bdb-schedule-hidden', NO_HIDDEN, HIDDEN);
   const dialog = useRef<HTMLDialogElement>(null);
 
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem('bdb-schedule-hidden') ?? '[]');
-      if (Array.isArray(saved)) setHidden(saved.filter((x) => typeof x === 'string'));
-    } catch {
-      // Storage or parsing can fail (private mode); nothing to do.
-    }
-  }, []);
-  const toggleHidden = (id: string) =>
-    setHidden((h) => {
-      const next = h.includes(id) ? h.filter((x) => x !== id) : [...h, id];
-      try {
-        window.localStorage.setItem('bdb-schedule-hidden', JSON.stringify(next));
-      } catch {
-      // Storage or parsing can fail (private mode); nothing to do.
-    }
-      return next;
-    });
+  const toggleHidden = (id: string) => setHidden((h) => (h.includes(id) ? h.filter((x) => x !== id) : [...h, id]));
 
   useEffect(() => {
     const el = dialog.current;
@@ -143,9 +142,13 @@ export default function ScheduleGrid({
   const current = editing?.kind === 'edit' ? editing.shift : null;
   const formKey = editing ? (editing.kind === 'edit' ? editing.shift.id : `${editing.employeeId}-${editing.date}`) : 'none';
 
+  // person|day → their shifts and time off, built once instead of scanning the week for every cell.
+  const shiftsByCell = useMemo(() => groupBy(shifts, (s) => `${s.employeeId}|${s.date}`), [shifts]);
+  const offByCell = useMemo(() => groupBy(timeOff, (t) => `${t.employeeId}|${t.date}`), [timeOff]);
+
   const cell = (employeeId: string | null, day: GridDay) => {
-    const own = shifts.filter((s) => s.employeeId === employeeId && s.date === day.ymd);
-    const off = employeeId ? timeOff.filter((t) => t.employeeId === employeeId && t.date === day.ymd) : [];
+    const own = shiftsByCell.get(`${employeeId}|${day.ymd}`) ?? [];
+    const off = employeeId ? (offByCell.get(`${employeeId}|${day.ymd}`) ?? []) : [];
     return (
       <td key={day.ymd} className={`group relative h-[3.75rem] border-b border-l border-stone/50 p-1 align-top ${day.isToday ? 'bg-violet-50/40' : ''}`}>
         <div className="space-y-1">
@@ -226,9 +229,7 @@ export default function ScheduleGrid({
               <td colSpan={8} className="border-b border-stone/50 bg-linen/80 px-4 py-2 text-[0.82rem] font-medium text-muted">
                 Team members ({visibleRows.length}{hidden.length ? ` of ${rows.length}` : ''})
                 {hidden.length > 0 && (
-                  <button type="button" onClick={() => { setHidden([]); try { window.localStorage.removeItem('bdb-schedule-hidden'); } catch {
-      // Storage or parsing can fail (private mode); nothing to do.
-    } }} className="ml-3 text-xs font-semibold text-violet-700 hover:underline">
+                  <button type="button" onClick={() => setHidden([])} className="ml-3 text-xs font-semibold text-violet-700 hover:underline">
                     Show {hidden.length} hidden
                   </button>
                 )}

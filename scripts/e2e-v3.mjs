@@ -52,6 +52,11 @@ async function call(actionId, args, cookie, page = '/base') {
   return { status: res.status, text, ok: /"ok":true/.test(text), redirect: res.headers.get('x-action-redirect') ?? '' };
 }
 const get = (path, cookie) => fetch(`${BASE}${path}`, { headers: { Cookie: cookie }, redirect: 'manual' });
+// Pages stream behind a loading screen, so a refused visit is either a 307 or a redirect sent inside the page.
+const sentAway = async (path, cookie) => {
+  const r = await get(path, cookie);
+  return r.status === 307 || r.status === 303 || (r.status === 200 && (await r.text()).includes('NEXT_REDIRECT;replace;'));
+};
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
 const TAG = `e2e-v3-${Date.now()}`;
@@ -66,13 +71,13 @@ try {
   const driver = `__Host-bdb_session=${await sign(emp.id, 'employee', emp.session_version)}`;
   // employees without a password can't be signed in — give a dummy hash so the session is valid
   await db.from('employees').update({ password_hash: 'scrypt:dummy' }).eq('id', emp.id);
-  check('employee without access is sent away from Workflow', (await get('/base/crm', driver)).status === 307);
+  check('employee without access is sent away from Workflow', await sentAway('/base/crm', driver));
   const access = await call(id('team/access-actions.ts', 'setAppAccess'), [null, form({ id: emp.id, crm_role: 'user', deliveries_role: 'driver' })], admin, '/base/settings');
   const { data: empAfter } = await db.from('employees').select('crm_role, deliveries_role').eq('id', emp.id).single();
   check('admin gives Workflow (user) + Deliveries (driver)', access.ok && empAfter.crm_role === 'user' && empAfter.deliveries_role === 'driver');
   await sleep(11_000); // viewer cache
   check('…now Workflow opens for them', (await get('/base/crm', driver)).status === 200);
-  check('drivers can’t open the dispatch board', (await get('/base/deliveries/dispatch', driver)).status === 307);
+  check('drivers can’t open the dispatch board', await sentAway('/base/deliveries/dispatch', driver));
   check('drivers can open My Route', (await get('/base/deliveries/my-route', driver)).status === 200);
 
   console.log('\nLeads');
@@ -189,7 +194,7 @@ try {
   check('post-delivery page lists it with the rating', post.replace(/<!-- -->/g, '').includes(`#${ord.number}`) && post.includes('Scratched the table leg'));
   const csvRes = await get('/base/deliveries/post-delivery/export', admin);
   check('post-delivery CSV export', csvRes.status === 200 && (await csvRes.text()).includes('Sent touch-up kit'));
-  check('drivers can’t open post-delivery', (await get('/base/deliveries/post-delivery', driver)).status === 307);
+  check('drivers can’t open post-delivery', await sentAway('/base/deliveries/post-delivery', driver));
   check('bad tracking token → 404', (await get('/track/00000000000000000000000000000000', '')).status === 404);
   const { count: logged } = await db.from('crm_activities').select('id', { count: 'exact', head: true }).eq('deal_id', leadAfter.deal_id).ilike('subject', 'delivered order%');
   check('the delivery shows on the deal’s timeline', (logged ?? 0) === 1);

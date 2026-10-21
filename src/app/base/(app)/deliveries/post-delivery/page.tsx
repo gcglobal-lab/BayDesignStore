@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { DatePicker } from '@/components/base/calendar/Calendar';
 import Link from 'next/link';
 import { Camera, Download, PenLine, Star } from 'lucide-react';
 import { Card, EmptyState, PageHeader } from '@/components/base/ui';
@@ -31,9 +32,9 @@ export default async function PostDeliveryPage({ searchParams }: PageProps<'/bas
         actions={<a href={`/base/deliveries/post-delivery/export?${qs}`} className="b-btn-ghost"><Download size={15} /> Export CSV</a>}
       />
       <form action="/base/deliveries/post-delivery" className="mb-5 flex flex-wrap items-center gap-2">
-        <input type="date" name="from" defaultValue={from} className="b-input !w-auto !py-2" aria-label="From" />
+        <DatePicker name="from" defaultValue={from} compact className="w-48" aria-label="From" />
         <span className="text-muted">to</span>
-        <input type="date" name="to" defaultValue={to} className="b-input !w-auto !py-2" aria-label="To" />
+        <DatePicker name="to" defaultValue={to} compact className="w-48" aria-label="To" />
         <Select name="outcome" defaultValue={outcome} className="b-input !w-auto !py-2" aria-label="Outcome">
           <option value="all">Delivered & not delivered</option>
           <option value="delivered">Delivered</option>

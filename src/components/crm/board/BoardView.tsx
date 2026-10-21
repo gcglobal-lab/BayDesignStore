@@ -60,6 +60,7 @@ import {
 import Cell, { Initials, type CellCtx } from './Cell';
 import { GroupPanel, ItemPanel } from './Panels';
 import { confirmDialog, friendlyError, isControlFlow, toast } from '@/components/ui/toast';
+import { idSet, oneOf, usePersistentState } from '@/lib/usePersistentState';
 
 export type BoardData = { board: Board; columns: BoardColumn[]; groups: BoardGroup[]; items: BoardItem[] };
 type Person = { id: string; name: string };
@@ -292,6 +293,32 @@ function ColumnHeader({ col, manage, onRename, onSetup, onMove, onDelete, onHide
 
 type Bucket = { key: string; name: string; color: string; group?: BoardGroup };
 
+const NO_ITEMS: BoardItem[] = [];
+const NO_FILES: PortalFile[] = [];
+const NO_IDS = new Set<string>();
+const VIEW_CODEC = oneOf('table', 'cards');
+const TEXT_CODEC = { read: (v: unknown) => (typeof v === 'string' && v.length < 80 ? v : undefined), write: (v: string) => v };
+const SORT_CODEC = {
+  read: (v: unknown) => {
+    if (v === null) return null;
+    const s = v as { col?: unknown; dir?: unknown } | undefined;
+    return s && typeof s.col === 'string' && (s.dir === 1 || s.dir === -1) ? { col: s.col, dir: s.dir as 1 | -1 } : undefined;
+  },
+  write: (v: { col: string; dir: 1 | -1 } | null) => v,
+};
+/** parent id → its sub-items in order, for every row on the board (one pass, then sorted). */
+function indexChildren(list: BoardItem[]) {
+  const m = new Map<string, BoardItem[]>();
+  for (const i of list) {
+    if (!i.parent_id) continue;
+    const kids = m.get(i.parent_id);
+    if (kids) kids.push(i);
+    else m.set(i.parent_id, [i]);
+  }
+  for (const kids of m.values()) kids.sort((a, b) => a.position - b.position);
+  return m;
+}
+
 export default function BoardView({
   data,
   files: initialFiles,
@@ -316,16 +343,18 @@ export default function BoardView({
   const [groups, setGroups] = useState(data.groups);
   const [items, setItems] = useState(data.items);
   const [files, setFiles] = useState(initialFiles);
-  const [view, setView] = useState<'table' | 'cards'>('table');
+  // How this board is laid out (view, sort, grouping, hidden columns, what's folded) is
+  // remembered per board in this browser.
+  const [view, setView] = usePersistentState<'table' | 'cards'>(`board-view:${board.id}`, 'table', VIEW_CODEC);
   const [q, setQ] = useState('');
   const [searching, setSearching] = useState(false);
   const [person, setPerson] = useState('');
   const [filters, setFilters] = useState<Record<string, string[]>>({});
-  const [sort, setSort] = useState<{ col: string; dir: 1 | -1 } | null>(null);
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
-  const [groupBy, setGroupBy] = useState<string>('groups');
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [sort, setSort] = usePersistentState<{ col: string; dir: 1 | -1 } | null>(`board-sort:${board.id}`, null, SORT_CODEC);
+  const [hidden, setHidden] = usePersistentState<Set<string>>(`board-hidden:${board.id}`, NO_IDS, idSet);
+  const [groupBy, setGroupBy] = usePersistentState<string>(`board-groupby:${board.id}`, 'groups', TEXT_CODEC);
+  const [collapsed, setCollapsed] = usePersistentState<Set<string>>(`board-collapsed:${board.id}`, NO_IDS, idSet);
+  const [expanded, setExpanded] = usePersistentState<Set<string>>(`board-expanded:${board.id}`, NO_IDS, idSet);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [panel, setPanel] = useState<{ kind: 'item' | 'group'; id: string; tab?: 'details' | 'updates' } | null>(initialItem ? { kind: 'item', id: initialItem } : null);
   const [setup, setSetup] = useState<BoardColumn | null>(null);
@@ -339,50 +368,49 @@ export default function BoardView({
     setItems(data.items);
   }, [data]);
   useEffect(() => setFiles(initialFiles), [initialFiles]);
-  // Hidden columns are remembered per board on this device.
-  const hideKey = `board-hidden:${board.id}`;
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(hideKey) ?? '[]');
-      if (Array.isArray(saved)) setHidden(new Set(saved));
-    } catch {
-      // storage unavailable — nothing to restore
-    }
-  }, [hideKey]);
   const toggleHidden = (id: string) =>
     setHidden((h) => {
       const n = new Set(h);
       if (n.has(id)) n.delete(id);
       else n.add(id);
-      try {
-        window.localStorage.setItem(hideKey, JSON.stringify([...n]));
-      } catch {
-        // ignore
-      }
       return n;
     });
 
   const allItemCols = useMemo(() => columns.filter((c) => c.scope === 'item').sort((a, b) => a.position - b.position), [columns]);
   const itemCols = allItemCols.filter((c) => !hidden.has(c.id));
   const subCols = useMemo(() => columns.filter((c) => c.scope === 'subitem').sort((a, b) => a.position - b.position), [columns]);
-  const subsOf = useCallback((id: string) => items.filter((i) => i.parent_id === id).sort((a, b) => a.position - b.position), [items]);
+  // Lookups built once per change, so each row and cell finds its sub-items, files and group
+  // directly instead of scanning every item on the board.
+  const childrenOf = useMemo(() => indexChildren(items), [items]);
+  const subsOf = useCallback((id: string) => childrenOf.get(id) ?? NO_ITEMS, [childrenOf]);
   /** These rows plus everything below them, at any depth. */
   const withDescendants = (ids: string[], list: BoardItem[] = items) => {
+    const kids = list === items ? childrenOf : indexChildren(list);
     const out = new Set(ids);
-    let grew = true;
-    while (grew) {
-      grew = false;
-      for (const i of list) {
-        if (i.parent_id && out.has(i.parent_id) && !out.has(i.id)) {
-          out.add(i.id);
-          grew = true;
+    const queue = [...ids];
+    for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
+      for (const k of kids.get(id) ?? NO_ITEMS) {
+        if (!out.has(k.id)) {
+          out.add(k.id);
+          queue.push(k.id);
         }
       }
     }
     return out;
   };
-  const filesOf = useCallback((itemId: string, colId: string) => files.filter((f) => f.item_id === itemId && f.column_id === colId), [files]);
-  const groupOf = (id: string) => groups.find((g) => g.id === id);
+  const filesByCell = useMemo(() => {
+    const m = new Map<string, PortalFile[]>();
+    for (const f of files) {
+      const key = `${f.item_id}|${f.column_id}`;
+      const list = m.get(key);
+      if (list) list.push(f);
+      else m.set(key, [f]);
+    }
+    return m;
+  }, [files]);
+  const filesOf = useCallback((itemId: string, colId: string) => filesByCell.get(`${itemId}|${colId}`) ?? NO_FILES, [filesByCell]);
+  const groupById = useMemo(() => new Map(groups.map((g) => [g.id, g])), [groups]);
+  const groupOf = (id: string) => groupById.get(id);
   const peopleCols = allItemCols.filter((c) => c.type === 'people' || c.type === 'person');
   const labelCols = allItemCols.filter((c) => c.type === 'status' || c.type === 'dropdown');
 
