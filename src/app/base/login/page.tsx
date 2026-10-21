@@ -1,11 +1,14 @@
 import type { Metadata } from 'next';
 import { ArrowLeft, Clock3, ShieldCheck, Truck, Workflow } from 'lucide-react';
 import { LogoMark } from '@/components/Logo';
+import InstallApp from '@/components/portal/InstallApp';
 import LoginForm from './LoginForm';
 
 export const metadata: Metadata = {
   title: { absolute: 'Sign in | Employee Portal' },
   robots: { index: false, follow: false },
+  manifest: '/portal.webmanifest',
+  appleWebApp: { capable: true, title: 'BD Portal', statusBarStyle: 'default' },
 };
 
 export default async function LoginPage({ searchParams }: PageProps<'/base/login'>) {
@@ -55,6 +58,7 @@ export default async function LoginPage({ searchParams }: PageProps<'/base/login
           <div className="mt-8">
             <LoginForm next={typeof next === 'string' ? next : undefined} />
           </div>
+          <InstallApp />
           <p className="mt-8 text-xs leading-relaxed text-muted">Forgot your password? Ask a manager to reset it from the team roster.</p>
         </div>
       </section>

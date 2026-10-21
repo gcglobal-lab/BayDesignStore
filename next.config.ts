@@ -52,7 +52,7 @@ const nextConfig: NextConfig = {
       { source: '/:path*', headers: securityHeaders },
       // Icons and the web-app manifest rarely change: browsers keep them a day and refresh in the background.
       {
-        source: '/:file(favicon\\.ico|favicon\\.svg|favicon-32\\.png|favicon-48\\.png|apple-touch-icon\\.png|icon-192\\.png|icon-512\\.png|site\\.webmanifest)',
+        source: '/:file(favicon\\.ico|favicon\\.svg|favicon-32\\.png|favicon-48\\.png|apple-touch-icon\\.png|icon-192\\.png|icon-512\\.png|site\\.webmanifest|portal\\.webmanifest)',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' }],
       },
       // Everything except /base and /base/*

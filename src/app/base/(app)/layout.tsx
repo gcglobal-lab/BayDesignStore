@@ -41,6 +41,8 @@ async function crmCounts(viewer: Viewer): Promise<{ newLeads: number; tasksDue: 
 export const metadata: Metadata = {
   title: { template: '%s | Employee Portal', default: 'Employee Portal' },
   robots: { index: false, follow: false },
+  manifest: '/portal.webmanifest',
+  appleWebApp: { capable: true, title: 'BD Portal', statusBarStyle: 'default' },
 };
 
 export default async function BaseAppLayout({ children }: { children: ReactNode }) {
