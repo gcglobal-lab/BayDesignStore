@@ -45,5 +45,5 @@ export async function createCustomer(_prev: ActionResult, fd: FormData): Promise
   if (error || !data) return fail('Couldn’t save the customer.');
   await logCrm(viewer, `added the customer ${name}`,{ contact_id: data.id }, 'crm.contact_create');
   revalidatePath('/base', 'layout');
-  return done('Customer added.');
+  return done('Customer added.', { id: data.id, name, email: v.email ?? '', phone: v.phone ?? '', address1: v.address1 ?? '' });
 }

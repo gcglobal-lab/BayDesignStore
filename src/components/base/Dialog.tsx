@@ -15,17 +15,30 @@ export function Dialog({
   triggerClassName = 'b-btn-primary',
   wide = false,
   defaultOpen = false,
+  open: controlled,
+  onOpenChange,
 }: {
-  trigger: ReactNode;
+  /** The button that opens it; leave it out and drive `open` / `onOpenChange` instead. */
+  trigger?: ReactNode;
   title: string;
   description?: ReactNode;
   children: ReactNode;
   triggerClassName?: string;
   wide?: boolean;
   defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const [open, setOpen] = useState(defaultOpen);
+  const [inner, setInner] = useState(defaultOpen);
+  const open = controlled ?? inner;
+  const setOpen = useCallback(
+    (v: boolean) => {
+      setInner(v);
+      onOpenChange?.(v);
+    },
+    [onOpenChange],
+  );
 
   useEffect(() => {
     const el = ref.current;
@@ -34,13 +47,15 @@ export function Dialog({
     if (!open && el.open) el.close();
   }, [open]);
 
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => setOpen(false), [setOpen]);
 
   return (
     <>
-      <button type="button" className={triggerClassName} onClick={() => setOpen(true)}>
-        {trigger}
-      </button>
+      {trigger && (
+        <button type="button" className={triggerClassName} onClick={() => setOpen(true)}>
+          {trigger}
+        </button>
+      )}
       <dialog
         ref={ref}
         onClose={close}

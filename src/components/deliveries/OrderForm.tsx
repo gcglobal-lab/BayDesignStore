@@ -3,7 +3,9 @@
 import { useMemo, useRef, useState } from 'react';
 import { Plus, Trash2, UserPlus } from 'lucide-react';
 import { createOrder, updateOrder } from '@/app/base/(app)/deliveries/orders/actions';
+import { Dialog } from '@/components/base/Dialog';
 import { ActionForm, Field, SubmitButton } from '@/components/base/forms';
+import { CustomerForm } from '@/components/deliveries/Forms';
 import { serviceLabel, type Order, type OrderItem, type ServiceType } from '@/lib/deliveries/types';
 import Select from '@/components/ui/Select';
 import { Popover } from '@/components/ui/Popover';
@@ -45,20 +47,22 @@ export default function OrderForm({
   const nameInput = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(v('customer_name') || initialContact?.name || '');
   const [contactId, setContactId] = useState(order?.contact_id ?? defaults?.contact_id ?? '');
-  const [isNew, setIsNew] = useState(false);
   const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [active, setActive] = useState(0);
-  const linked = contacts.find((c) => c.id === contactId);
+  // Customers added from the popup while on this page, until the list reloads.
+  const [added, setAdded] = useState<ContactOption[]>([]);
+  const all = useMemo(() => [...added, ...contacts], [added, contacts]);
+  const linked = all.find((c) => c.id === contactId);
   const matches = useMemo(() => {
     const q = name.trim().toLowerCase();
-    const hit = q ? contacts.filter((c) => [c.name, c.phone, c.email, c.city].some((x) => x?.toLowerCase().includes(q))) : contacts;
+    const hit = q ? all.filter((c) => [c.name, c.phone, c.email, c.city].some((x) => x?.toLowerCase().includes(q))) : all;
     return hit.slice(0, 50);
-  }, [contacts, name]);
+  }, [all, name]);
 
-  const fill = (id: string) => {
-    const c = contacts.find((x) => x.id === id);
+  const fill = (c: ContactOption) => {
     const f = form.current;
-    if (!c || !f) return;
+    if (!f) return;
     const set = (name: string, value: string | null) => {
       const el = f.elements.namedItem(name) as HTMLInputElement | null;
       if (el && value) el.value = value;
@@ -75,16 +79,17 @@ export default function OrderForm({
   const pickContact = (c: ContactOption) => {
     setName(c.name);
     setContactId(c.id);
-    setIsNew(false);
     setOpen(false);
-    fill(c.id);
+    fill(c);
   };
   const addNew = () => {
-    setContactId('');
-    setIsNew(true);
     setOpen(false);
-    const next = name.trim() ? form.current?.elements.namedItem('phone') : nameInput.current;
-    (next as HTMLInputElement | null)?.focus();
+    setAdding(true);
+  };
+  const onCreated = (d: Record<string, string>) => {
+    const c: ContactOption = { id: d.id, name: d.name, email: d.email || null, phone: d.phone || null, address1: d.address1 || null, address2: null, city: null, state: null, postal_code: null };
+    setAdded((l) => [c, ...l]);
+    pickContact(c);
   };
   // Row 0 is "Add new customer"; rows 1… are the matches.
   const onNameKey = (e: React.KeyboardEvent) => {
@@ -109,7 +114,6 @@ export default function OrderForm({
         <input type="hidden" name="items" value={JSON.stringify(items.filter((i) => i.description.trim()))} />
 
         <input type="hidden" name="contact_id" value={contactId} />
-        <input type="hidden" name="new_customer" value={isNew && !contactId ? '1' : ''} />
 
         {/* Orders started from a Workflow deal stay linked to it; there's no deal picker here. */}
         <input type="hidden" name="deal_id" value={order?.deal_id ?? defaults?.deal_id ?? ''} />
@@ -139,7 +143,7 @@ export default function OrderForm({
               onKeyDown={onNameKey}
             />
             <p className="mt-1 text-xs text-muted">
-              {linked ? <>Linked to <span className="font-semibold text-ink">{linked.name}</span> in Workflow</> : contactId ? 'Linked to a Workflow customer' : isNew ? 'New customer — added to Workflow when you save' : 'One-off delivery — not linked to a customer'}
+              {linked ? <>Linked to <span className="font-semibold text-ink">{linked.name}</span> in Workflow</> : contactId ? 'Linked to a Workflow customer' : 'One-off delivery — not linked to a customer'}
             </p>
             <Popover anchor={nameInput} open={open} onClose={() => setOpen(false)} matchWidth width={260}>
               <ul role="listbox" className="space-y-0.5">
@@ -254,6 +258,9 @@ export default function OrderForm({
         </div>
         <div className="flex justify-end"><SubmitButton className="b-btn-brass" pendingLabel="Saving & finding on the map…">{order ? 'Save order' : 'Create order'}</SubmitButton></div>
       </ActionForm>
+      <Dialog open={adding} onOpenChange={setAdding} title="New customer">
+        <CustomerForm defaultName={name.trim()} onCreated={onCreated} />
+      </Dialog>
     </div>
   );
 }

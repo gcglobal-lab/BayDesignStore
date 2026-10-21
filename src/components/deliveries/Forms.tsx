@@ -74,11 +74,20 @@ export function TruckForm({ truck }: { truck?: Truck }) {
   );
 }
 
-export function CustomerForm() {
+/** Quick add: name, email, phone and address. `onCreated` gets the saved customer (the order form selects it). */
+export function CustomerForm({ defaultName, onCreated }: { defaultName?: string; onCreated?: (c: Record<string, string>) => void }) {
   const { close } = useDialog();
   return (
-    <ActionForm action={createCustomer} resetOnSuccess onSuccess={close} className="space-y-4">
-      <Field label="Name" htmlFor="c-name"><input id="c-name" name="name" className="b-input" required maxLength={160} autoFocus /></Field>
+    <ActionForm
+      action={createCustomer}
+      resetOnSuccess
+      onSuccess={(r) => {
+        if (r?.data) onCreated?.(r.data);
+        close();
+      }}
+      className="space-y-4"
+    >
+      <Field label="Name" htmlFor="c-name"><input id="c-name" name="name" className="b-input" required maxLength={160} autoFocus defaultValue={defaultName} /></Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Email" htmlFor="c-email"><input id="c-email" name="email" type="email" className="b-input" maxLength={254} /></Field>
         <Field label="Phone number" htmlFor="c-phone"><input id="c-phone" name="phone" type="tel" className="b-input" maxLength={40} /></Field>
