@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import { ArrowLeft, Copy, FileSpreadsheet, FileText, History, Loader2, MessageSquare, Plus, Trash2, X } from 'lucide-react';
 import { addItemUpdate, deleteItem, duplicateItem, itemUpdates } from '@/app/base/(app)/crm/boards/actions';
-import { cellText, formulaIsMoney, formulaValue, isNumeric, money2, num, type Board, type BoardColumn, type BoardGroup, type BoardItem, type BoardUpdate } from '@/lib/crm/boardTypes';
+import { cellText, columnsAt, formulaIsMoney, formulaValue, isNumeric, money2, num, type Board, type BoardColumn, type BoardGroup, type BoardItem, type BoardUpdate } from '@/lib/crm/boardTypes';
 import Cell, { type CellCtx } from './Cell';
 import Select from '@/components/ui/Select';
 import { confirmDialog, friendlyError, reportResult, toast } from '@/components/ui/toast';
@@ -29,6 +29,7 @@ export function ItemPanel({
   board,
   item,
   parent,
+  depth,
   columns,
   groups,
   subitems,
@@ -46,6 +47,8 @@ export function ItemPanel({
   board: Board;
   item: BoardItem;
   parent: BoardItem | null;
+  /** 0 for a table row, 1 for a sub-item, … — each level has its own columns. */
+  depth: number;
   columns: BoardColumn[];
   groups: BoardGroup[];
   subitems: BoardItem[];
@@ -60,12 +63,9 @@ export function ItemPanel({
   exportHref: (format: 'xlsx' | 'pdf', extra?: string) => string;
 }) {
   const isSub = Boolean(item.parent_id);
-  // Sub-items (at any depth) have the table's own columns, plus any sub-item-only columns.
-  const byPos = (a: BoardColumn, b: BoardColumn) => a.position - b.position;
-  const tableCols = columns.filter((c) => c.scope === 'item').sort(byPos);
-  const subOnly = columns.filter((c) => c.scope === 'subitem').sort(byPos);
-  const cols = isSub ? [...tableCols, ...subOnly] : tableCols;
-  const subCols = [...tableCols, ...subOnly];
+  // This row's level has its own columns, and so does the level of its sub-items.
+  const cols = columnsAt(columns, depth);
+  const subCols = columnsAt(columns, depth + 1);
   const [tab, setTab] = useState<'details' | 'updates'>(initialTab);
   const [name, setName] = useState(item.name);
   const [desc, setDesc] = useState(item.description ?? '');
@@ -310,7 +310,7 @@ export function GroupPanel({
   exportHref: (format: 'xlsx' | 'pdf', extra?: string) => string;
 }) {
   const itemCols = columns.filter((c) => c.scope === 'item').sort((a, b) => a.position - b.position);
-  const subCols = columns.filter((c) => c.scope === 'subitem').sort((a, b) => a.position - b.position);
+  const subCols = columnsAt(columns, 1);
   const money = itemCols.filter((c) => c.type === 'currency' || (c.type === 'formula' && formulaIsMoney(c, columns)));
   const statusCols = itemCols.filter((c) => c.type === 'status');
   const sum = (c: BoardColumn) => rows.reduce((s, it) => s + ((c.type === 'formula' ? formulaValue(c, it, subsOf(it.id), columns) : num(it.values[c.id])) ?? 0), 0);

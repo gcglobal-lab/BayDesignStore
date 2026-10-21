@@ -3,7 +3,7 @@ import ExcelJS from 'exceljs';
 import { jsPDF } from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { LOGO_PNG } from './pdfLogo';
-import { cellText,formulaIsMoney, formulaValue, isNumeric, money2, num, type Board, type BoardColumn, type BoardGroup, type BoardItem } from './boardTypes';
+import { cellText, columnsAt, formulaIsMoney, formulaValue, isNumeric, money2, num, type Board, type BoardColumn, type BoardGroup, type BoardItem } from './boardTypes';
 
 type Data = { board: Board; columns: BoardColumn[]; groups: BoardGroup[]; items: BoardItem[] };
 export type Scope = { kind: 'board' } | { kind: 'group'; group: BoardGroup } | { kind: 'item'; item: BoardItem };
@@ -15,7 +15,7 @@ const hexRgb = (h: string): [number, number, number] => [parseInt(h.slice(1, 3),
 
 function helpers(d: Data, names: Record<string, string>) {
   const itemCols = d.columns.filter((c) => c.scope === 'item').sort((a, b) => a.position - b.position);
-  const subCols = d.columns.filter((c) => c.scope === 'subitem').sort((a, b) => a.position - b.position);
+  const subCols = columnsAt(d.columns, 1);
   const subsOf = (id: string) => d.items.filter((i) => i.parent_id === id).sort((a, b) => a.position - b.position);
   const text = (c: BoardColumn, it: BoardItem) => cellText(c, it, { subitems: subsOf(it.id), columns: d.columns, names });
   const value = (c: BoardColumn, it: BoardItem): string | number | null => {

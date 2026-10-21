@@ -5,7 +5,8 @@ export type StatusLabel = { id: string; label: string; color: string };
 export type FormulaOp = 'subtract' | 'add' | 'multiply' | 'divide' | 'subitems_sum';
 export type ColumnSettings = { labels?: StatusLabel[]; op?: FormulaOp; a?: string; b?: string; currency?: boolean };
 
-export type BoardColumn = { id: string; board_id: string; scope: 'item' | 'subitem'; name: string; type: ColumnType; settings: ColumnSettings; width: number; position: number };
+/** `level` is which sub-item level a sub-item column belongs to (1 = sub-items, 2 = their sub-items, …). */
+export type BoardColumn = { id: string; board_id: string; scope: 'item' | 'subitem'; level: number; name: string; type: ColumnType; settings: ColumnSettings; width: number; position: number };
 export type BoardGroup = { id: string; board_id: string; name: string; color: string; employee_id: string | null; position: number };
 export type BoardItem = {
   id: string;
@@ -78,6 +79,16 @@ export const fmtShortDate = shortDate;
 export const fmtTimeline = (t: Timeline) => (t.from === t.to ? shortDate(t.from) : `${shortDate(t.from)} - ${shortDate(t.to)}`);
 
 export const isNumeric = (t: ColumnType) => t === 'number' || t === 'currency' || t === 'formula';
+/** The columns rows at this depth show: 0 = the table's own, 1 = sub-items, 2 = their sub-items, … Each level is set up on its own. */
+export const columnsAt = (columns: BoardColumn[], depth: number) =>
+  columns.filter((c) => (depth === 0 ? c.scope === 'item' : c.scope === 'subitem' && c.level === depth)).sort((a, b) => a.position - b.position);
+/** How deep a row sits: 0 for a table row, 1 for a sub-item, 2 for its sub-items, … */
+export function depthOf(item: BoardItem, items: BoardItem[]) {
+  const parentOf = new Map(items.map((i) => [i.id, i.parent_id]));
+  let depth = 0;
+  for (let p = item.parent_id; p && depth < 20; p = parentOf.get(p) ?? null) depth++;
+  return depth;
+}
 export const num = (v: unknown) => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' && !Number.isNaN(Number(v)) ? Number(v) : null);
 
 /** Value of a formula column for an item (sub-items needed for "sum of a sub-item column"). */

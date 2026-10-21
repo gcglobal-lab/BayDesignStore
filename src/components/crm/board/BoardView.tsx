@@ -27,7 +27,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
-import { addColumn, addGroup, addItem, bulkItems, deleteColumn, deleteGroup, duplicateItem, setCell, setItemLabel, updateColumn, updateGroup, updateItem } from '@/app/base/(app)/crm/boards/actions';
+import { addColumn, addGroup, addItem, bulkItems, deleteColumn, deleteGroup, deleteItem, duplicateItem, setCell, setItemLabel, updateColumn, updateGroup, updateItem } from '@/app/base/(app)/crm/boards/actions';
 import type { PortalFile } from '@/app/base/(app)/crm/files/actions';
 import { Popover } from '@/components/ui/Popover';
 import Select from '@/components/ui/Select';
@@ -36,6 +36,8 @@ import {
   asTimeline,
   cellText,
   COLUMN_PICKER,
+  columnsAt,
+  depthOf,
   columnTypeColor,
   columnTypeShort,
   fmtShortDate,
@@ -95,8 +97,8 @@ function ColumnSetup({ col, columns, onSave, onClose }: { col: BoardColumn; colu
   const [op, setOp] = useState<FormulaOp>(col.settings.op ?? 'subtract');
   const [a, setA] = useState(col.settings.a ?? '');
   const [b, setB] = useState(col.settings.b ?? '');
-  const numericCols = columns.filter((c) => c.scope === col.scope && c.id !== col.id && isNumeric(c.type));
-  const subCols = columns.filter((c) => c.scope === 'subitem' && isNumeric(c.type));
+  const numericCols = columnsAt(columns, col.scope === 'item' ? 0 : col.level).filter((c) => c.id !== col.id && isNumeric(c.type));
+  const subCols = columnsAt(columns, col.scope === 'item' ? 1 : col.level + 1).filter((c) => isNumeric(c.type));
   const isLabels = col.type === 'status' || col.type === 'dropdown';
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
@@ -424,6 +426,9 @@ export default function BoardView({
     const raw = res?.data?.item;
     const made = raw ? (JSON.parse(raw) as BoardItem) : null;
     if (made) setItems((list) => [...list, made]);
+    // The first sub-item on a new level comes with that level's starting columns.
+    const cols = res?.data?.columns ? (JSON.parse(res.data.columns) as BoardColumn[]) : [];
+    if (cols.length) setColumns((list) => [...list, ...cols]);
     if (parentId) setExpanded((s) => new Set(s).add(parentId));
     return made;
   };
@@ -446,8 +451,8 @@ export default function BoardView({
     setRenamingItem(null);
     if (name.trim() && name.trim() !== it.name) patchItem(it.id, { name: name.trim() });
   };
-  const createColumn = async (scope: 'item' | 'subitem', name: string, type: ColumnType) => {
-    const res = await run(addColumn(board.id, scope, name, type, {}));
+  const createColumn = async (scope: 'item' | 'subitem', name: string, type: ColumnType, level = 1) => {
+    const res = await run(addColumn(board.id, scope, name, type, {}, level));
     const raw = res?.data?.column;
     if (raw) {
       const col = JSON.parse(raw) as BoardColumn;
@@ -460,7 +465,7 @@ export default function BoardView({
     run(updateColumn(col.id, patch), () => setColumns((list) => list.map((c) => (c.id === col.id ? col : c))));
   };
   const moveColumn = (col: BoardColumn, dir: -1 | 1) => {
-    const list = columns.filter((c) => c.scope === col.scope).sort((a, b) => a.position - b.position);
+    const list = columnsAt(columns, col.scope === 'item' ? 0 : col.level);
     const i = list.findIndex((c) => c.id === col.id);
     const j = i + dir;
     if (j < 0 || j >= list.length) return;
@@ -468,6 +473,16 @@ export default function BoardView({
     const updated = list.map((c, n) => ({ ...c, position: n }));
     setColumns((all) => all.map((c) => updated.find((u) => u.id === c.id) ?? c));
     updated.forEach((c) => run(updateColumn(c.id, { position: c.position })));
+  };
+  const removeSub = async (s: BoardItem) => {
+    const kids = subsOf(s.id).length;
+    if (!(await confirmDialog({ title: `Delete “${s.name}”?`, message: kids ? 'Its sub-items and updates are removed too.' : 'Its updates are removed too.', danger: true }))) return;
+    const before = items;
+    setItems((list) => {
+      const all = withDescendants([s.id], list);
+      return list.filter((i) => !all.has(i.id));
+    });
+    run(deleteItem(s.id), () => setItems(before));
   };
   const removeColumn = (col: BoardColumn) => {
     setColumns((list) => list.filter((c) => c.id !== col.id));
@@ -632,8 +647,6 @@ export default function BoardView({
     <ColumnHeader col={c} manage={canManage} onRename={(n) => patchColumn(c, { name: n })} onSetup={() => setSetup(c)} onMove={(d) => moveColumn(c, d)} onDelete={() => removeColumn(c)} onHide={() => toggleHidden(c.id)} onSort={(dir) => setSort({ col: c.id, dir })} />
   );
   // ---------------------------------------------------------- sub-items --
-  /** Sub-items (at every level) use the table's own columns, then any sub-item-only columns. */
-  const nestCols = [...itemCols, ...subCols];
   /** The arrow that opens a row's sub-items, or a dashed + to start them. */
   const subToggle = (it: BoardItem, subs: BoardItem[], open: boolean) =>
     subs.length > 0 || open || !canEdit ? (
@@ -649,13 +662,15 @@ export default function BoardView({
   /** A row's sub-items as a nested table; each sub-item can open its own sub-items, at any depth. */
   const renderSubs = (parent: BoardItem, depth: number, color: string): ReactNode => {
     const subs = subsOf(parent.id);
+    // Each sub-item level has its own columns — changing them never touches the level above or below.
+    const nestCols = columnsAt(columns, depth).filter((c) => !hidden.has(c.id));
     return (
       <div className={`border-b border-stone/60 bg-linen/60 py-2 pr-2 ${depth === 1 ? 'pl-12' : 'pl-8'}`}>
         <div className="overflow-hidden rounded-md border border-stone/70 bg-surface" style={{ borderLeft: `4px solid ${color}${depth === 1 ? '88' : '55'}` }}>
           <div className="grid border-b border-stone/70 text-[0.75rem] text-muted" style={{ gridTemplateColumns: subGrid(nestCols) }}>
             <span className="border-r border-stone/60 px-2 py-1.5 text-center">{depth === 1 ? 'Sub-item' : `Sub-item · level ${depth}`}</span>
             {nestCols.map((c) => <div key={c.id} className="border-r border-stone/60 px-2 py-1.5 text-center">{header(c)}</div>)}
-            {canManage ? <ColumnPicker scope="item" onAdd={(n, t) => createColumn('item', n, t)} /> : <span />}
+            {canManage ? <ColumnPicker scope="subitem" onAdd={(n, t) => createColumn('subitem', n, t, depth)} /> : <span />}
           </div>
           {subs.map((s) => {
             const kids = subsOf(s.id);
@@ -684,7 +699,13 @@ export default function BoardView({
                     </button>
                   </div>
                   {nestCols.map((c) => <div key={c.id} className="min-h-[34px] min-w-0 border-r border-stone/60"><Cell col={c} item={s} ctx={ctx(s, c, color)} /></div>)}
-                  <span />
+                  {canEdit ? (
+                    <button type="button" onClick={() => void removeSub(s)} className="flex items-center justify-center text-muted hover:bg-red-50 hover:text-red-600" aria-label={`Delete ${s.name}`} title="Delete sub-item">
+                      <Trash2 size={13} />
+                    </button>
+                  ) : (
+                    <span />
+                  )}
                 </div>
                 {sOpen && renderSubs(s, depth + 1, color)}
               </div>
@@ -1084,6 +1105,7 @@ export default function BoardView({
           board={board}
           item={panelItem}
           parent={panelItem.parent_id ? (items.find((i) => i.id === panelItem.parent_id) ?? null) : null}
+          depth={depthOf(panelItem, items)}
           columns={columns}
           groups={groups}
           subitems={subsOf(panelItem.id)}

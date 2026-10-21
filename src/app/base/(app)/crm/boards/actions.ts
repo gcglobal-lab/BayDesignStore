@@ -205,7 +205,7 @@ export async function duplicateBoard(fd: FormData) {
   if (!copy) return;
   const colMap = new Map<string, string>();
   for (const c of (cols ?? []) as BoardColumn[]) {
-    const { data } = await db().from('crm_board_columns').insert({ board_id: copy.id, scope: c.scope, name: c.name, type: c.type, settings: c.settings, width: c.width, position: c.position }).select('id').single();
+    const { data } = await db().from('crm_board_columns').insert({ board_id: copy.id, scope: c.scope, level: c.level, name: c.name, type: c.type, settings: c.settings, width: c.width, position: c.position }).select('id').single();
     if (data) colMap.set(c.id, data.id);
   }
   for (const c of (cols ?? []) as BoardColumn[]) {
@@ -304,18 +304,20 @@ const settingsSchema = z
   })
   .catch({});
 
-export async function addColumn(boardId: string, scope: 'item' | 'subitem', name: string, type: ColumnType, settings: unknown): Promise<ActionResult> {
+/** `level` (sub-item columns only) is which sub-item level the column belongs to: 1, 2, … */
+export async function addColumn(boardId: string, scope: 'item' | 'subitem', name: string, type: ColumnType, settings: unknown, level = 1): Promise<ActionResult> {
   const g = await guard(boardId, 'manage');
   if ('error' in g) return g.error;
   const n = name.trim().slice(0, 60);
   if (!n || !TYPES.includes(type) || (scope !== 'item' && scope !== 'subitem')) return fail('Choose a name and a type.');
+  const lvl = scope === 'subitem' && Number.isInteger(level) ? Math.max(1, Math.min(20, level)) : 1;
   const s = settingsSchema.parse(settings ?? {});
   if (type === 'status' && !s.labels?.length) s.labels = [{ id: 's0', label: 'Working on it', color: '#FDAB3D' }, { id: 's1', label: 'Stuck', color: '#DF2F4A' }, { id: 's2', label: 'Done', color: '#00C875' }];
   if (type === 'dropdown' && !s.labels?.length) s.labels = [{ id: 'd0', label: 'Option 1', color: '#579BFC' }, { id: 'd1', label: 'Option 2', color: '#A25DDC' }];
-  const { count } = await db().from('crm_board_columns').select('id', { count: 'exact', head: true }).eq('board_id', boardId).eq('scope', scope);
+  const { count } = await db().from('crm_board_columns').select('id', { count: 'exact', head: true }).eq('board_id', boardId).eq('scope', scope).eq('level', lvl);
   const { data, error } = await db()
     .from('crm_board_columns')
-    .insert({ board_id: boardId, scope, name: n, type, settings: s, width: type === 'long_text' ? 240 : type === 'checkbox' ? 90 : 150, position: count ?? 0 })
+    .insert({ board_id: boardId, scope, level: lvl, name: n, type, settings: s, width: type === 'long_text' ? 240 : type === 'checkbox' ? 90 : 150, position: count ?? 0 })
     .select('*')
     .single();
   if (error || !data) return fail('Couldn’t add the column.');
@@ -353,6 +355,33 @@ export async function deleteColumn(id: string): Promise<ActionResult> {
 
 // ------------------------------------------------------------------- items --
 
+/**
+ * The first sub-item on a level gives that level its starting columns: a copy of the level above
+ * (the table's own columns for sub-items). From then on each level's columns are its own.
+ */
+async function seedLevel(boardId: string, level: number): Promise<BoardColumn[]> {
+  const { count } = await db().from('crm_board_columns').select('id', { count: 'exact', head: true }).eq('board_id', boardId).eq('scope', 'subitem').eq('level', level);
+  if (count) return [];
+  let above = db().from('crm_board_columns').select('*').eq('board_id', boardId);
+  above = level === 1 ? above.eq('scope', 'item') : above.eq('scope', 'subitem').eq('level', level - 1);
+  const src = ((await above.order('position')).data ?? []) as BoardColumn[];
+  // "Sum of a sub-item column" points at the level below, which this copy doesn't have yet.
+  const copyable = src.filter((c) => !(c.type === 'formula' && c.settings.op === 'subitems_sum'));
+  if (!copyable.length) return [];
+  const { data } = await db()
+    .from('crm_board_columns')
+    .insert(copyable.map((c) => ({ board_id: boardId, scope: 'subitem', level, name: c.name, type: c.type, settings: c.settings, width: c.width, position: c.position })))
+    .select('*');
+  const made = ((data ?? []) as BoardColumn[]).sort((x, y) => x.position - y.position);
+  const idMap = new Map(copyable.map((c, i) => [c.id, made[i]?.id]));
+  for (const c of made) {
+    if (c.type !== 'formula') continue;
+    c.settings = { ...c.settings, a: c.settings.a ? idMap.get(c.settings.a) : undefined, b: c.settings.b ? idMap.get(c.settings.b) : undefined };
+    await db().from('crm_board_columns').update({ settings: c.settings }).eq('id', c.id);
+  }
+  return made;
+}
+
 export async function addItem(boardId: string, groupId: string, name: string, parentId?: string | null): Promise<ActionResult> {
   const g = await guard(boardId, 'edit');
   if ('error' in g) return g.error;
@@ -360,10 +389,15 @@ export async function addItem(boardId: string, groupId: string, name: string, pa
   if (!n) return fail('Type a name first.');
   if (!uuid.safeParse(groupId).success || (parentId && !uuid.safeParse(parentId).success)) return fail('Not found.');
   let group = groupId;
+  let level = 1; // which sub-item level the new row lands on
   if (parentId) {
-    const { data: parent } = await db().from('crm_board_items').select('board_id, group_id').eq('id', parentId).maybeSingle();
+    const { data: parent } = await db().from('crm_board_items').select('board_id, group_id, parent_id').eq('id', parentId).maybeSingle();
     if (!parent || parent.board_id !== boardId) return fail('Not found.');
     group = parent.group_id;
+    for (let up: string | null = parent.parent_id; up && level < 20; level++) {
+      const { data: next } = await db().from('crm_board_items').select('parent_id').eq('id', up).maybeSingle();
+      up = next?.parent_id ?? null;
+    }
   }
   const { data: last } = await db().from('crm_board_items').select('position').eq('board_id', boardId).order('position', { ascending: false }).limit(1).maybeSingle();
   const { data, error } = await db()
@@ -373,8 +407,9 @@ export async function addItem(boardId: string, groupId: string, name: string, pa
     .single();
   if (error || !data) return fail('Couldn’t add it.');
   await db().from('crm_board_updates').insert({ item_id: data.id, kind: 'log', body: `Created by ${g.viewer.name}`, author_id: g.viewer.employeeId, author_name: g.viewer.name });
+  const columns = parentId ? await seedLevel(boardId, level) : [];
   await touch(boardId);
-  return done(undefined, { item: JSON.stringify(data) });
+  return done(undefined, { item: JSON.stringify(data), ...(columns.length ? { columns: JSON.stringify(columns) } : {}) });
 }
 
 export async function updateItem(id: string, patch: { name?: string; description?: string; group_id?: string; position?: number; contact_id?: string | null }): Promise<ActionResult> {
