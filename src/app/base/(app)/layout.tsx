@@ -43,6 +43,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
   manifest: '/portal.webmanifest',
   appleWebApp: { capable: true, title: 'BD Portal', statusBarStyle: 'default' },
+  icons: { icon: [{ url: '/favicon.ico', sizes: '48x48' }, { url: '/favicon.svg', type: 'image/svg+xml' }], apple: { url: '/portal-apple-icon.png', sizes: '180x180' } },
 };
 
 export default async function BaseAppLayout({ children }: { children: ReactNode }) {
