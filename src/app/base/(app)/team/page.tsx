@@ -48,7 +48,7 @@ export default async function RosterPage({ searchParams }: PageProps<'/base/team
             {admin && <GenerateMissingPasswords count={missing} />}
             <PrintButton />
             <a href={`/base/team/export${showTerminated ? '?terminated=1' : ''}`} className="b-btn-ghost"><Download size={15} /> Export</a>
-            <Link href="/base/team/new" className="b-btn-brass"><Plus size={16} /> Add team member</Link>
+            {admin && <Link href="/base/team/new" className="b-btn-brass"><Plus size={16} /> Add team member</Link>}
           </>
         }
       />

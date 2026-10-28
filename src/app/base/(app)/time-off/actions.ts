@@ -114,6 +114,21 @@ export async function addTimeOff(_prev: ActionResult, formData: FormData): Promi
   const parsed = parseRequest(formData);
   if (!parsed.success) return fail(firstIssue(parsed.error));
   const v = parsed.data;
+  // The schedule's time-off form can override the total ("Total hours ▸ Edit").
+  const typedHours = formData.get('hours') ? z.coerce.number().min(0.25).max(24 * 62).multipleOf(0.25).safeParse(formData.get('hours')) : null;
+  if (typedHours && !typedHours.success) return fail('Enter the total hours in quarter hours (e.g. 4 or 7.5).');
+  // An admin can turn a scheduled shift into time off (e.g. they didn't come in): the shift goes away.
+  const shiftId = formData.get('shift_id') ? z.string().uuid().safeParse(formData.get('shift_id')) : null;
+  if (shiftId) {
+    if (viewer.level !== 'admin') return fail('Only an admin can turn a shift into time off.');
+    if (!shiftId.success) return fail('That shift no longer exists.');
+    const [{ data: shift }, { count }] = await Promise.all([
+      db().from('shifts').select('employee_id').eq('id', shiftId.data).maybeSingle(),
+      db().from('time_entries').select('id', { count: 'exact', head: true }).eq('shift_id', shiftId.data),
+    ]);
+    if (!shift || shift.employee_id !== employeeId.data) return fail('That shift no longer exists.');
+    if (count) return fail('They punched in for this shift — fix the time card instead.');
+  }
   const problem = await paidLeaveProblem(employeeId.data, v, 'they');
   if (problem) return fail(problem);
 
@@ -128,7 +143,7 @@ export async function addTimeOff(_prev: ActionResult, formData: FormData): Promi
       all_day: v.all_day,
       start_time: v.all_day ? null : v.start_time,
       end_time: v.all_day ? null : v.end_time,
-      hours: hoursFor(v),
+      hours: typedHours?.data ?? hoursFor(v),
       note: v.note ?? null,
       status: 'approved',
       reviewed_by: viewer.employeeId,
@@ -139,8 +154,12 @@ export async function addTimeOff(_prev: ActionResult, formData: FormData): Promi
     .single();
   if (error) return fail('Couldn’t add the time off. Please try again.');
   await audit(viewer, 'time_off.add', 'time_off_requests', data.id, { employee_id: employeeId.data, from: v.starts_on, to: v.ends_on, type: v.type });
+  if (shiftId?.success) {
+    await db().from('shifts').delete().eq('id', shiftId.data);
+    await audit(viewer, 'shift.delete', 'shifts', shiftId.data, { employee_id: employeeId.data, reason: 'time off' });
+  }
   revalidatePath('/base', 'layout');
-  return done('Time off added.');
+  return done(shiftId ? 'Shift changed to time off.' : 'Time off added.');
 }
 
 const reviewSchema = z.object({

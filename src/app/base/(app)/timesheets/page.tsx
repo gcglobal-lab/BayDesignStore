@@ -40,6 +40,8 @@ function Place({ label, lat, lng, accuracy, inside, distance, place }: { label: 
 export default async function TimesheetsPage({ searchParams }: PageProps<'/base/timesheets'>) {
   const viewer = await requireViewer();
   const manager = isManager(viewer);
+  // Adding or changing punch times is the admin's job; managers review.
+  const admin = viewer.level === 'admin';
   const sp = await searchParams;
   const settings = await getSettings();
   const zone = settings.timezone;
@@ -128,7 +130,7 @@ export default async function TimesheetsPage({ searchParams }: PageProps<'/base/
       return { id, name: nameOf(id), role: emp?.roles[0]?.name ?? null, list, sum, pay, running: list.filter(isAccruing).length };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
-  const columns = manager ? 7 : 6;
+  const columns = admin ? 7 : 6;
   const emptyTitle = view === 'day' ? 'No time cards for this day.' : view === 'range' ? 'No time cards in this date range.' : 'No time cards in this pay period.';
 
   return (
@@ -150,7 +152,7 @@ export default async function TimesheetsPage({ searchParams }: PageProps<'/base/
                   <th className="!bg-amber-100/70 !text-amber-700">Meal breaks</th>
                   <th>Location</th>
                   <th>Issues</th>
-                  {manager && <th />}
+                  {admin && <th />}
                 </tr>
               </thead>
               {groups.map((g) => (
@@ -179,13 +181,13 @@ export default async function TimesheetsPage({ searchParams }: PageProps<'/base/
                       </div>
                     </td>
                   </tr>
-                  {g.list.map((e, i) => <EntryRow key={e.id} e={e} name={g.name} zone={zone} settings={settings} employees={pickable} canEdit={manager} now={now} striped={i % 2 === 1} stores={stores} />)}
+                  {g.list.map((e, i) => <EntryRow key={e.id} e={e} name={g.name} zone={zone} settings={settings} employees={pickable} canEdit={admin} now={now} striped={i % 2 === 1} stores={stores} />)}
                 </tbody>
               ))}
             </table>
           </div>
         )}
-        {manager && (
+        {admin && (
           <div className="border-t border-stone/50 px-4 py-3">
             <Dialog trigger={<><Plus size={15} /> Add time card</>} triggerClassName="b-btn-quiet" title="Add time card" description="For someone who couldn’t punch in. Marked as manually added.">
               <TimeCardForm employees={pickable} date={view === 'day' ? date : rangeTo} />

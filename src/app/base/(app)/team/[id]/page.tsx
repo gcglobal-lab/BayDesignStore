@@ -184,7 +184,7 @@ export default async function EmployeePage({ params }: PageProps<'/base/team/[id
             )}
           </Card>
 
-          {manageable && !self && (
+          {admin && !self && (
             <Card title="Employment">
               <form action={setEmployeeStatus}>
                 <input type="hidden" name="id" value={employee.id} />

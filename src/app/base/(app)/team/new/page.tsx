@@ -3,13 +3,13 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import EmployeeForm from '@/components/base/EmployeeForm';
 import { PageHeader } from '@/components/base/ui';
-import { requireManager } from '@/lib/base/auth';
+import { requireAdmin } from '@/lib/base/auth';
 import { listLocations, listRoles } from '@/lib/base/queries';
 
 export const metadata: Metadata = { title: 'Add team member' };
 
 export default async function NewEmployeePage() {
-  const viewer = await requireManager();
+  const viewer = await requireAdmin();
   const [roles, locations] = await Promise.all([listRoles(), listLocations()]);
   return (
     <>

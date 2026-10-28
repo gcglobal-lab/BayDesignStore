@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { done, fail, type ActionResult } from '@/lib/base/actionResult';
 import { audit } from '@/lib/base/audit';
-import { requireManager } from '@/lib/base/auth';
+import { requireAdmin } from '@/lib/base/auth';
 import { db, isUniqueViolation } from '@/lib/base/db';
 import { getSettings } from '@/lib/base/settings';
 import { diff } from '@/lib/base/activity';
@@ -22,7 +22,7 @@ const schema = z.object({
 
 /** Add or correct a time card by hand. Every change is marked as edited and audited. */
 export async function saveTimeCard(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const viewer = await requireManager();
+  const viewer = await requireAdmin();
   const parsed = schema.safeParse({
     id: formData.get('id') || undefined,
     employee_id: formData.get('employee_id'),
@@ -91,7 +91,7 @@ export async function saveTimeCard(_prev: ActionResult, formData: FormData): Pro
 }
 
 export async function deleteTimeCard(formData: FormData) {
-  const viewer = await requireManager();
+  const viewer = await requireAdmin();
   const id = z.string().uuid().safeParse(formData.get('id'));
   if (!id.success) return;
   const { data } = await db().from('time_entries').select('employee_id, clock_in_at, clock_out_at').eq('id', id.data).maybeSingle();

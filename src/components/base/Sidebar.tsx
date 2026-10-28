@@ -63,8 +63,8 @@ function timeNav({ level, onRoster, newInquiries = 0, tasksDue = 0 }: SidebarVie
   const home: Item[] = [
     ...(manager ? [{ href: '/base/manager', label: 'Manager View', icon: LayoutDashboard }] : []),
     ...(manager ? [{ href: '/base/calendar', label: 'Calendar View', icon: CalendarRange }] : []),
-    // Managers' home is Manager View; My Week (the personal time clock) is for employees.
-    ...(onRoster && !manager ? [{ href: '/base/my-week', label: 'My Week', icon: Home }] : []),
+    // My Week is the personal time clock — managers and admins on the roster punch in there too.
+    ...(onRoster ? [{ href: '/base/my-week', label: 'My Week', icon: Home }] : []),
   ];
   if (home.length > 1 || manager) entries.push({ label: 'Home', icon: Home, items: home });
   else if (home.length === 1) entries.push({ ...home[0], label: 'Home', icon: Home });

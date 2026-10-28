@@ -108,7 +108,8 @@ function afterTeamChange(id?: string) {
 }
 
 export async function createEmployee(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
-  const viewer = await requireManager();
+  // Adding and removing people is admin only; managers run everything else.
+  const viewer = await requireAdmin();
   const parsed = readProfile(formData);
   if (!parsed.success) return fail(firstIssue(parsed.error));
   const { role_ids, primary_role_id, ...profile } = parsed.data;
@@ -257,7 +258,7 @@ export async function generateMissingPasswords(): Promise<ActionResult> {
 }
 
 export async function setEmployeeStatus(formData: FormData) {
-  const viewer = await requireManager();
+  const viewer = await requireAdmin();
   const target = await loadTarget(formData.get('id'));
   const status = formData.get('status');
   if (!target || (status !== 'terminated' && status !== 'active')) return;
