@@ -52,6 +52,31 @@ export function FormMessage({ result }: { result: ActionResult }) {
   );
 }
 
+type FieldSnapshot = { el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement; value: string; checked: boolean }[];
+
+/** What's typed in a form's fields. A sign-in password isn't kept — after a wrong one it starts empty. */
+function snapshotFields(form: HTMLFormElement): FieldSnapshot {
+  return [...form.elements]
+    .filter((el): el is HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement)
+    .filter((el) => el.name && !(el instanceof HTMLInputElement && (el.type === 'file' || el.autocomplete === 'current-password')))
+    .map((el) => ({ el, value: el.value, checked: el instanceof HTMLInputElement ? el.checked : false }));
+}
+
+/** Puts the snapshot back, through the native setters + events so React-controlled fields stay in step. */
+function restoreFields(snapshot: FieldSnapshot) {
+  for (const { el, value, checked } of snapshot) {
+    if (!el.isConnected) continue;
+    if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio')) {
+      if (el.checked !== checked) el.click();
+      continue;
+    }
+    if (el.value === value) continue;
+    const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, 'value')?.set?.call(el, value);
+    el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));
+  }
+}
+
 /**
  * A form bound to a server action that returns an ActionResult. The result appears as a toast
  * (errors also stay inline next to the fields); a save that crashes or can't reach the server
@@ -83,18 +108,23 @@ export function ActionForm({
   }, null);
   const formRef = useRef<HTMLFormElement>(null);
   const handled = useRef<ActionResult>(null);
+  const typed = useRef<FieldSnapshot>([]);
 
   useEffect(() => {
     if (!result || handled.current === result) return;
     handled.current = result;
     if (result.message) (result.ok ? toast.success : toast.error)(result.message);
-    if (!result.ok) return;
+    if (!result.ok) {
+      // React clears a form once its action returns, even when the save was refused — put back what was typed.
+      restoreFields(typed.current);
+      return;
+    }
     if (resetOnSuccess) formRef.current?.reset();
     onSuccess?.(result);
   }, [result, resetOnSuccess, onSuccess]);
 
   return (
-    <form ref={formRef} action={formAction} className={className}>
+    <form ref={formRef} action={formAction} onSubmit={(e) => (typed.current = snapshotFields(e.currentTarget))} className={className}>
       {typeof children === 'function' ? children(result) : children}
       {showMessage && !result?.ok && <FormMessage result={result} />}
     </form>
