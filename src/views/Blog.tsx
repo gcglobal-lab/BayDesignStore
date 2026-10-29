@@ -6,6 +6,7 @@ import { blogPosts, pageImages } from '@/data/siteData';
 import PageHero from '@/components/PageHero';
 import CTABanner from '@/components/CTABanner';
 import { Reveal, SplitWords } from '@/components/motion';
+import { responsive, SIZES } from '@/lib/photos';
 
 /** The journal index, or a single article when `postId` is given (the route 404s unknown ids). */
 export default function Blog({ postId }: { postId?: string }) {
@@ -29,7 +30,7 @@ export default function Blog({ postId }: { postId?: string }) {
                   <p key={text.slice(0, 32)} className="mt-5 text-lg leading-relaxed text-muted">{text}</p>
                 ))}
                 {i === 0 && (
-                  <img src={selectedPost.image} alt={selectedPost.imageAlt} className="mt-12 aspect-[16/9] w-full rounded-[2rem] object-cover" />
+                  <img {...responsive(selectedPost.image)} alt={selectedPost.imageAlt} className="mt-12 aspect-[16/9] w-full rounded-[2rem] object-cover" />
                 )}
               </section>
             ))}
@@ -70,7 +71,7 @@ export default function Blog({ postId }: { postId?: string }) {
         <Reveal>
           <Link href={`/blog/${featuredPost.id}`} className="group grid overflow-hidden rounded-[2rem] bg-linen lg:grid-cols-[1.2fr_1fr]">
             <div className="img-zoom aspect-[4/3] overflow-hidden lg:aspect-auto lg:min-h-[520px]">
-              <img src={featuredPost.image} alt={featuredPost.imageAlt} className="h-full w-full object-cover" />
+              <img {...responsive(featuredPost.image, SIZES.half)} alt={featuredPost.imageAlt} className="h-full w-full object-cover" />
             </div>
             <div className="flex flex-col justify-between p-8 sm:p-12 lg:p-16">
               <div>
@@ -116,7 +117,7 @@ function PostCard({ post }: { post: (typeof blogPosts)[number] }) {
   return (
     <Link href={`/blog/${post.id}`} className="group block h-full overflow-hidden rounded-3xl border border-stone/70 bg-ivory transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_30px_60px_-30px_rgba(30,28,25,0.35)]">
       <div className="img-zoom aspect-[4/3] overflow-hidden">
-        <img src={post.image} alt={post.imageAlt} loading="lazy" className="h-full w-full object-cover" />
+        <img {...responsive(post.image, SIZES.third)} alt={post.imageAlt} loading="lazy" className="h-full w-full object-cover" />
       </div>
       <div className="p-7">
         <div className="flex items-center justify-between gap-3 text-xs">

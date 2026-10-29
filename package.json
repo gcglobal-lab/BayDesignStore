@@ -17,7 +17,8 @@
     "test:e2e:v3": "node scripts/e2e-v3.mjs",
     "test:e2e:boards": "node scripts/e2e-boards.mjs",
     "test:e2e:workspace": "node scripts/e2e-workspace.mjs",
-    "test:smoke": "node scripts/smoke-test.mjs"
+    "test:smoke": "node scripts/smoke-test.mjs",
+    "images": "node scripts/optimize-images.mjs"
   },
   "dependencies": {
     "@date-fns/tz": "^1.4.1",

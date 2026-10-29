@@ -1,14 +1,10 @@
 import type { ReactNode } from 'react';
-import { preconnect } from 'react-dom';
 import Layout from '@/components/Layout';
 import JsonLd from '@/components/JsonLd';
 import { organizationJsonLd } from '@/lib/structuredData';
 import StoreChat from '@/components/chat/StoreChat';
 
 export default function SiteLayout({ children }: { children: ReactNode }) {
-  preconnect('https://images.unsplash.com');
-  preconnect('https://images.pexels.com');
-  preconnect('https://videos.pexels.com');
   return (
     <>
       <JsonLd data={organizationJsonLd} />

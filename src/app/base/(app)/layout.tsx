@@ -54,7 +54,7 @@ export default async function BaseAppLayout({ children }: { children: ReactNode 
   const [newInquiries, crm, theme] = await Promise.all([newInquiryCount(isManager(viewer)), crmCounts(viewer), readTheme()]);
 
   return (
-    <div className="base-theme min-h-screen bg-linen bg-[radial-gradient(ellipse_at_top_right,rgba(167,139,250,0.20),transparent_50%),radial-gradient(ellipse_at_top_left,rgba(56,189,248,0.10),transparent_45%),radial-gradient(ellipse_at_bottom_right,rgba(244,114,182,0.10),transparent_50%)] bg-fixed">
+    <div className="base-theme min-h-screen bg-linen bg-[radial-gradient(ellipse_at_top_right,rgba(167,139,250,0.20),transparent_50%),radial-gradient(ellipse_at_top_left,rgba(56,189,248,0.10),transparent_45%),radial-gradient(ellipse_at_bottom_right,rgba(244,114,182,0.10),transparent_50%)] lg:bg-fixed">
       <Sidebar
         viewer={{
           name: viewer.name,

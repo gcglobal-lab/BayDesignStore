@@ -5,6 +5,7 @@ import { companyInfo, pageImages } from '@/data/siteData';
 import InquiryForm from '@/components/InquiryForm';
 import PageHero from '@/components/PageHero';
 import { Reveal, SplitWords } from '@/components/motion';
+import { responsive } from '@/lib/photos';
 
 const locations = [
   { name: 'Downtown Naples Showroom', address: companyInfo.address, hours: companyInfo.hoursDowntown, phone: companyInfo.phone, image: pageImages.downtown, map: 'https://maps.google.com/?q=326+13th+Avenue+South+Naples+FL+34102' },
@@ -57,7 +58,7 @@ export default function Contact() {
                 <Reveal key={loc.name} delay={i * 0.1}>
                   <div className="group grid overflow-hidden rounded-3xl border border-stone/70 bg-linen sm:grid-cols-[180px_1fr]">
                     <div className="img-zoom h-44 overflow-hidden sm:h-full">
-                      <img src={loc.image} alt={loc.name} loading="lazy" className="h-full w-full object-cover" />
+                      <img {...responsive(loc.image, '(min-width: 640px) 180px, 100vw')} alt={loc.name} loading="lazy" className="h-full w-full object-cover" />
                     </div>
                     <div className="p-6">
                       <h3 className="font-display text-2xl">{loc.name}</h3>

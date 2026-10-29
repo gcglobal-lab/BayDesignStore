@@ -3,7 +3,8 @@ import type { Metadata } from 'next';
 /** Public domain of the live site — used for canonical links, social previews and the sitemap. */
 export const SITE_URL = 'https://baydesignstore.com';
 export const SITE_NAME = 'Bay Design Store';
-export const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1615529182904-14819c35db37?auto=format&fit=crop&w=1200&h=630&q=80';
+/** Shown when someone shares a link (1200×630, made by `npm run images`). */
+export const DEFAULT_IMAGE = `${SITE_URL}/images/og.jpg`;
 
 /** Core phrases people search for; merged into every page's keywords. */
 export const coreKeywords = [

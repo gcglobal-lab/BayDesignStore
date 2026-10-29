@@ -55,6 +55,11 @@ const nextConfig: NextConfig = {
         source: '/:file(favicon\\.ico|favicon\\.svg|favicon-32\\.png|favicon-48\\.png|apple-touch-icon\\.png|icon-192\\.png|icon-512\\.png|site\\.webmanifest|portal\\.webmanifest|portal-icon-192\\.png|portal-icon-512\\.png|portal-maskable-512\\.png|portal-apple-icon\\.png)',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' }],
       },
+      // Project photos (npm run images): browsers keep them 30 days and refresh in the background after that.
+      {
+        source: '/images/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=2592000, stale-while-revalidate=31536000' }],
+      },
       // Everything except /base and /base/*
       { source: '/:path((?!base(?:/|$)).*)', headers: [{ key: 'Content-Security-Policy', value: publicCsp }] },
     ];

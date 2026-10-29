@@ -1,3 +1,5 @@
+import { bayPhoto } from '@/lib/photos';
+
 export interface BlogSection {
   heading: string;
   paragraphs: string[];
@@ -19,8 +21,7 @@ export interface BlogPost {
   body: BlogSection[];
 }
 
-const unsplash = (id: string, w = 2400) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=82`;
-const pexels = (id: string, w = 2600) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=${w}`;
+const bay = (name: string) => bayPhoto(`bay-${name}`, 2400);
 
 const visitClose: BlogSection = {
   heading: 'Visit Bay Design Store in Naples',
@@ -38,8 +39,8 @@ export const blogPosts: BlogPost[] = [
     date: 'October 8, 2026',
     isoDate: '2026-10-08',
     excerpt: 'Searching for the best interior designer in Florida? Here is what to look for — portfolio, process, sourcing, delivery and local know-how — before you hire.',
-    image: unsplash('1618221195710-dd6b41faaea6'),
-    imageAlt: 'Sunlit Florida living room designed with warm neutral furniture',
+    image: bay('hdr-15'),
+    imageAlt: 'Living room with palm-tree art, white sofas and an oak sideboard at Bay Design Store',
     keywords: ['best interior designer in Florida', 'Florida interior designer', 'interior designer near me', 'Naples interior designer', 'luxury interior designer Florida', 'how to choose an interior designer'],
     body: [
       {
@@ -79,8 +80,8 @@ export const blogPosts: BlogPost[] = [
     date: 'October 5, 2026',
     isoDate: '2026-10-05',
     excerpt: 'Everything you need to know before visiting the Bay Design warehouse in North Naples — what you will find, hours, delivery, and how to shop it with a designer.',
-    image: unsplash('1600121848594-d8644e57abab'),
-    imageAlt: 'Modern living room furniture on display at a Naples furniture showroom',
+    image: bay('hdr-12'),
+    imageAlt: 'Bedroom and living room furniture on display at the Bay Design showroom in Naples',
     keywords: ['Bay Design warehouse', 'Bay Design Store warehouse', 'Naples furniture warehouse', 'furniture store North Naples', 'furniture store Naples FL', 'ready to deliver furniture Naples'],
     body: [
       {
@@ -118,8 +119,8 @@ export const blogPosts: BlogPost[] = [
     date: 'October 2, 2026',
     isoDate: '2026-10-02',
     excerpt: 'Discover the colors, textures, natural woods, and relaxed silhouettes shaping beautiful Florida homes this season.',
-    image: pexels('14495875'),
-    imageAlt: 'Elegant coastal living room with natural textures and warm neutral furniture',
+    image: bay('hdr-14'),
+    imageAlt: 'Coastal living room with warm oak, white upholstery and palm photography',
     keywords: ['Naples interior design trends', 'Florida interior design trends 2026', 'quiet luxury interiors', 'coastal interior design'],
     body: [
       {
@@ -151,8 +152,8 @@ export const blogPosts: BlogPost[] = [
     date: 'September 30, 2026',
     isoDate: '2026-09-30',
     excerpt: 'What makes a Southwest Florida home feel luxurious — and how our Naples design team approaches homes from Port Royal and Pelican Bay to Marco Island and Fort Myers.',
-    image: unsplash('1600573472550-8090b5e0745e'),
-    imageAlt: 'Open-plan luxury great room in a Southwest Florida home',
+    image: bay('hdr-11'),
+    imageAlt: 'Open great room with an upholstered bed, linen sofa and sea-urchin chandelier',
     keywords: ['luxury interior design Southwest Florida', 'interior designer Marco Island', 'interior designer Bonita Springs', 'interior designer Fort Myers', 'Naples luxury interior design', 'Collier County interior designer'],
     body: [
       {
@@ -184,8 +185,8 @@ export const blogPosts: BlogPost[] = [
     date: 'September 24, 2026',
     isoDate: '2026-09-24',
     excerpt: 'A practical guide to layering linen, pale oak, sculptural lighting, and collected accents for a refined coastal interior.',
-    image: pexels('276508'),
-    imageAlt: 'Bright luxury living room overlooking the ocean',
+    image: bay('hdr-6'),
+    imageAlt: 'Grasscloth console with blue coral prints, ceramic lamps and celadon vases',
     keywords: ['coastal modern furniture', 'coastal interior design', 'Florida coastal decor', 'coastal living room ideas'],
     body: [
       {
@@ -217,8 +218,8 @@ export const blogPosts: BlogPost[] = [
     date: 'September 20, 2026',
     isoDate: '2026-09-20',
     excerpt: 'Love the relaxed elegance of a Naples home? Here is how to bring Florida coastal style to homes in Georgia, Alabama, the Carolinas and beyond.',
-    image: unsplash('1503174971373-b1f69850bded'),
-    imageAlt: 'Light-filled living room with water views and coastal furnishings',
+    image: bay('hdr-1'),
+    imageAlt: 'Coastal bedroom with palm-leaf pillows and a linen sofa at the foot of the bed',
     keywords: ['USA interior design', 'coastal interior design Southeast', 'Florida style interior design', 'interior designer Georgia coastal', 'luxury interior design USA', 'coastal interior designer'],
     body: [
       {
@@ -251,8 +252,8 @@ export const blogPosts: BlogPost[] = [
     date: 'September 15, 2026',
     isoDate: '2026-09-15',
     excerpt: 'Meet the one-of-a-kind furniture, lighting, art, and accessories our Naples design team is watching right now.',
-    image: pexels('31817162'),
-    imageAlt: 'Spacious modern living room with a wide ocean view',
+    image: bay('hdr-7'),
+    imageAlt: 'Showroom vignette with a blue-grey sofa, grasscloth console and coral art',
     keywords: ['Bay Design warehouse', 'Naples furniture store', 'unique home accessories Naples', 'art and accessories Naples FL'],
     body: [
       {
@@ -278,8 +279,8 @@ export const blogPosts: BlogPost[] = [
     date: 'September 10, 2026',
     isoDate: '2026-09-10',
     excerpt: 'Compare our complimentary Instant Design Program with full-service interior design — timelines, scope, and which suits your project.',
-    image: unsplash('1600210492486-724fe5c67fb0'),
-    imageAlt: 'Furnished living room completed through an interior design program',
+    image: bay('hdr-10'),
+    imageAlt: 'Bedroom furnished with an upholstered bed, nightstands and blue-and-white pillows',
     keywords: ['full-service interior design Naples', 'Instant Design Program', 'interior design services Florida', 'furnish a home quickly Naples'],
     body: [
       {
@@ -311,8 +312,8 @@ export const blogPosts: BlogPost[] = [
     date: 'September 6, 2026',
     isoDate: '2026-09-06',
     excerpt: 'Use natural light, layered fixtures, and warm-glow lamps to make an open living space feel inviting from morning to evening.',
-    image: pexels('12715501'),
-    imageAlt: 'Minimal living room with natural light and ocean views',
+    image: bay('hdr-5'),
+    imageAlt: 'Ceramic table lamps and a sea-urchin chandelier above a grasscloth console',
     keywords: ['living room lighting ideas', 'Florida home lighting', 'lamps Naples FL', 'chandeliers Naples'],
     body: [
       {

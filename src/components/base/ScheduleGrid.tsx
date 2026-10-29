@@ -59,10 +59,14 @@ type ShiftDraft = { start: string; end: string; roleId: string | null; locationI
 type Editing =
   | { kind: 'new'; employeeId: string | null; date: string; preset?: ShiftDraft; tab: 'shift' | 'off' }
   | { kind: 'edit'; shift: GridShift; tab: 'current' | 'notes' | 'approvals' | 'off' }
+  /** Admin: one person's punch in / out report for a day. */
+  | { kind: 'punches'; employeeId: string; date: string }
   | null;
 type ViewBy = 'first' | 'last' | 'role' | 'hours';
 const VIEW_BY = oneOf<ViewBy>('first', 'last', 'role', 'hours');
 const NO_HIDDEN: string[] = [];
+/** The name column that stays put while the days scroll. Collapsed borders scroll away from sticky cells, so its edge is a shadow. */
+const STICKY = 'sticky left-0 bg-white shadow-[1px_0_0_rgb(var(--c-stone)/0.6)]';
 const HIDDEN = { read: (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : undefined), write: (v: string[]) => v };
 
 function groupBy<T>(list: T[], key: (x: T) => string) {
@@ -101,24 +105,65 @@ function TimeOffChip({ label }: { label: string }) {
   );
 }
 
-/** Admin only: the actual punch in / out under the scheduled shift. */
-function PunchChip({ p }: { p: GridPunch }) {
+const PUNCH_TONE = 'bg-emerald-50 text-emerald-900 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-800';
+const NO_SHOW_TONE = 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900';
+const CLICKABLE = 'block w-full text-left transition-[filter] hover:brightness-95';
+
+/** Admin only, past weeks: the actual punch in / out under the scheduled shift. Opens the punch report. */
+function PunchChip({ p, onClick }: { p: GridPunch; onClick: (e: MouseEvent<HTMLElement>) => void }) {
   const tip = [p.inPlace && `In at ${p.inPlace}`, p.outPlace && `Out at ${p.outPlace}`, p.manual && 'Added by hand', p.note].filter(Boolean).join('\n');
   return (
-    <div className="rounded-md bg-emerald-50 px-2 py-1 text-[0.68rem] leading-tight text-emerald-900 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-800" title={tip || undefined}>
-      <span className="flex items-center gap-1 font-semibold"><LogIn size={10} className="flex-none" /> {p.clockIn}<span className="font-normal opacity-70">–</span>{p.clockOut ?? <span className="font-medium text-emerald-700 dark:text-emerald-300">on clock</span>}</span>
+    <button type="button" onClick={onClick} className={`${CLICKABLE} rounded-md px-2 py-1 text-[0.68rem] leading-tight ${PUNCH_TONE}`} title={tip || 'Punch report'}>
+      <span className="flex flex-wrap items-center gap-x-1 font-semibold"><LogIn size={10} className="flex-none" /> {p.clockIn}<span className="font-normal opacity-70">–</span>{p.clockOut ?? <span className="font-medium text-emerald-700 dark:text-emerald-300">on clock</span>}</span>
       <span className="mt-0.5 block truncate opacity-80">
         {fmtDuration(p.workedMinutes)} hrs{p.lateMinutes ? <span className="font-semibold text-amber-700 dark:text-amber-300"> · {p.lateMinutes}m late</span> : null}{p.manual ? ' · manual' : ''}
       </span>
-    </div>
+    </button>
   );
 }
 
-function NoShowChip() {
+/** Admin only, this week and later: a small marker in place of the times — the details are in the punch report. */
+function PunchBadge({ punches, onClick }: { punches: GridPunch[]; onClick: (e: MouseEvent<HTMLElement>) => void }) {
+  const onClock = punches.some((p) => !p.clockOut);
+  const late = punches.some((p) => p.lateMinutes);
   return (
-    <div className="flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-[0.68rem] font-semibold leading-tight text-red-700 ring-1 ring-inset ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900">
+    <button type="button" onClick={onClick} className={`${CLICKABLE} flex items-center gap-1 rounded-md px-2 py-1 text-[0.68rem] font-semibold leading-tight ${PUNCH_TONE}`} title="Punch in / out report">
+      <LogIn size={10} className="flex-none" /> {onClock ? 'On the clock' : 'Punched'}
+      {late && <span className="ml-auto h-1.5 w-1.5 flex-none rounded-full bg-amber-500" aria-label="Late" />}
+    </button>
+  );
+}
+
+function NoShowChip({ onClick }: { onClick: (e: MouseEvent<HTMLElement>) => void }) {
+  return (
+    <button type="button" onClick={onClick} className={`${CLICKABLE} flex items-center gap-1 rounded-md px-2 py-1 text-[0.68rem] font-semibold leading-tight ${NO_SHOW_TONE}`} title="Punch in / out report">
       <AlertTriangle size={10} className="flex-none" /> No punch-in
-    </div>
+    </button>
+  );
+}
+
+/** The time cards for one shift or one person's day: in / out, where, worked, late, manual, note. */
+function PunchList({ punches, noShow, scheduled }: { punches: GridPunch[]; noShow: boolean; scheduled?: string }) {
+  if (punches.length === 0) {
+    return (
+      <p className={`rounded-xl px-3.5 py-3 text-sm ${noShow ? 'bg-red-50 font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300' : 'bg-linen text-muted'}`}>
+        {noShow ? 'No punch-in for this shift.' : 'No time card yet.'}
+      </p>
+    );
+  }
+  return (
+    <ul className="space-y-2 text-sm">
+      {punches.map((p) => (
+        <li key={p.id} className="rounded-xl border border-stone/60 px-3.5 py-3">
+          <p className="flex items-center gap-2 font-semibold"><LogIn size={14} className="text-emerald-600" /> In {p.clockIn}{p.lateMinutes ? <span className="b-badge-amber">{p.lateMinutes}m late</span> : null}{p.manual && <span className="b-badge-gray">Manual</span>}</p>
+          {p.inPlace && <p className="ml-6 text-xs text-muted">{p.inPlace}</p>}
+          <p className="mt-1.5 flex items-center gap-2 font-semibold"><LogOut size={14} className="text-rose-600" /> {p.clockOut ? `Out ${p.clockOut}` : 'Still on the clock'}</p>
+          {p.outPlace && <p className="ml-6 text-xs text-muted">{p.outPlace}</p>}
+          <p className="mt-1.5 text-xs text-muted">Worked {fmtDuration(p.workedMinutes)} hrs{scheduled ? ` · scheduled ${scheduled}` : ''}</p>
+          {p.note && <p className="mt-1.5 rounded-lg bg-linen px-2.5 py-1.5 text-xs italic text-ink">“{p.note}”</p>}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -384,6 +429,7 @@ export default function ScheduleGrid({
   locations,
   canEdit,
   isAdmin = false,
+  inlinePunches = true,
   defaultLocationId,
   zone,
   weekStart,
@@ -400,6 +446,11 @@ export default function ScheduleGrid({
   locations: { id: string; name: string }[];
   canEdit: boolean;
   isAdmin?: boolean;
+  /**
+   * Past weeks show each punch in / out right in the grid. The running week (and later) only marks the
+   * cell — the times change all day — and a click opens the punch report.
+   */
+  inlinePunches?: boolean;
   defaultLocationId: string | null;
   zone: string;
   weekStart: number;
@@ -487,6 +538,8 @@ export default function ScheduleGrid({
     // A punch sits under its shift (or under the day's only shift when it wasn't linked); unscheduled punches go last.
     const sitsUnder = (p: GridPunch, s: GridShift) => p.shiftId === s.id || (!p.shiftId && own.length === 1);
     const loose = punched.filter((p) => !own.some((s) => sitsUnder(p, s)));
+    const report = (e: MouseEvent<HTMLElement>) => employeeId && open({ kind: 'punches', employeeId, date: day.ymd }, e);
+    const noShow = own.some((s) => s.noShow) && punched.length === 0;
     return (
       <td key={day.ymd} className={`group relative h-[3.75rem] border-b border-l border-stone/50 p-1 align-top ${day.isToday ? 'bg-violet-50/40' : ''}`}>
         <div className="space-y-1">
@@ -496,18 +549,19 @@ export default function ScheduleGrid({
             return (
               <div key={s.id} className="space-y-0.5">
                 <ShiftChip s={s} onClick={canEdit ? (e) => open({ kind: 'edit', shift: s, tab: 'current' }, e) : undefined} />
-                {mine.map((p) => <PunchChip key={p.id} p={p} />)}
-                {s.noShow && mine.length === 0 && <NoShowChip />}
+                {inlinePunches && mine.map((p) => <PunchChip key={p.id} p={p} onClick={report} />)}
+                {inlinePunches && s.noShow && mine.length === 0 && <NoShowChip onClick={report} />}
               </div>
             );
           })}
-          {loose.map((p) => <PunchChip key={p.id} p={p} />)}
+          {inlinePunches && loose.map((p) => <PunchChip key={p.id} p={p} onClick={report} />)}
+          {!inlinePunches && (punched.length > 0 ? <PunchBadge punches={punched} onClick={report} /> : noShow && <NoShowChip onClick={report} />)}
         </div>
         {canEdit && (
           <button
             type="button"
             onClick={(e) => open({ kind: 'new', employeeId, date: day.ymd, tab: 'shift' }, e)}
-            className={`flex w-full items-center justify-center rounded-md border border-dashed border-violet-300 text-violet-500 opacity-0 transition-opacity hover:bg-violet-50 focus:opacity-100 group-hover:opacity-100 ${own.length || off.length || punched.length ? 'mt-1 h-6' : 'absolute inset-1 w-auto'}`}
+            className={`flex w-full items-center justify-center rounded-md border border-dashed border-violet-300 text-violet-500 opacity-0 transition-opacity hover:bg-violet-50 focus:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-30 ${own.length || off.length || punched.length ? 'mt-1 h-6' : 'absolute inset-1 w-auto'}`}
             aria-label={`Add shift on ${day.weekday} ${day.day}`}
           >
             <Plus size={15} />
@@ -518,24 +572,35 @@ export default function ScheduleGrid({
   };
 
   const person = editing ? rows.find((r) => r.id === (editing.kind === 'edit' ? editing.shift.employeeId : editing.employeeId)) : undefined;
-  const formKey = editing ? (editing.kind === 'edit' ? `${editing.shift.id}-${editing.tab}` : `${editing.employeeId}-${editing.date}-${editing.tab}-${editing.preset ? 'copy' : ''}`) : 'none';
+  const formKey = !editing
+    ? 'none'
+    : editing.kind === 'edit'
+      ? `${editing.shift.id}-${editing.tab}`
+      : editing.kind === 'punches'
+        ? `punches-${editing.employeeId}-${editing.date}`
+        : `${editing.employeeId}-${editing.date}-${editing.tab}-${editing.preset ? 'copy' : ''}`;
 
   return (
     <>
-      <div className="b-card overflow-x-auto !rounded-xl">
-        <table className="w-full min-w-[1080px] table-fixed border-collapse text-sm">
+      {/*
+        The scroller is positioned on purpose: on iPhone Safari, positioned cells inside a scroller
+        that isn't stayed put while you swiped (the dates in the header moved, the shifts didn't).
+        On phones the name column is narrower so the days get most of the screen.
+      */}
+      <div className="b-card relative isolate overflow-x-auto overscroll-x-contain !rounded-xl">
+        <table className="w-full min-w-[60rem] table-fixed border-collapse text-sm sm:min-w-[1080px]">
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 w-[18rem] border-b border-stone/60 bg-white px-4 py-3 text-left font-normal">
+              <th className={`${STICKY} z-20 w-[10.5rem] border-b border-stone/60 px-2 py-3 text-left font-normal sm:w-[18rem] sm:px-4`}>
                 {searching ? (
                   <div className="flex items-center gap-2">
                     <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} className="b-input !py-1.5" placeholder="Search name or role" aria-label="Search team members" />
                     <button type="button" className="rounded-lg p-1.5 text-muted hover:bg-linen" onClick={() => { setSearching(false); setQuery(''); }} aria-label="Close search"><X size={16} /></button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-sm text-muted">
-                    <span>View by</span>
-                    <Select value={viewBy} onChange={(e) => setViewBy(e.target.value as ViewBy)} className="b-input !w-auto !rounded-lg !py-1.5 !pr-8 font-medium text-ink">
+                  <div className="flex items-center gap-1 text-sm text-muted sm:gap-2">
+                    <span className="hidden sm:inline">View by</span>
+                    <Select value={viewBy} onChange={(e) => setViewBy(e.target.value as ViewBy)} className="b-input !w-auto min-w-0 !rounded-lg !py-1.5 !pl-2.5 !pr-8 font-medium text-ink sm:!pl-3.5" aria-label="View by">
                       <option value="first">First name</option>
                       <option value="last">Last name</option>
                       <option value="role">Role</option>
@@ -546,8 +611,8 @@ export default function ScheduleGrid({
                 )}
               </th>
               {days.map((d) => (
-                <th key={d.ymd} className="border-b border-l border-stone/60 bg-white px-2 py-3 text-center">
-                  <span className={`inline-flex items-center rounded-full px-3.5 py-1 text-[0.95rem] font-semibold ${d.isToday ? 'text-violet-700 ring-2 ring-violet-500' : 'text-ink'}`}>
+                <th key={d.ymd} className="border-b border-l border-stone/60 bg-white px-1 py-3 text-center sm:px-2">
+                  <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-[0.85rem] font-semibold sm:px-3.5 sm:text-[0.95rem] ${d.isToday ? 'text-violet-700 ring-2 ring-violet-500' : 'text-ink'}`}>
                     {d.weekday}, {d.day}
                   </span>
                 </th>
@@ -556,8 +621,8 @@ export default function ScheduleGrid({
           </thead>
           <tbody>
             <tr>
-              <td className="sticky left-0 z-10 border-b border-stone/50 bg-white px-4 py-2.5 text-sm text-ink">
-                <span className="flex items-center gap-2.5"><CalendarDays size={16} className="text-muted" /> Events ({events.length})</span>
+              <td className={`${STICKY} z-10 border-b border-stone/50 px-2 py-2.5 text-sm text-ink sm:px-4`}>
+                <span className="flex items-center gap-2.5"><CalendarDays size={16} className="flex-none text-muted" /> Events ({events.length})</span>
               </td>
               {days.map((d) => (
                 <td key={d.ymd} className="border-b border-l border-stone/50 p-1 align-top">
@@ -568,34 +633,37 @@ export default function ScheduleGrid({
               ))}
             </tr>
             <tr>
-              <td className="sticky left-0 z-10 border-b border-stone/50 bg-white px-4 py-2.5 text-sm text-ink">
+              <td className={`${STICKY} z-10 border-b border-stone/50 px-2 py-2.5 text-sm text-ink sm:px-4`}>
                 <span className="flex items-center gap-2.5">
-                  <CircleDashed size={16} className="text-muted" />
+                  <CircleDashed size={16} className="flex-none text-muted" />
                   <span>Open shifts ({openShifts.length})<span className="block text-[0.7rem] text-muted">{(openHours / 60).toFixed(2)} Hrs</span></span>
                 </span>
               </td>
               {days.map((d) => cell(null, d))}
             </tr>
             <tr>
-              <td colSpan={8} className="border-b border-stone/50 bg-linen/80 px-4 py-2 text-[0.82rem] font-medium text-muted">
-                Team members ({visibleRows.length}{hidden.length ? ` of ${rows.length}` : ''})
-                {hidden.length > 0 && (
-                  <button type="button" onClick={() => setHidden([])} className="ml-3 text-xs font-semibold text-violet-700 hover:underline">
-                    Show {hidden.length} hidden
-                  </button>
-                )}
+              <td colSpan={8} className="border-b border-stone/50 bg-linen/80 px-2 py-2 text-[0.82rem] font-medium text-muted sm:px-4">
+                {/* Sticky so the label stays in view while the days scroll sideways. */}
+                <span className="sticky left-2 sm:left-4">
+                  Team members ({visibleRows.length}{hidden.length ? ` of ${rows.length}` : ''})
+                  {hidden.length > 0 && (
+                    <button type="button" onClick={() => setHidden([])} className="ml-3 text-xs font-semibold text-violet-700 hover:underline">
+                      Show {hidden.length} hidden
+                    </button>
+                  )}
+                </span>
               </td>
             </tr>
             {visibleRows.map((r) => (
               <tr key={r.id} className={r.highlight ? 'bg-violet-50/30' : ''}>
-                <td className="sticky left-0 z-10 border-b border-stone/50 bg-white px-4 py-2">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={r.name} size="sm" />
+                <td className={`${STICKY} z-10 border-b border-stone/50 px-2 py-2 sm:px-4`}>
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <span className="hidden sm:contents"><Avatar name={r.name} size="sm" /></span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold text-ink">{r.name}</p>
-                      <p className="text-[0.68rem] text-muted">{fmtDuration(r.hours * 60)} hrs{r.role ? ` · ${r.role}` : ''}</p>
+                      <p className="truncate text-[0.68rem] text-muted">{fmtDuration(r.hours * 60)} hrs{r.role ? ` · ${r.role}` : ''}</p>
                     </div>
-                    <button type="button" onClick={() => toggleHidden(r.id)} className="rounded-lg p-1.5 text-muted/70 hover:bg-linen hover:text-ink" aria-label={`Hide ${r.name} from this view`} title="Hide from this view">
+                    <button type="button" onClick={() => toggleHidden(r.id)} className="flex-none rounded-lg p-1 text-muted/70 hover:bg-linen hover:text-ink sm:p-1.5" aria-label={`Hide ${r.name} from this view`} title="Hide from this view">
                       <Eye size={16} />
                     </button>
                   </div>
@@ -631,7 +699,14 @@ export default function ScheduleGrid({
                 <button type="button" onClick={close} className="rounded-lg p-1.5 text-ink hover:bg-linen" aria-label="Close"><X size={19} /></button>
               </div>
 
-              {editing.kind === 'new' ? (
+              {editing.kind === 'punches' ? (
+                <PunchReport
+                  day={days.find((d) => d.ymd === editing.date)}
+                  date={editing.date}
+                  shifts={shiftsByCell.get(`${editing.employeeId}|${editing.date}`) ?? []}
+                  punches={punchesByCell.get(`${editing.employeeId}|${editing.date}`) ?? []}
+                />
+              ) : editing.kind === 'new' ? (
                 <>
                   {editing.employeeId && (
                     <Tabs value={editing.tab} onChange={(tab) => setEditing({ ...editing, tab })} tabs={[{ value: 'shift', label: 'Add Shift' }, { value: 'off', label: 'Time off' }]} />
@@ -684,6 +759,37 @@ export default function ScheduleGrid({
         </dialog>
       )}
     </>
+  );
+}
+
+/** Admin: everything one person punched on one day, under the shift each punch belongs to. */
+function PunchReport({ day, date, shifts, punches }: { day?: GridDay; date: string; shifts: GridShift[]; punches: GridPunch[] }) {
+  const sitsUnder = (p: GridPunch, s: GridShift) => p.shiftId === s.id || (!p.shiftId && shifts.length === 1);
+  const loose = punches.filter((p) => !shifts.some((s) => sitsUnder(p, s)));
+  const worked = punches.reduce((sum, p) => sum + p.workedMinutes, 0);
+  return (
+    <div className="space-y-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="font-semibold">Punch report{day ? ` · ${day.weekday} ${day.day}` : ''}</p>
+        {punches.length > 0 && <p className="text-sm text-muted">{fmtDuration(worked)} hrs worked</p>}
+      </div>
+      {shifts.map((s) => (
+        <div key={s.id} className="space-y-2">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ backgroundColor: s.color }} /> Scheduled {s.label}
+            <span className="font-normal text-muted">· {s.roleName ?? 'No role'}</span>
+          </p>
+          <PunchList punches={punches.filter((p) => sitsUnder(p, s))} noShow={s.noShow} />
+        </div>
+      ))}
+      {(loose.length > 0 || shifts.length === 0) && (
+        <div className="space-y-2">
+          {shifts.length > 0 && <p className="text-sm font-semibold">Not on a scheduled shift</p>}
+          <PunchList punches={loose} noShow={false} />
+        </div>
+      )}
+      <Link href={`/base/timesheets?date=${date}`} className="inline-block text-xs font-semibold text-violet-700 hover:underline dark:text-violet-300">Open in Timesheets →</Link>
+    </div>
   );
 }
 
@@ -834,23 +940,7 @@ function EditPanel({
           {isAdmin && (
             <div>
               <p className="b-label">Punch in and out</p>
-              {punches.length === 0 ? (
-                <p className={`rounded-xl px-3.5 py-3 ${s.noShow ? 'bg-red-50 font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300' : 'bg-linen text-muted'}`}>
-                  {s.noShow ? 'No punch-in for this shift.' : 'No time card yet.'}
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {punches.map((p) => (
-                    <li key={p.id} className="rounded-xl border border-stone/60 px-3.5 py-3">
-                      <p className="flex items-center gap-2 font-semibold"><LogIn size={14} className="text-emerald-600" /> In {p.clockIn}{p.lateMinutes ? <span className="b-badge-amber">{p.lateMinutes}m late</span> : null}{p.manual && <span className="b-badge-gray">Manual</span>}</p>
-                      {p.inPlace && <p className="ml-6 text-xs text-muted">{p.inPlace}</p>}
-                      <p className="mt-1.5 flex items-center gap-2 font-semibold"><LogOut size={14} className="text-rose-600" /> {p.clockOut ? `Out ${p.clockOut}` : 'Still on the clock'}</p>
-                      {p.outPlace && <p className="ml-6 text-xs text-muted">{p.outPlace}</p>}
-                      <p className="mt-1.5 text-xs text-muted">Worked {fmtDuration(p.workedMinutes)} hrs · scheduled {s.label}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <PunchList punches={punches} noShow={s.noShow} scheduled={s.label} />
               <Link href={`/base/timesheets?date=${s.date}`} className="mt-2 inline-block text-xs font-semibold text-violet-700 hover:underline dark:text-violet-300">Open in Timesheets →</Link>
             </div>
           )}

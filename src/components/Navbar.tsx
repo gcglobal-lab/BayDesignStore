@@ -7,6 +7,7 @@ import { AnimatePresence, motion, useMotionValueEvent, useScroll } from 'framer-
 import { ArrowRight, ArrowUpRight, ChevronDown, Clock, MapPin, Phone } from 'lucide-react';
 import { companyInfo, navLinks, pageImages, portfolioItems, roomCategories, services } from '@/data/siteData';
 import Logo from './Logo';
+import { responsive, SIZES } from '@/lib/photos';
 
 const ease = [0.22, 1, 0.36, 1] as const;
 const megaPaths = ['/collections', '/services', '/portfolio'];
@@ -55,7 +56,7 @@ function MegaPanel({ path, onNavigate }: { path: string; onNavigate: () => void 
               <motion.div key={cat.name} variants={item}>
                 <Link href="/collections" onClick={onNavigate} className="group/card block">
                   <div className="aspect-[3/4] overflow-hidden rounded-2xl bg-sand">
-                    <img src={cat.image} alt="" className="h-full w-full object-cover transition-transform duration-700 ease-lux group-hover/card:scale-110" />
+                    <img {...responsive(cat.image, SIZES.thumb)} alt="" className="h-full w-full object-cover transition-transform duration-700 ease-lux group-hover/card:scale-110" />
                   </div>
                   <p className="mt-3 flex items-center justify-between font-display text-xl">
                     {cat.name}
@@ -92,7 +93,7 @@ function MegaPanel({ path, onNavigate }: { path: string; onNavigate: () => void 
               <AnimatePresence mode="popLayout">
                 <motion.img
                   key={services[preview].id}
-                  src={services[preview].image}
+                  {...responsive(services[preview].image, SIZES.quarter)}
                   alt=""
                   initial={{ opacity: 0, scale: 1.1 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -115,7 +116,7 @@ function MegaPanel({ path, onNavigate }: { path: string; onNavigate: () => void 
             {portfolioItems.slice(0, 4).map((p) => (
               <motion.div key={p.id} variants={item}>
                 <Link href="/portfolio" onClick={onNavigate} className="group/card relative block aspect-[4/5] overflow-hidden rounded-2xl bg-sand">
-                  <img src={p.image} alt="" className="h-full w-full object-cover transition-transform duration-700 ease-lux group-hover/card:scale-110" />
+                  <img {...responsive(p.image, SIZES.thumb)} alt="" className="h-full w-full object-cover transition-transform duration-700 ease-lux group-hover/card:scale-110" />
                   <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-transparent to-transparent" />
                   <div className="absolute inset-x-4 bottom-4 text-white">
                     <p className="text-[0.6rem] uppercase tracking-[0.2em] text-white/70">{p.category}</p>
@@ -394,7 +395,7 @@ export default function Navbar() {
               transition={{ delay: 0.2, duration: 1.2, ease }}
               className="relative hidden overflow-hidden md:block"
             >
-              <img src={pageImages.cta} alt="" className="h-full w-full object-cover" />
+              <img {...responsive(pageImages.cta, SIZES.half)} alt="" className="h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-ink/60 to-transparent" />
               <p className="display absolute bottom-10 left-8 right-8 text-4xl italic text-white">
                 “Create the rooms you love — for the places you live.”

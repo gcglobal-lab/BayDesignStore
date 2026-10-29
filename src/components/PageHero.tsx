@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
 import { ease } from './motion';
+import { responsive, SIZES } from '@/lib/photos';
 
 type PageHeroProps = {
   eyebrow: string;
@@ -32,7 +33,7 @@ export default function PageHero({ eyebrow, title, text, image, crumb, children,
     >
       <motion.div style={{ y }} className="absolute inset-0">
         <motion.img
-          src={image}
+          {...responsive(image, SIZES.cover)}
           alt=""
           initial={{ scale: 1.2 }}
           animate={{ scale: 1.05 }}

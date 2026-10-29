@@ -88,6 +88,7 @@ export default function Services() {
               <ParallaxImage
                 src={s.image}
                 alt={s.title}
+                sizes="(min-width: 1024px) 50vw, 100vw"
                 className={`relative aspect-[4/3] rounded-[2rem] lg:aspect-[5/4] ${flip ? 'lg:order-2' : ''}`}
               />
               <div>

@@ -27,3 +27,6 @@ next-env.d.ts
 .env
 .env.*
 !.env.example
+
+# Full-size original photos (run \`npm run images\` to make the web versions in public/images/photos)
+/Bay Design Images For Website/

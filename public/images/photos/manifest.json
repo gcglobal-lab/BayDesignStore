@@ -1,0 +1,222 @@
+{
+  "bay-12001": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-12002": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-12004": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12007": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12009": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12025": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12029": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12044": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-12076": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12077": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-12078": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-12083": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-12089": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-12171": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12176": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12186": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12191": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12197": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12199": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-12213": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12223": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12226": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-12235": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12258": {
+    "width": 3002,
+    "height": 4500
+  },
+  "bay-12263": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12275": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12276": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12280": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12362": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12414": {
+    "width": 3002,
+    "height": 4500
+  },
+  "bay-12454": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12461": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12474": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12594": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-12596": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-12601": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12605": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12607": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12609": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12622": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12628": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12632": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-12642": {
+    "width": 3001,
+    "height": 4500
+  },
+  "bay-hdr-1": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-hdr-10": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-hdr-11": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-hdr-12": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-hdr-13": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-hdr-14": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-hdr-15": {
+    "width": 4500,
+    "height": 3002
+  },
+  "bay-hdr-2": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-hdr-5": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-hdr-6": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-hdr-7": {
+    "width": 4500,
+    "height": 3001
+  },
+  "bay-hdr-8": {
+    "width": 4500,
+    "height": 3001
+  }
+}

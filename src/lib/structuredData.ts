@@ -1,5 +1,5 @@
 import { faqs, type BlogPost } from '@/data/siteData';
-import { SITE_URL, breadcrumb } from './seo';
+import { DEFAULT_IMAGE, SITE_URL, breadcrumb } from './seo';
 
 const mapLink = (address: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 
@@ -43,7 +43,7 @@ export const organizationJsonLd = {
       name: 'Bay Design Store — Downtown Naples Showroom',
       description: 'Fine furniture, home furnishings and full-service interior design in Downtown Naples, Florida.',
       url: `${SITE_URL}/`,
-      image: 'https://images.unsplash.com/photo-1615529182904-14819c35db37?auto=format&fit=crop&w=1200&q=80',
+      image: DEFAULT_IMAGE,
       telephone: '+1-239-649-0906',
       email: 'info@baydesignstore.com',
       priceRange: '$$$',
@@ -122,7 +122,7 @@ export const blogPostJsonLd = (post: BlogPost) => ({
       '@type': 'BlogPosting',
       headline: post.title,
       description: post.excerpt,
-      image: post.image,
+      image: `${SITE_URL}${post.image}`,
       datePublished: post.isoDate,
       dateModified: post.isoDate,
       keywords: post.keywords.join(', '),

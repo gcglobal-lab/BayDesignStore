@@ -8,6 +8,7 @@ import { collections, pageImages, type Product } from '@/data/siteData';
 import PageHero from '@/components/PageHero';
 import CTABanner from '@/components/CTABanner';
 import { ease } from '@/components/motion';
+import { responsive, SIZES } from '@/lib/photos';
 
 const categories = ['All', ...Array.from(new Set(collections.map((p) => p.category)))];
 
@@ -70,7 +71,7 @@ export default function Collections() {
                 className="group"
               >
                 <div className="img-zoom relative aspect-[4/5] overflow-hidden rounded-3xl bg-sand">
-                  <img src={p.image} alt={p.name} loading="lazy" className="h-full w-full object-cover" />
+                  <img {...responsive(p.image, SIZES.third)} alt={p.name} loading="lazy" className="h-full w-full object-cover" />
                   <span className="glass absolute left-4 top-4 rounded-full px-3 py-1 text-[0.65rem] font-medium uppercase tracking-[0.18em]">{p.category}</span>
                   <div className="absolute inset-x-4 bottom-4 flex translate-y-4 gap-2 opacity-0 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100">
                     <button onClick={() => setQuickView(p)} className="glass flex flex-1 items-center justify-center gap-2 rounded-full py-3 text-sm font-medium text-ink">
@@ -116,7 +117,7 @@ export default function Collections() {
               onClick={(e) => e.stopPropagation()}
               className="relative grid max-h-[90vh] w-full max-w-5xl overflow-auto rounded-[2rem] bg-ivory md:grid-cols-2"
             >
-              <img src={quickView.image} alt={quickView.name} className="aspect-square h-full w-full object-cover md:aspect-auto" />
+              <img {...responsive(quickView.image, SIZES.half)} alt={quickView.name} className="aspect-square h-full w-full object-cover md:aspect-auto" />
               <div className="flex flex-col justify-center p-8 md:p-12">
                 <p className="eyebrow">{quickView.category}</p>
                 <h2 className="display mt-4 text-4xl md:text-5xl">{quickView.name}</h2>

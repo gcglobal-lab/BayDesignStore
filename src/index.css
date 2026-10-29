@@ -475,3 +475,15 @@ body::after {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * iPhone zooms the whole page into any text field smaller than 16px when it's tapped, and doesn't
+ * zoom back out — on phones and tablets, typing fields are always at least 16px.
+ */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='hidden']),
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}

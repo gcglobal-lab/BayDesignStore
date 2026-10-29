@@ -173,9 +173,12 @@ export default async function SchedulePage({ searchParams }: PageProps<'/base/sc
       {/* Toolbar, like Homebase: Today · date range · arrows … filters · publish */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {week !== thisWeek ? <Link href={weekHref(thisWeek)} className="rounded-xl bg-linen px-4 py-2.5 text-[0.95rem] font-semibold text-ink ring-1 ring-inset ring-stone transition-colors hover:bg-sand">Today</Link> : <span className="rounded-xl bg-linen px-4 py-2.5 text-[0.95rem] font-semibold text-muted ring-1 ring-inset ring-stone">Today</span>}
-        <WeekJump label={`${fmtDate(week, zone, 'MMM d, yyyy')} - ${fmtDate(ymds[6], zone, 'MMM d, yyyy')}`} value={week} href="/base/schedule" extra={roleFilter ? { role: roleFilter } : {}} zone={zone} weekStart={settings.week_start} />
-        <Link href={weekHref(addDaysYmd(week, -7, zone))} className="rounded-xl p-2.5 text-ink hover:bg-white" aria-label="Previous week"><ChevronLeft size={20} /></Link>
-        <Link href={weekHref(addDaysYmd(week, 7, zone))} className="rounded-xl p-2.5 text-ink hover:bg-white" aria-label="Next week"><ChevronRight size={20} /></Link>
+        {/* The week and its arrows stay on one line on a phone. */}
+        <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+          <WeekJump label={`${fmtDate(week, zone, 'MMM d')} – ${fmtDate(ymds[6], zone, 'MMM d, yyyy')}`} value={week} href="/base/schedule" extra={roleFilter ? { role: roleFilter } : {}} zone={zone} weekStart={settings.week_start} />
+          <Link href={weekHref(addDaysYmd(week, -7, zone))} className="flex-none rounded-xl p-2.5 text-ink hover:bg-white" aria-label="Previous week"><ChevronLeft size={20} /></Link>
+          <Link href={weekHref(addDaysYmd(week, 7, zone))} className="flex-none rounded-xl p-2.5 text-ink hover:bg-white" aria-label="Next week"><ChevronRight size={20} /></Link>
+        </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <form className="flex items-center">
@@ -204,7 +207,7 @@ export default async function SchedulePage({ searchParams }: PageProps<'/base/sc
       </div>
       {manager && (
         <p className="mb-3 hidden text-xs text-muted md:block">
-          Click an empty cell to add a shift or time off, or a shift to open it. Dashed shifts are drafts{admin ? '; punch in and out times show under each shift' : ' — once published, only an admin can change them'}. The eye hides someone from your view.
+          Click an empty cell to add a shift or time off, or a shift to open it. Dashed shifts are drafts{admin ? (week < thisWeek ? '; punch in and out times show under each shift — click one for the full report' : '; a green “Punched” or red “No punch-in” marks each day — click it for the punch in / out report') : ' — once published, only an admin can change them'}. The eye hides someone from your view.
         </p>
       )}
 
@@ -221,6 +224,8 @@ export default async function SchedulePage({ searchParams }: PageProps<'/base/sc
         requests={gridRequests}
         canEdit={manager}
         isAdmin={admin}
+        // Earlier weeks show the punch times in the grid; this week (still changing) opens them in a popup.
+        inlinePunches={week < thisWeek}
         defaultLocationId={locations[0]?.id ?? null}
         zone={zone}
         weekStart={settings.week_start}

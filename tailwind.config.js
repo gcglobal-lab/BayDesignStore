@@ -8,6 +8,9 @@ const c = (name) => `rgb(var(--c-${name}) / <alpha-value>)`;
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./src/**/*.{js,ts,jsx,tsx}'],
+  // `dark:` follows the portal's own light / dark choice (data-theme on <main>), not the phone's
+  // setting — Time pages always stay light, even on a phone in dark mode.
+  darkMode: ['variant', '&:is([data-theme="dark"] *)'],
   theme: {
     extend: {
       colors: {

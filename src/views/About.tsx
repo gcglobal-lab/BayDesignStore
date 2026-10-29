@@ -6,6 +6,7 @@ import { companyInfo, pageImages, stats, timeline } from '@/data/siteData';
 import PageHero from '@/components/PageHero';
 import CTABanner from '@/components/CTABanner';
 import { ClipReveal, Counter, ParallaxImage, Reveal, SplitWords, ease } from '@/components/motion';
+import { SIZES } from '@/lib/photos';
 
 const values = [
   { icon: Heart, title: 'Client Happiness', text: 'Every decision we make starts with a simple question: will this make our clients happy?' },
@@ -87,7 +88,7 @@ export default function About() {
               </p>
             </Reveal>
           </div>
-          <ParallaxImage src={pageImages.sherrill} alt="Walnut and brass cabinet with lamps and mirror" className="relative min-h-[420px]" />
+          <ParallaxImage src={pageImages.sherrill} alt="Oak sideboard styled with gilded accents beneath palm photography" className="relative min-h-[420px]" sizes={SIZES.half} />
         </div>
       </section>
 

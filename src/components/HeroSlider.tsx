@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, ArrowUpRight, Pause, Play } from 'lucide-react';
 import { heroSlides, type HeroSlide } from '@/data/siteData';
 import { ease } from './motion';
+import { responsive, SIZES } from '@/lib/photos';
 
 const IMAGE_MS = 7000;
 const VIDEO_MS = 10000;
@@ -99,7 +100,7 @@ function SlideLayer({
     >
       {load && (
         <img
-          src={slide.poster}
+          {...responsive(slide.poster, SIZES.cover)}
           alt=""
           fetchPriority={priority ? 'high' : 'auto'}
           decoding={priority ? 'sync' : 'async'}
@@ -320,7 +321,7 @@ export default function HeroSlider() {
                 <AnimatePresence mode="popLayout">
                   <motion.img
                     key={next.id}
-                    src={next.poster}
+                    {...responsive(next.poster, SIZES.tiny)}
                     alt=""
                     initial={{ opacity: 0, scale: 1.2 }}
                     animate={{ opacity: 1, scale: 1 }}

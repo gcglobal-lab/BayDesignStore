@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { animate, motion, useInView, useScroll, useTransform } from 'framer-motion';
+import { responsive, SIZES } from '@/lib/photos';
 
 export const ease = [0.22, 1, 0.36, 1] as const;
 
@@ -76,17 +77,21 @@ export function Counter({ value, suffix = '' }: { value: number; suffix?: string
   );
 }
 
-/** Image that drifts slightly slower than the page for a parallax feel. Pass `relative` or `absolute` in className. */
-export function ParallaxImage({ src, alt, className = '', strength = 12 }: { src: string; alt: string; className?: string; strength?: number }) {
+/**
+ * Image that drifts slightly slower than the page for a parallax feel. Pass `relative` or `absolute` in className,
+ * and `sizes` (see SIZES) when it shows narrower than the screen.
+ */
+export function ParallaxImage({ src, alt, className = '', strength = 12, sizes = SIZES.full }: { src: string; alt: string; className?: string; strength?: number; sizes?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] });
   const y = useTransform(scrollYProgress, [0, 1], [`-${strength}%`, `${strength}%`]);
   return (
     <div ref={ref} className={`overflow-hidden ${className}`}>
       <motion.img
-        src={src}
+        {...responsive(src, sizes)}
         alt={alt}
         loading="lazy"
+        decoding="async"
         style={{ y, scale: 1 + strength / 50 }}
         className="absolute inset-0 h-full w-full object-cover"
       />
@@ -95,7 +100,7 @@ export function ParallaxImage({ src, alt, className = '', strength = 12 }: { src
 }
 
 /** Image revealed by an expanding clip-path when it enters the viewport. */
-export function ClipReveal({ src, alt, className = '', delay = 0 }: { src: string; alt: string; className?: string; delay?: number }) {
+export function ClipReveal({ src, alt, className = '', delay = 0, sizes = SIZES.half }: { src: string; alt: string; className?: string; delay?: number; sizes?: string }) {
   return (
     <motion.div
       initial={{ clipPath: 'inset(12% 12% 12% 12% round 24px)' }}
@@ -105,9 +110,10 @@ export function ClipReveal({ src, alt, className = '', delay = 0 }: { src: strin
       className={`overflow-hidden ${className}`}
     >
       <motion.img
-        src={src}
+        {...responsive(src, sizes)}
         alt={alt}
         loading="lazy"
+        decoding="async"
         initial={{ scale: 1.25 }}
         whileInView={{ scale: 1 }}
         viewport={{ once: true, amount: 0.3 }}

@@ -7,6 +7,7 @@ import { pageImages, portfolioItems } from '@/data/siteData';
 import PageHero from '@/components/PageHero';
 import CTABanner from '@/components/CTABanner';
 import { ease } from '@/components/motion';
+import { responsive, SIZES } from '@/lib/photos';
 
 const categories = ['All', ...Array.from(new Set(portfolioItems.map((p) => p.category)))];
 const aspects = ['aspect-[4/5]', 'aspect-[4/3]', 'aspect-[3/4]', 'aspect-square', 'aspect-[4/3]', 'aspect-[4/5]'];
@@ -78,7 +79,7 @@ export default function Portfolio() {
                 onClick={() => setLightbox(i)}
                 className={`img-zoom group relative mb-5 block w-full break-inside-avoid overflow-hidden rounded-3xl bg-sand text-left ${aspects[i % aspects.length]}`}
               >
-                <img src={item.image} alt={item.title} loading="lazy" className="h-full w-full object-cover" />
+                <img {...responsive(item.image, SIZES.third)} alt={item.title} loading="lazy" className="h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-ink/75 via-transparent to-transparent opacity-70 transition-opacity duration-500 group-hover:opacity-100" />
                 <span className="glass absolute right-4 top-4 flex h-10 w-10 scale-75 items-center justify-center rounded-full opacity-0 transition-all duration-500 group-hover:scale-100 group-hover:opacity-100">
                   <Maximize2 size={15} />
@@ -122,7 +123,7 @@ export default function Portfolio() {
               <AnimatePresence mode="wait">
                 <motion.img
                   key={current.id}
-                  src={current.image}
+                  {...responsive(current.image)}
                   alt={current.title}
                   initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -146,7 +147,7 @@ export default function Portfolio() {
                   className={`h-14 w-20 flex-none overflow-hidden rounded-lg transition-all ${i === lightbox ? 'opacity-100 ring-2 ring-brass-light' : 'opacity-40 hover:opacity-80'}`}
                   aria-label={`View ${item.title}`}
                 >
-                  <img src={item.image} alt="" className="h-full w-full object-cover" />
+                  <img {...responsive(item.image, SIZES.tiny)} alt="" className="h-full w-full object-cover" />
                 </button>
               ))}
             </div>

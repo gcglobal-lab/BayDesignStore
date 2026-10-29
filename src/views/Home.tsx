@@ -22,6 +22,7 @@ import Carousel from '@/components/Carousel';
 import Marquee from '@/components/Marquee';
 import CTABanner from '@/components/CTABanner';
 import { ClipReveal, Counter, ParallaxImage, Reveal, SplitWords, ease } from '@/components/motion';
+import { responsive, SIZES } from '@/lib/photos';
 
 function SectionHeader({ eyebrow, title, text, link }: { eyebrow: string; title: string; text?: string; link?: { to: string; label: string } }) {
   return (
@@ -107,10 +108,10 @@ export default function Home() {
 
           <div className="relative lg:col-span-6 xl:col-span-7">
             <div className="grid grid-cols-12 gap-4">
-              <ClipReveal src={pageImages.intro1} alt="Teal living room with gallery wall" className="col-span-8 aspect-[4/5] rounded-3xl" />
+              <ClipReveal src={pageImages.intro1} alt="Swivel chair and grasscloth console beneath blue coral prints" className="col-span-8 aspect-[4/5] rounded-3xl" sizes="(min-width: 1024px) 40vw, 66vw" />
               <div className="col-span-4 flex flex-col justify-end gap-4 pb-10">
-                <ClipReveal src={pageImages.intro2} alt="White sofa with abstract art" className="aspect-[3/4] rounded-3xl" delay={0.15} />
-                <ClipReveal src={galleryImages[2].src} alt="Rattan pendant lights over a lounge" className="aspect-square rounded-3xl" delay={0.3} />
+                <ClipReveal src={pageImages.intro2} alt="Sculpted ivory table lamp with coral and stone boxes" className="aspect-[3/4] rounded-3xl" delay={0.15} sizes="(min-width: 1024px) 20vw, 33vw" />
+                <ClipReveal src={galleryImages[2].src} alt="Oak console styled with palm photography and gilded accents" className="aspect-square rounded-3xl" delay={0.3} sizes="(min-width: 1024px) 20vw, 33vw" />
               </div>
             </div>
             <div className="absolute -bottom-8 left-[58%] -translate-x-1/2 md:-bottom-10">
@@ -150,7 +151,7 @@ export default function Home() {
                 transition={{ duration: 0.8 }}
                 className="img-zoom group relative aspect-[4/5] overflow-hidden rounded-3xl bg-sand"
               >
-                <img src={img.src} alt={img.title} loading="lazy" className="h-full w-full object-cover" draggable={false} />
+                <img {...responsive(img.src, SIZES.card)} alt={img.title} loading="lazy" className="h-full w-full object-cover" draggable={false} />
                 <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-transparent to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-100" />
                 <span className="glass absolute left-5 top-5 rounded-full px-3.5 py-1.5 text-[0.65rem] font-medium uppercase tracking-[0.2em] text-ink">
                   {img.tag}
@@ -186,7 +187,7 @@ export default function Home() {
               className={i === 0 ? 'sm:col-span-2 sm:row-span-2' : ''}
             >
               <Link href="/collections" className="img-zoom group relative block h-full overflow-hidden rounded-3xl bg-sand">
-                <img src={cat.image} alt={cat.name} loading="lazy" className="h-full w-full object-cover" />
+                <img {...responsive(cat.image, SIZES.half)} alt={cat.name} loading="lazy" className="h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-ink/75 via-ink/5 to-transparent" />
                 <div className="absolute inset-x-6 bottom-6 flex items-end justify-between gap-4 text-white">
                   <div>
@@ -220,7 +221,7 @@ export default function Home() {
             renderItem={(p) => (
               <Link href="/collections" className="group block">
                 <div className="img-zoom relative aspect-[3/4] overflow-hidden rounded-3xl bg-sand">
-                  <img src={p.image} alt={p.name} loading="lazy" draggable={false} className="h-full w-full object-cover" />
+                  <img {...responsive(p.image, SIZES.card)} alt={p.name} loading="lazy" draggable={false} className="h-full w-full object-cover" />
                   <span className="glass absolute left-4 top-4 rounded-full px-3 py-1 text-[0.65rem] font-medium uppercase tracking-[0.18em]">{p.category}</span>
                   <span className="absolute inset-x-4 bottom-4 flex translate-y-4 items-center justify-center gap-2 rounded-full bg-ink py-3 text-sm text-ivory opacity-0 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100">
                     Enquire about this piece <ArrowUpRight size={15} />
@@ -243,7 +244,7 @@ export default function Home() {
       <section className="bg-sand/50 py-24 md:py-32">
         <div className="shell grid gap-14 lg:grid-cols-2 lg:gap-20">
           <div className="lg:sticky lg:top-28 lg:h-[calc(100vh-9rem)]">
-            <ParallaxImage src={services[0].image} alt="Living room furnished through the Instant Design Program" className="relative h-[60vh] rounded-[2rem] lg:h-full" />
+            <ParallaxImage src={services[0].image} alt="Living room furnished through the Instant Design Program" className="relative h-[60vh] rounded-[2rem] lg:h-full" sizes={SIZES.half} />
           </div>
           <div className="lg:py-10">
             <Reveal><p className="eyebrow">Signature Service</p></Reveal>
@@ -295,7 +296,7 @@ export default function Home() {
                 className="relative min-w-0 basis-0 cursor-pointer overflow-hidden rounded-3xl bg-sand"
               >
                 <motion.img
-                  src={s.image}
+                  {...responsive(s.image, SIZES.half)}
                   alt={s.title}
                   loading="lazy"
                   animate={{ scale: active ? 1 : 1.15 }}
@@ -331,7 +332,7 @@ export default function Home() {
           {services.map((s, i) => (
             <Reveal key={s.id} delay={(i % 2) * 0.08}>
               <Link href="/services" className="relative block aspect-[4/5] overflow-hidden rounded-3xl">
-                <img src={s.image} alt={s.title} loading="lazy" className="h-full w-full object-cover" />
+                <img {...responsive(s.image, SIZES.third)} alt={s.title} loading="lazy" className="h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/10 to-transparent" />
                 <div className="absolute inset-x-6 bottom-6 text-white">
                   <span className="text-sm text-white/70">0{i + 1}</span>
@@ -386,7 +387,7 @@ export default function Home() {
             return (
               <Reveal key={item.id} delay={(i % 3) * 0.08} className={span}>
                 <Link href="/portfolio" className="img-zoom group relative block h-full overflow-hidden rounded-3xl bg-sand">
-                  <img src={item.image} alt={item.title} loading="lazy" className="h-full w-full object-cover" />
+                  <img {...responsive(item.image, SIZES.tile)} alt={item.title} loading="lazy" className="h-full w-full object-cover" />
                   <div className="absolute inset-0 bg-ink/0 transition-colors duration-500 group-hover:bg-ink/35" />
                   <div className="absolute inset-x-5 bottom-5 translate-y-4 text-white opacity-0 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100">
                     <p className="text-[0.65rem] uppercase tracking-[0.22em] text-white/80">{item.category}</p>
@@ -425,7 +426,7 @@ export default function Home() {
               className="img-zoom group relative aspect-square overflow-hidden bg-sand"
               aria-label="Open Bay Design Store on Instagram"
             >
-              <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
+              <img {...responsive(src, SIZES.thumb)} alt="" loading="lazy" className="h-full w-full object-cover" />
               <span className="absolute inset-0 flex items-center justify-center bg-ink/0 text-white opacity-0 transition-all duration-500 group-hover:bg-ink/40 group-hover:opacity-100">
                 <Instagram size={28} />
               </span>
@@ -447,7 +448,7 @@ export default function Home() {
               <Reveal key={post.id} delay={i * 0.1}>
                 <Link href={`/blog/${post.id}`} className="group block">
                   <div className="img-zoom aspect-[4/3] overflow-hidden rounded-3xl bg-sand">
-                    <img src={post.image} alt={post.imageAlt} loading="lazy" className="h-full w-full object-cover" />
+                    <img {...responsive(post.image, SIZES.third)} alt={post.imageAlt} loading="lazy" className="h-full w-full object-cover" />
                   </div>
                   <div className="mt-6 flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-brass">
                     {post.category} <span className="h-1 w-1 rounded-full bg-stone" /> <span className="text-muted">{post.date}</span>
@@ -470,7 +471,7 @@ export default function Home() {
           ].map((loc, i) => (
             <Reveal key={loc.name} delay={i * 0.1}>
               <div className="img-zoom group relative h-[480px] overflow-hidden rounded-[2rem] md:h-[560px]">
-                <img src={loc.image} alt={loc.name} loading="lazy" className="h-full w-full object-cover" />
+                <img {...responsive(loc.image, SIZES.half)} alt={loc.name} loading="lazy" className="h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/20 to-transparent" />
                 <div className="absolute inset-x-6 bottom-6 md:inset-x-10 md:bottom-10">
                   <h3 className="display text-4xl text-white md:text-5xl">{loc.name}</h3>
