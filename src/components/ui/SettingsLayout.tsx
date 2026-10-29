@@ -15,7 +15,7 @@ export default function SettingsLayout({ title, subtitle, base, sections, active
         <h1 className="text-[1.9rem] font-semibold tracking-tight">{title}</h1>
         <p className="mt-1 text-sm text-muted">{subtitle}</p>
       </div>
-      <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
         <nav aria-label="Settings sections" className="lg:sticky lg:top-6 lg:self-start">
           <ul className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:gap-1 lg:overflow-visible lg:pb-0">
             {sections.map((s) => {

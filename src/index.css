@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /*
+   * A grid with no column sizes (e.g. "grid lg:grid-cols-2" below lg) gets one column that can
+   * shrink below its widest content. Otherwise a wide table or a row of tabs inside it stretches
+   * the whole page sideways on a phone instead of scrolling in its own box.
+   */
+  .grid {
+    grid-auto-columns: minmax(0, 1fr);
+  }
+  /* Browsers make a fieldset at least as wide as its content; a wide table inside would do the same. */
+  fieldset {
+    min-width: 0;
+  }
+}
+
 /* Palette (RGB triplets) — the public site's warm ivory & brass. */
 :root {
   --c-ivory: 251 248 243;

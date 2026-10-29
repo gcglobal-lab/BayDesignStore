@@ -62,9 +62,10 @@ export default async function WorkspaceHome({ params, searchParams }: PageProps<
           </div>
         </div>
 
-        <nav className="mt-6 flex gap-1 border-b border-stone/70" aria-label="Workspace">
+        {/* Scrolls sideways on a phone; the bottom line is a shadow so the active underline isn't clipped. */}
+        <nav className="no-scrollbar mt-6 flex gap-1 overflow-x-auto shadow-[inset_0_-1px_0_rgb(var(--c-stone)/0.7)]" aria-label="Workspace">
           {TABS.map((t) => (
-            <Link key={t.key} href={`/base/crm/workspace/${wsId}?tab=${t.key}`} aria-current={tab === t.key ? 'page' : undefined} className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm ${tab === t.key ? 'border-brass font-medium text-ink' : 'border-transparent text-muted hover:text-ink'}`}>
+            <Link key={t.key} href={`/base/crm/workspace/${wsId}?tab=${t.key}`} aria-current={tab === t.key ? 'page' : undefined} className={`inline-flex flex-none items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm ${tab === t.key ? 'border-brass font-medium text-ink' : 'border-transparent text-muted hover:text-ink'}`}>
               <t.icon size={15} /> {t.label}
               {t.key === 'archive' && archived.length > 0 && <span className="rounded-full bg-sand px-1.5 text-[0.68rem]">{archived.length}</span>}
             </Link>

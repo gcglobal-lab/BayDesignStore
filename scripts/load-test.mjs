@@ -19,10 +19,10 @@
  *
  * Options: --base http://localhost:3000  --users 500  --requests 1000  --employees 40  --punches 3  --keep  --dev
  */
-import { readFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { createClient } from '@supabase/supabase-js';
 import { SignJWT } from 'jose';
+import { actionIds } from './action-ids.mjs';
 
 process.loadEnvFile?.('.env.local');
 const arg = (name, fallback) => {
@@ -49,13 +49,11 @@ const secret = new TextEncoder().encode(process.env.SESSION_SECRET);
 const prodCookie = !process.argv.includes('--dev');
 
 // ------------------------------------------------------------------ helpers --
-const actions = (() => {
-  const m = JSON.parse(readFileSync('.next/server/server-reference-manifest.json', 'utf8'));
-  const find = (file, name) => Object.entries(m.node).find(([, v]) => v.filename.endsWith(file) && v.exportedName === name)?.[0];
-  return { clockIn: find('my-week/clock-actions.ts', 'clockIn'), clockOut: find('my-week/clock-actions.ts', 'clockOut') };
-})();
+// Local build ids for localhost, or read from the deployed site's JavaScript (see action-ids.mjs).
+const find = await actionIds(BASE, `${prodCookie ? '__Host-bdb_session' : 'bdb_session'}=${await token('env-admin', 'admin', 1)}`);
+const actions = { clockIn: find('my-week/clock-actions.ts', 'clockIn'), clockOut: find('my-week/clock-actions.ts', 'clockOut') };
 if (!actions.clockIn || !actions.clockOut) {
-  console.error('Build the app first (npm run build): server action ids not found.');
+  console.error('Server action ids not found — build the app first (npm run build), or check --base.');
   process.exit(1);
 }
 

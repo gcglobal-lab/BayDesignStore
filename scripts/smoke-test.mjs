@@ -7,9 +7,9 @@
  *
  *   node scripts/smoke-test.mjs [--base http://localhost:3000]
  */
-import { readFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 import { SignJWT } from 'jose';
+import { actionIds } from './action-ids.mjs';
 
 process.loadEnvFile?.('.env.local');
 const i = process.argv.indexOf('--base');
@@ -19,8 +19,8 @@ const secret = new TextEncoder().encode(process.env.SESSION_SECRET);
 const sign = (sub, lvl, sv) =>
   new SignJWT({ lvl, sv }).setProtectedHeader({ alg: 'HS256', typ: 'JWT' }).setSubject(sub).setIssuer('bay-design-base').setAudience('bay-design-base:session').setIssuedAt().setExpirationTime('1h').sign(secret);
 const cookie = (t) => `__Host-bdb_session=${t}`;
-const manifest = JSON.parse(readFileSync('.next/server/server-reference-manifest.json', 'utf8'));
-const actionId = (file, name) => Object.entries(manifest.node).find(([, v]) => v.filename.endsWith(file) && v.exportedName === name)?.[0];
+// Local build ids for localhost, or read from the deployed site's JavaScript (see action-ids.mjs).
+const actionId = await actionIds(BASE, cookie(await sign('env-admin', 'admin', 1)));
 
 let failures = 0;
 const check = (label, pass, detail = '') => {

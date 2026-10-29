@@ -97,7 +97,7 @@ export default async function TimeOffPage({ searchParams }: PageProps<'/base/tim
       />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <section>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-xl font-semibold tracking-tight">Requests ({pending.length})</h2>
@@ -229,7 +229,7 @@ export default async function TimeOffPage({ searchParams }: PageProps<'/base/tim
           </Card>
         </div>
 
-        <aside className="space-y-6">
+        <aside className="min-w-0 space-y-6">
           <section>
           <h2 className="mb-3 text-xl font-semibold tracking-tight">Upcoming time off ({upcoming.length})</h2>
           <div className="b-card overflow-hidden !rounded-xl">

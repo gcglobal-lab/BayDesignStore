@@ -88,7 +88,7 @@ export default async function SettingsPage({ searchParams }: PageProps<'/base/se
   return (
     <div className="mx-auto max-w-[1200px]">
       <h1 className="mb-6 text-[2rem] font-semibold tracking-tight text-ink">Settings</h1>
-      <div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
         <nav aria-label="Settings sections" className="lg:sticky lg:top-6 lg:self-start">
           <div className="flex gap-4 overflow-x-auto pb-2 lg:block lg:space-y-5 lg:overflow-visible lg:pb-0">
             {NAV.map((g) => (

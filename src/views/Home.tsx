@@ -350,7 +350,7 @@ export default function Home() {
         <div className="shell grid items-center gap-14 lg:grid-cols-12 lg:gap-20">
           <div className="relative lg:col-span-5">
             <ClipReveal src={companyInfo.ownerImage} alt="Susan Bay, Founder & CEO" className="aspect-[4/5] rounded-[2rem]" />
-            <Reveal delay={0.3} className="glass absolute -right-4 bottom-8 rounded-2xl px-6 py-4 shadow-xl md:-right-10">
+            <Reveal delay={0.3} className="glass absolute -right-4 bottom-8 rounded-2xl px-6 py-4 shadow-xl lg:-right-10">
               <p className="font-display text-2xl">Susan Bay</p>
               <p className="text-[0.65rem] uppercase tracking-[0.22em] text-brass">Founder &amp; CEO</p>
             </Reveal>
