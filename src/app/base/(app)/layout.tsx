@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { headers } from 'next/headers';
+import LocationTracker from '@/components/base/LocationTracker';
 import Sidebar from '@/components/base/Sidebar';
 import BaseChat from '@/components/chat/BaseChat';
 import PortalMain from '@/components/portal/PortalMain';
@@ -38,6 +39,13 @@ async function crmCounts(viewer: Viewer): Promise<{ newLeads: number; tasksDue: 
   }).catch(() => ({ newLeads: 0, tasksDue: 0 }));
 }
 
+/** Whether this person is punched in right now (their phone then shares its location). */
+async function isOnClock(viewer: Viewer): Promise<boolean> {
+  if (!viewer.employeeId || !isDbConfigured()) return false;
+  const { count } = await db().from('time_entries').select('id', { count: 'exact', head: true }).eq('employee_id', viewer.employeeId).is('clock_out_at', null);
+  return (count ?? 0) > 0;
+}
+
 export const metadata: Metadata = {
   title: { template: '%s | Employee Portal', default: 'Employee Portal' },
   robots: { index: false, follow: false },
@@ -51,7 +59,7 @@ export default async function BaseAppLayout({ children }: { children: ReactNode 
   // First sign-in with a password someone else chose: pick your own before anything else
   // (requireViewer enforces this — and the database check — for every page and action too).
   const viewer = await requireViewer({ allowNoDatabase: path === '/base/setup' });
-  const [newInquiries, crm, theme] = await Promise.all([newInquiryCount(isManager(viewer)), crmCounts(viewer), readTheme()]);
+  const [newInquiries, crm, theme, onClock] = await Promise.all([newInquiryCount(isManager(viewer)), crmCounts(viewer), readTheme(), isOnClock(viewer).catch(() => false)]);
 
   return (
     <div className="base-theme min-h-screen bg-linen bg-[radial-gradient(ellipse_at_top_right,rgba(167,139,250,0.20),transparent_50%),radial-gradient(ellipse_at_top_left,rgba(56,189,248,0.10),transparent_45%),radial-gradient(ellipse_at_bottom_right,rgba(244,114,182,0.10),transparent_50%)] lg:bg-fixed">
@@ -68,6 +76,7 @@ export default async function BaseAppLayout({ children }: { children: ReactNode 
         theme={theme}
       />
       <PortalMain theme={theme}>{children}</PortalMain>
+      <LocationTracker onClock={onClock} />
       <BaseChat firstName={viewer.firstName} level={viewer.level} />
     </div>
   );

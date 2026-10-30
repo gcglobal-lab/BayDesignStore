@@ -2,8 +2,8 @@ import 'server-only';
 
 /**
  * A readable street address for a GPS fix taken away from the stores ("1250 Gulf Shore
- * Blvd N, Naples, FL"), via OpenStreetMap's Nominatim. Only called at clock in/out,
- * never in between. Falls back to the coordinates if the lookup is slow or fails —
+ * Blvd N, Naples, FL"), via OpenStreetMap's Nominatim. Called at clock in/out and
+ * for the stops on a shift's trail. Falls back to the coordinates if the lookup is slow or fails —
  * clocking in never waits more than ~3 s on it.
  */
 export async function placeName(lat: number, lng: number): Promise<string> {

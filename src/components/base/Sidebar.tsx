@@ -19,6 +19,7 @@ import {
   ListTodo,
   LogOut,
   Map,
+  MapPinned,
   Menu,
   Moon,
   Navigation,
@@ -62,6 +63,7 @@ function timeNav({ level, onRoster, newInquiries = 0, tasksDue = 0 }: SidebarVie
   const entries: Entry[] = [];
   const home: Item[] = [
     ...(manager ? [{ href: '/base/manager', label: 'Manager View', icon: LayoutDashboard }] : []),
+    ...(manager ? [{ href: '/base/live', label: 'Live Map', icon: MapPinned }] : []),
     ...(manager ? [{ href: '/base/calendar', label: 'Calendar View', icon: CalendarRange }] : []),
     // My Week is the personal time clock — managers and admins on the roster punch in there too.
     ...(onRoster ? [{ href: '/base/my-week', label: 'My Week', icon: Home }] : []),

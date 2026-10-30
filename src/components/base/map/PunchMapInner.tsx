@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import L from 'leaflet';
-import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { Circle, CircleMarker, MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { MapPoint, MapStore } from './PunchMap';
+import type { MapPoint, MapStore, MapTrail } from './PunchMap';
 
 // Both map styles work without any API key.
 const TILES = {
@@ -18,9 +18,11 @@ const TILES = {
   },
 } as const;
 
-const COLORS = { in: '#059669', out: '#e11d48', store: '#4f46e5' };
+const COLORS = { in: '#059669', out: '#e11d48', now: '#2563eb', store: '#4f46e5', trail: '#7c3aed', stop: '#d97706' };
+const PIN_TEXT = { in: 'IN', out: 'OUT', now: 'NOW' };
+const POPUP_TEXT = { in: 'Punched in', out: 'Punched out', now: 'Last seen' };
 
-function pin(kind: 'in' | 'out', label: string) {
+function pin(kind: MapPoint['kind'], label: string) {
   const color = COLORS[kind];
   return L.divIcon({
     className: '',
@@ -29,7 +31,7 @@ function pin(kind: 'in' | 'out', label: string) {
     popupAnchor: [0, -46],
     html: `<div style="position:relative;width:44px;height:54px;filter:drop-shadow(0 8px 10px rgba(23,23,58,.35))">
       <svg viewBox="0 0 44 54" width="44" height="54"><path d="M22 53C22 53 4 33.5 4 21.5a18 18 0 1 1 36 0C40 33.5 22 53 22 53z" fill="${color}" stroke="white" stroke-width="3"/></svg>
-      <span style="position:absolute;top:10px;left:0;width:44px;text-align:center;color:white;font:700 10px/1.1 system-ui,sans-serif;letter-spacing:.04em">${kind === 'in' ? 'IN' : 'OUT'}<br/><span style="font-weight:600;font-size:8.5px">${label}</span></span>
+      <span style="position:absolute;top:10px;left:0;width:44px;text-align:center;color:white;font:700 10px/1.1 system-ui,sans-serif;letter-spacing:.04em">${PIN_TEXT[kind]}<br/><span style="font-weight:600;font-size:8.5px">${label}</span></span>
     </div>`,
   });
 }
@@ -48,10 +50,15 @@ const storeIcon = L.divIcon({
  * size, so the map is re-measured (and re-centred) when it appears and whenever it resizes —
  * otherwise it shows a cut-off area and the pins sit off screen.
  */
-function FitBounds({ points, stores }: { points: MapPoint[]; stores: MapStore[] }) {
+function FitBounds({ points, stores, trail }: { points: MapPoint[]; stores: MapStore[]; trail?: MapTrail }) {
   const map = useMap();
   useEffect(() => {
-    const coords: [number, number][] = [...points.map((p) => [p.lat, p.lng] as [number, number]), ...(points.length ? [] : stores.map((s) => [s.lat, s.lng] as [number, number]))];
+    const path = trail?.segments.flat() ?? [];
+    const coords: [number, number][] = [
+      ...points.map((p) => [p.lat, p.lng] as [number, number]),
+      ...path,
+      ...(points.length || path.length ? [] : stores.map((s) => [s.lat, s.lng] as [number, number])),
+    ];
     const fit = () => {
       map.invalidateSize();
       if (coords.length === 0) return;
@@ -73,25 +80,26 @@ function FitBounds({ points, stores }: { points: MapPoint[]; stores: MapStore[] 
       timers.forEach((t) => window.clearTimeout(t));
       observer.disconnect();
     };
-  }, [map, points, stores]);
+  }, [map, points, stores, trail]);
   return null;
 }
 
-export default function PunchMapInner({ points, stores, height }: { points: MapPoint[]; stores: MapStore[]; height: number }) {
+export default function PunchMapInner({ points, stores, trail, height }: { points: MapPoint[]; stores: MapStore[]; trail?: MapTrail; height: number }) {
   const [layer, setLayer] = useState<keyof typeof TILES>('streets');
   const center = useMemo<[number, number]>(() => (points[0] ? [points[0].lat, points[0].lng] : stores[0] ? [stores[0].lat, stores[0].lng] : [26.142, -81.795]), [points, stores]);
-  // Punch-in → punch-out of the same card, drawn as a dashed route.
+  // Punch-in → punch-out of the same card, drawn as a dashed route (unless the real trail is shown).
   const routes = useMemo(() => {
+    if (trail?.segments.length) return [];
     const byCard = new Map<string, MapPoint[]>();
     for (const p of points) if (p.card) byCard.set(p.card, [...(byCard.get(p.card) ?? []), p]);
     return [...byCard.values()].filter((list) => list.length === 2).map((list) => list.map((p) => [p.lat, p.lng] as [number, number]));
-  }, [points]);
+  }, [points, trail]);
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-stone/60 shadow-inner" style={{ height }}>
       <MapContainer center={center} zoom={15} scrollWheelZoom className="h-full w-full" attributionControl>
         <TileLayer key={layer} url={TILES[layer].url} attribution={TILES[layer].attribution} maxZoom={19} />
-        <FitBounds points={points} stores={stores} />
+        <FitBounds points={points} stores={stores} trail={trail} />
 
         {stores.map((s) => (
           <Circle key={`fence-${s.name}`} center={[s.lat, s.lng]} radius={s.radius} pathOptions={{ color: COLORS.store, weight: 2, dashArray: '6 6', fillColor: COLORS.store, fillOpacity: 0.07 }} />
@@ -108,6 +116,17 @@ export default function PunchMapInner({ points, stores, height }: { points: MapP
           <Polyline key={i} positions={r} pathOptions={{ color: '#7c3aed', weight: 3, dashArray: '2 8', lineCap: 'round', opacity: 0.85 }} />
         ))}
 
+        {trail?.segments.map((s, i) => (
+          <Polyline key={`trail-${i}`} positions={s} pathOptions={{ color: COLORS.trail, weight: 4, opacity: 0.8, lineCap: 'round', lineJoin: 'round' }} />
+        ))}
+        {trail?.stops.map((s, i) => (
+          <CircleMarker key={`stop-${i}`} center={[s.lat, s.lng]} radius={9} pathOptions={{ color: 'white', weight: 3, fillColor: COLORS.stop, fillOpacity: 1 }}>
+            <Tooltip direction="top" offset={[0, -8]} opacity={1}>
+              <span className="text-[12px]">{s.label}</span>
+            </Tooltip>
+          </CircleMarker>
+        ))}
+
         {points.map((p, i) => (
           <Circle key={`acc-${i}`} center={[p.lat, p.lng]} radius={Math.min(p.accuracy ?? 0, 500)} pathOptions={{ color: COLORS[p.kind], weight: 1, fillColor: COLORS[p.kind], fillOpacity: 0.12 }} />
         ))}
@@ -117,7 +136,7 @@ export default function PunchMapInner({ points, stores, height }: { points: MapP
               <div className="min-w-[200px] space-y-1 text-[13px]">
                 {p.name && <p className="font-semibold">{p.name}</p>}
                 <p>
-                  <span className="font-semibold" style={{ color: COLORS[p.kind] }}>{p.kind === 'in' ? 'Punched in' : 'Punched out'}</span> · {p.when ?? p.time}
+                  <span className="font-semibold" style={{ color: COLORS[p.kind] }}>{POPUP_TEXT[p.kind]}</span> · {p.when ?? p.time}
                 </p>
                 {p.place && <p className="text-[12px] text-gray-600">{p.place}</p>}
                 {p.accuracy != null && <p className="text-[12px] text-gray-500">Accurate to ±{Math.round(p.accuracy)} m</p>}
@@ -143,6 +162,9 @@ export default function PunchMapInner({ points, stores, height }: { points: MapP
       <div className="absolute bottom-3 left-3 z-[500] flex flex-wrap gap-x-3 gap-y-1 rounded-2xl bg-white/95 px-3 py-2 text-[11px] font-medium text-ink shadow-lg ring-1 ring-black/5 backdrop-blur">
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: COLORS.in }} /> Punch in</span>
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: COLORS.out }} /> Punch out</span>
+        {points.some((p) => p.kind === 'now') && <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: COLORS.now }} /> Last seen</span>}
+        {!!trail?.segments.length && <span className="flex items-center gap-1.5"><span className="h-1 w-3 rounded-full" style={{ background: COLORS.trail }} /> Route</span>}
+        {!!trail?.stops.length && <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: COLORS.stop }} /> Stop</span>}
         {stores.length > 0 && <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[4px]" style={{ background: COLORS.store }} /> Store &amp; geofence</span>}
       </div>
     </div>

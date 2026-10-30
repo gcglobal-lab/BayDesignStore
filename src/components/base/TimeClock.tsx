@@ -322,7 +322,7 @@ export default function TimeClock({
           <p className="flex items-start gap-1.5 text-[0.72rem] leading-snug text-muted">
             {requireLocation ? <MapPin size={13} className="mt-px flex-none text-brass" /> : <MapPinOff size={13} className="mt-px flex-none" />}
             {requireLocation
-              ? 'Works anywhere in the world. At a store we record Uptown or Downtown; anywhere else, the exact address. Only when you punch in and out — never in between.'
+              ? 'Works anywhere in the world. At a store we record Uptown or Downtown; anywhere else, the exact address. While you’re on the clock and Base is open, your location is shared with managers every few minutes; it stops when you punch out.'
               : 'Location is recorded when available.'}
           </p>
         </div>

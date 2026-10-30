@@ -181,7 +181,7 @@ export default async function TimesheetsPage({ searchParams }: PageProps<'/base/
                       </div>
                     </td>
                   </tr>
-                  {g.list.map((e, i) => <EntryRow key={e.id} e={e} name={g.name} zone={zone} settings={settings} employees={pickable} canEdit={admin} now={now} striped={i % 2 === 1} stores={stores} />)}
+                  {g.list.map((e, i) => <EntryRow key={e.id} e={e} name={g.name} zone={zone} settings={settings} employees={pickable} canEdit={admin} now={now} striped={i % 2 === 1} stores={stores} manager={manager} />)}
                 </tbody>
               ))}
             </table>
@@ -213,6 +213,7 @@ function EntryRow({
   now,
   striped,
   stores,
+  manager,
 }: {
   e: TimeEntry;
   name: string;
@@ -223,6 +224,7 @@ function EntryRow({
   now: number;
   striped: boolean;
   stores: MapStore[];
+  manager: boolean;
 }) {
   const issues = entryIssues(e, settings, now);
   const meal = Math.round(breakMinutes(e, 'meal', now));
@@ -262,6 +264,11 @@ function EntryRow({
             wide
           >
             <PunchMap points={punchPoints([e], zone)} stores={stores} height={420} />
+            {manager && (
+              <Link href={`/base/live?${new URLSearchParams({ day: toYmd(new Date(e.clock_in_at), zone), entry: e.id })}`} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-violet-700 hover:underline">
+                <MapPin size={14} /> See the full route for this shift
+              </Link>
+            )}
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <PunchCard kind="in" time={fmtTime(e.clock_in_at, zone)} place={e.clock_in_place} accuracy={e.clock_in_accuracy_m} distance={e.clock_in_distance_m} inside={e.clock_in_in_geofence} />
               {e.clock_out_at ? (

@@ -95,6 +95,8 @@ export function describeActivity(action: string, actor: string, details: Activit
       return `${actor} punched in${at}${d.inside === false ? ' (away from the stores)' : ''}`;
     case 'clock.out':
       return `${actor} punched out${at}`;
+    case 'location.view_trail':
+      return `${actor} viewed ${str(d.employee) ? `${d.employee}’s` : 'a'} location trail for ${d.day}`;
     case 'clock.break_start':
       return `${actor} started a ${d.type === 'meal' ? 'meal' : 'rest'} break`;
     case 'clock.break_end':

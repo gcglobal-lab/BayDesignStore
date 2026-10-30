@@ -5,7 +5,8 @@ import { Loader2 } from 'lucide-react';
 
 /** One punch on the map. `card` links a punch-in to its punch-out (drawn as a route). */
 export type MapPoint = {
-  kind: 'in' | 'out';
+  /** 'now' is someone's latest reading on the live map. */
+  kind: 'in' | 'out' | 'now';
   lat: number;
   lng: number;
   accuracy: number | null;
@@ -18,6 +19,8 @@ export type MapPoint = {
   card?: string;
 };
 export type MapStore = { name: string; lat: number; lng: number; radius: number };
+/** A shift's location trail: the path (broken at gaps) and the places they stayed. */
+export type MapTrail = { segments: [number, number][][]; stops: { lat: number; lng: number; label: string }[] };
 
 // Leaflet needs the browser (window), so it's only loaded on the client, when a map is shown.
 const Inner = dynamic(() => import('./PunchMapInner'), {
@@ -30,10 +33,10 @@ const Inner = dynamic(() => import('./PunchMapInner'), {
 });
 
 /** Interactive map of punch-in / punch-out locations with the stores and their geofences. */
-export default function PunchMap({ points, stores = [], height = 380 }: { points: MapPoint[]; stores?: MapStore[]; height?: number }) {
+export default function PunchMap({ points, stores = [], trail, height = 380 }: { points: MapPoint[]; stores?: MapStore[]; trail?: MapTrail; height?: number }) {
   return (
     <div style={{ height }}>
-      <Inner points={points} stores={stores} height={height} />
+      <Inner points={points} stores={stores} trail={trail} height={height} />
     </div>
   );
 }
