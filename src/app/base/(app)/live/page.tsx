@@ -6,7 +6,7 @@ import AutoRefresh from '@/components/base/AutoRefresh';
 import PunchMap, { type MapPoint, type MapTrail } from '@/components/base/map/PunchMap';
 import { Avatar, EmptyState, PageHeader } from '@/components/base/ui';
 import { audit } from '@/lib/base/audit';
-import { requireManager } from '@/lib/base/auth';
+import { requireAdmin } from '@/lib/base/auth';
 import { db } from '@/lib/base/db';
 import { fmtDistance, mapLink, matchLocation } from '@/lib/base/geo';
 import { punchPoints, storePoints } from '@/lib/base/mapPoints';
@@ -119,7 +119,7 @@ function EventRow({ ev, zone, locations }: { ev: TrailEvent; zone: string; locat
 }
 
 export default async function LiveMapPage({ searchParams }: PageProps<'/base/live'>) {
-  const viewer = await requireManager();
+  const viewer = await requireAdmin();
   const params = await searchParams;
   const settings = await getSettings();
   const zone = settings.timezone;

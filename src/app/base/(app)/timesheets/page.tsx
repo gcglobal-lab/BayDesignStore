@@ -181,7 +181,7 @@ export default async function TimesheetsPage({ searchParams }: PageProps<'/base/
                       </div>
                     </td>
                   </tr>
-                  {g.list.map((e, i) => <EntryRow key={e.id} e={e} name={g.name} zone={zone} settings={settings} employees={pickable} canEdit={admin} now={now} striped={i % 2 === 1} stores={stores} manager={manager} />)}
+                  {g.list.map((e, i) => <EntryRow key={e.id} e={e} name={g.name} zone={zone} settings={settings} employees={pickable} canEdit={admin} now={now} striped={i % 2 === 1} stores={stores} admin={admin} />)}
                 </tbody>
               ))}
             </table>
@@ -213,7 +213,7 @@ function EntryRow({
   now,
   striped,
   stores,
-  manager,
+  admin,
 }: {
   e: TimeEntry;
   name: string;
@@ -224,7 +224,7 @@ function EntryRow({
   now: number;
   striped: boolean;
   stores: MapStore[];
-  manager: boolean;
+  admin: boolean;
 }) {
   const issues = entryIssues(e, settings, now);
   const meal = Math.round(breakMinutes(e, 'meal', now));
@@ -264,7 +264,7 @@ function EntryRow({
             wide
           >
             <PunchMap points={punchPoints([e], zone)} stores={stores} height={420} />
-            {manager && (
+            {admin && (
               <Link href={`/base/live?${new URLSearchParams({ day: toYmd(new Date(e.clock_in_at), zone), entry: e.id })}`} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-violet-700 hover:underline">
                 <MapPin size={14} /> See the full route for this shift
               </Link>
