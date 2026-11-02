@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore, useTransition } from 'react'
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  Activity,
   BarChart3,
   CalendarDays,
   CalendarRange,
@@ -96,24 +97,28 @@ function timeNav({ level, onRoster, newInquiries = 0, tasksDue = 0 }: SidebarVie
     entries.push({ href: '/base/reports', label: 'Reports', icon: BarChart3 });
     entries.push({ href: '/base/inquiries', label: 'Website', icon: Globe, badge: newInquiries });
   }
-  if (level === 'admin') entries.push({ href: '/base/settings', label: 'Settings', icon: Settings });
+  if (level === 'admin') {
+    entries.push({ href: '/base/activity', label: 'Recent activity', icon: Activity });
+    entries.push({ href: '/base/settings', label: 'Settings', icon: Settings });
+  }
   return entries;
 }
 
 /** Workflow: the dashboard (with the sales tools), customers, vendors, the workspace, and tasks. */
-function crmNav({ crm, newLeads = 0, tasksDue = 0 }: SidebarViewer): Entry[] {
+function crmNav({ level, crm, newLeads = 0, tasksDue = 0 }: SidebarViewer): Entry[] {
   const tasks: Item = { href: '/base/crm/tasks', label: 'Team Tasks', icon: ListTodo, badge: tasksDue };
   if (crm === 'none') return [tasks];
   return [
-    { href: '/base/crm', label: 'Dashboard', icon: LayoutDashboard, badge: newLeads, match: (p) => p === '/base/crm' || (p.startsWith('/base/crm/') && !/^\/base\/crm\/(workspace|tasks|boards|contacts|vendors)/.test(p)) },
+    { href: '/base/crm', label: 'Dashboard', icon: LayoutDashboard, badge: newLeads, match: (p) => p === '/base/crm' || (p.startsWith('/base/crm/') && !/^\/base\/crm\/(workspace|tasks|boards|contacts|vendors|activity)/.test(p)) },
     { href: '/base/crm/contacts', label: 'Customers', icon: Contact },
     { href: '/base/crm/vendors', label: 'Vendors', icon: Store },
     { href: '/base/crm/workspace', label: 'Workspace', icon: LayoutGrid, match: (p) => p.startsWith('/base/crm/workspace') || p.startsWith('/base/crm/boards') },
     tasks,
+    ...(level === 'admin' ? [{ href: '/base/crm/activity', label: 'Recent activity', icon: Activity }] : []),
   ];
 }
 
-function deliveriesNav({ deliveries, onRoster }: SidebarViewer): Entry[] {
+function deliveriesNav({ level, deliveries, onRoster }: SidebarViewer): Entry[] {
   if (deliveries !== 'dispatcher') return [{ href: '/base/deliveries/my-route', label: 'My Route', icon: Navigation }];
   return [
     { href: '/base/deliveries', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -125,6 +130,7 @@ function deliveriesNav({ deliveries, onRoster }: SidebarViewer): Entry[] {
     ...(onRoster ? [{ href: '/base/deliveries/my-route', label: 'My Route', icon: Navigation }] : []),
     { href: '/base/deliveries/trucks', label: 'Trucks & Crews', icon: Truck },
     { href: '/base/deliveries/reports', label: 'Reports', icon: BarChart3 },
+    ...(level === 'admin' ? [{ href: '/base/deliveries/activity', label: 'Recent activity', icon: Activity }] : []),
     { href: '/base/deliveries/settings', label: 'Settings', icon: Settings },
   ];
 }

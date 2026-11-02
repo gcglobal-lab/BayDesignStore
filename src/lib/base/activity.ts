@@ -1,5 +1,5 @@
 /**
- * Turns audit-log entries into plain sentences for Settings ▸ Recent activity
+ * Turns audit-log entries into plain sentences for each app’s Recent activity page
  * ("Hemant Singh punched in at Uptown"). Used when an entry is written (stored as
  * audit_log.summary) and to describe older entries that were logged without one.
  */

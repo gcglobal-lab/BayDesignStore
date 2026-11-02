@@ -48,7 +48,7 @@ Menu
 - Timesheets: every punch with place and map. Filters: quick range, From → To calendar (click a start day, move across, click an end day), Month buttons Jan–Dec for a full month, team member. Open a punch to see its pin on the map. Download PDF, Excel or CSV. Only admins can add or edit time cards (pencil icon).
 - Reports: Hours summary, Payroll by pay period, Time cards, Attendance & punctuality, Time off, Team roster, Activity log, Website inquiries — preview, then PDF / Excel / CSV.
 - Website: inquiries from the website contact form and chat.
-- Settings (admin): Basic info, Stores & geofences, Schedule enforcement (early punch-in, late grace, week start), Time clock options (require location, only allow on site), Overtime, Payroll settings (pay period), Time off (paid leave days), Roles & passwords, Recent activity (every action in plain sentences; View shows details and what changed).
+- Settings (admin): Basic info, Stores & geofences, Schedule enforcement (early punch-in, late grace, week start), Time clock options (require location, only allow on site), Overtime, Payroll settings (pay period), Time off (paid leave days), Roles & passwords. Recent activity (admins only) has its own menu item in each app — Time, Workflow and Deliveries each show only their own actions in plain sentences; View shows details and what changed.
 
 Time clock
 - Home ▸ My Week ▸ Punch in. Allow location for the site the first time. It takes about 1–3 seconds. Off site is allowed (designers/drivers): the street address is recorded. Rest breaks are paid, meal breaks unpaid. Punch out the same way.

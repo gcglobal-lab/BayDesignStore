@@ -52,7 +52,7 @@ type Links = { deal_id?: string | null; contact_id?: string | null; company_id?:
 
 /**
  * One line in a record's history ("moved to Negotiation"), shown on its timeline, plus the
- * same sentence in Settings ▸ Recent activity.
+ * same sentence in Workflow ▸ Recent activity.
  */
 export async function logCrm(viewer: Pick<Viewer, 'employeeId' | 'name'>, text: string, links: Links, action = 'crm.update') {
   if (Object.values(links).some(Boolean)) {
